@@ -13,7 +13,7 @@ import 'media-chrome/dist/media-theme-element.js';
 
 
 // Process only custom element ancestors
-const customElements = /<(\w+-\w+)([^>]*?)>([^]*?)<\/\1>/gm;
+const customElementsRegex = /<(\w+-\w+)([^>]*?)>([^]*?)<\/\1>/gm;
 
 let html = await fs.readFile('./app.html');
 
@@ -23,11 +23,11 @@ let out = '';
 let start = 0;
 
 let match;
-while ((match = customElements.exec(html)) !== null) {
+while ((match = customElementsRegex.exec(html)) !== null) {
 
   out += html.slice(start, match.index);
   out += await renderToString(match[0]);
-  start = customElements.lastIndex;
+  start = customElementsRegex.lastIndex;
 }
 
 out += html.slice(start);
