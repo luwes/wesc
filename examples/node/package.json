@@ -1,0 +1,12 @@
+{
+  "name": "wesc-node",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "node index.js"
+  },
+  "dependencies": {
+    "media-chrome": "^1.0.0",
+    "wesc": "file:../.."
+  }
+}

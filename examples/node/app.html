@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width">
+    <title>Media Chrome SSR Usage Example</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/media-chrome@1/+esm"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/media-chrome@1.0.0/dist/media-theme-element.js/+esm"></script>
+    <style>
+      /** add styles to prevent CLS (Cumulative Layout Shift) */
+      media-theme,
+      media-controller:not([audio]) {
+        display: block;         /* expands the container if preload=none */
+        max-width: 960px;       /* allows the container to shrink if small */
+        aspect-ratio: 2.4;   /* set container aspect ratio if preload=none */
+      }
+
+      video {
+        width: 100%;      /* prevents video to expand beyond its container */
+      }
+
+      .examples {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Media Chrome SSR (Server-Side Rendering) Usage Example</h1>
+
+      <media-controller>
+        <video
+          playsinline
+          slot="media"
+          src="https://stream.mux.com/A3VXy02VoUinw01pwyomEO3bHnG4P32xzV7u1j1FSzjNg/high.mp4"
+        ></video>
+        <media-poster-image
+          slot="poster"
+          src="https://image.mux.com/A3VXy02VoUinw01pwyomEO3bHnG4P32xzV7u1j1FSzjNg/thumbnail.jpg"
+          placeholdersrc="data:image/jpeg;base64,/9j/2wBDABQODxIPDRQSEBIXFRQYHjIhHhwcHj0sLiQySUBMS0dARkVQWnNiUFVtVkVGZIhlbXd7gYKBTmCNl4x9lnN+gXz/2wBDARUXFx4aHjshITt8U0ZTfHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHz/wAARCAAUADADASIAAhEBAxEB/8QAGAAAAwEBAAAAAAAAAAAAAAAAAAECBAP/xAAdEAEBAAEEAwAAAAAAAAAAAAAAARECAxITFCFR/8QAGQEAAwADAAAAAAAAAAAAAAAAAAEDAgQF/8QAGBEBAQEBAQAAAAAAAAAAAAAAAAETERL/2gAMAwEAAhEDEQA/ANeC4ldyI1b2EtIzzrrIqYZLvl5FGkGdbfQzGPvo76WsPxXLlfqbaA5va2iVJADgPELACsD/2Q=="
+        ></media-poster-image>
+        <media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
+        <media-control-bar>
+          <media-play-button></media-play-button>
+          <media-mute-button></media-mute-button>
+          <media-volume-range></media-volume-range>
+          <media-time-display></media-time-display>
+          <media-time-range></media-time-range>
+          <media-duration-display></media-duration-display>
+          <media-playback-rate-button></media-playback-rate-button>
+          <media-fullscreen-button></media-fullscreen-button>
+        </media-control-bar>
+      </media-controller>
+
+      <h2>Media Chrome Basic Audio Example</h2>
+
+      <media-controller audio>
+        <audio
+          slot="media"
+          src="https://stream.mux.com/O4h5z00885HEucNNa1rV02wZapcGp01FXXoJd35AHmGX7g/audio.m4a"
+        ></audio>
+        <media-control-bar>
+          <media-play-button></media-play-button>
+          <media-time-display showduration></media-time-display>
+          <media-time-range></media-time-range>
+          <media-playback-rate-button></media-playback-rate-button>
+          <media-mute-button></media-mute-button>
+          <media-volume-range></media-volume-range>
+        </media-control-bar>
+      </media-controller>
+
+      <h2>Media Chrome Theme Example</h2>
+
+      <media-theme template="tiny-theme">
+        <template id="tiny-theme">
+          <media-controller>
+            <slot name="media" slot="media"></slot>
+            <media-control-bar>
+              <media-play-button></media-play-button>
+            </media-control-bar>
+          </media-controller>
+        </template>
+        <video
+          slot="media"
+          src="https://stream.mux.com/A3VXy02VoUinw01pwyomEO3bHnG4P32xzV7u1j1FSzjNg/high.mp4"
+        ></video>
+      </media-theme>
+
+      <script>
+        // Polyfill for Declarative Shadow DOM
+        // In this page it won't make a big improvement but for example if your
+        // web component is above the fold and there is a lot of other HTML below
+        // the fold this will speed up the render of your web component.
+        if (!HTMLTemplateElement.prototype.hasOwnProperty('shadowRoot')) {
+          (function attachShadowRoots(root) {
+            root.querySelectorAll("template[shadowroot]").forEach(template => {
+              const mode = template.getAttribute("shadowroot");
+              const shadowRoot = template.parentNode.attachShadow({ mode });
+              shadowRoot.appendChild(template.content);
+              template.remove();
+              attachShadowRoots(shadowRoot);
+            });
+          })(document);
+        }
+      </script>
+
+      <div class="examples">
+        <a href="../">View more examples</a>
+      </div>
+    </main>
+  </body>
+</html>
