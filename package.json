@@ -21,13 +21,17 @@
     "url": "https://github.com/luwes/wesc/issues"
   },
   "scripts": {
+    "lint": "npx eslint src/*.js -c ./node_modules/wet-run/.eslintrc.json",
+    "test": "pta test/**/*.spec.js --reporter tap",
     "dev": "wet serve --cors --redirect :examples/ & esbuild src/server.js --format=esm --outdir=dist --bundle --watch",
     "build": "esbuild src/server.js --format=esm --outdir=dist --bundle --minify --tree-shaking=true",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "esbuild": "^0.17.18",
-    "wet-run": "^0.1.0"
+    "pta": "^1.2.0",
+    "wet-run": "^0.2.0",
+    "zora": "^5.2.0"
   },
   "dependencies": {
     "linkedom": "github:luwes/linkedom#wesc"

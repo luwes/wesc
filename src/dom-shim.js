@@ -3,7 +3,9 @@ import { parseHTML } from 'linkedom';
 let {
   window,
   document,
+  customElements,
   DOMParser,
+  HTMLElement,
   HTMLTemplateElement,
   MutationObserver,
 } = parseHTML('...');
@@ -42,7 +44,9 @@ function cancelAnimationFrame() {}
 Object.assign(globalThis, {
   window,
   document,
+  customElements,
   DOMParser,
+  HTMLElement,
   HTMLTemplateElement,
   MutationObserver,
   localStorage,

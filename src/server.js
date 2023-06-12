@@ -10,7 +10,7 @@ const nonClosingElements = new Set([
 ]);
 
 const defaults = {
-  wait: 0,
+  getRenderComplete: () => new Promise((resolve) => setTimeout(resolve, 0)),
   minifyCss: true,
 };
 
@@ -31,7 +31,7 @@ export async function renderToString(html, opts = defaults) {
 
   document.documentElement.outerHTML = html;
 
-  await new Promise((resolve) => setTimeout(resolve, opts.wait));
+  await opts.getRenderComplete();
 
   if (isFragment) {
     return document.documentElement.childNodes

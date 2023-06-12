@@ -9,3 +9,9 @@ We are the Superlative Components!
 - Stay close to web standards
 - Define and create a superlative component authoring experience
 - Server language agnostic
+
+
+## Related
+
+- [Web Components Compiler (WCC)](https://github.com/ProjectEvergreen/wcc)
+- [custom-elements-ssr](https://github.com/thepassle/custom-elements-ssr/)
