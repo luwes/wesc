@@ -1,4 +1,79 @@
-import './dom-shim.js';
+import { parseHTML } from 'linkedom';
+
+let preshimGlobalThis;
+
+shim();
+
+export function shim() {
+  if (preshimGlobalThis) return;
+
+  let {
+    document,
+    customElements,
+    Event,
+    CustomEvent,
+    DocumentFragment,
+    DOMParser,
+    HTMLElement,
+    HTMLTemplateElement,
+    MutationObserver,
+  } = parseHTML('...');
+
+  class Storage {
+    key() {}
+    getItem() {}
+    setItem() {}
+    removeItem() {}
+    clear() {}
+  }
+
+  const localStorage = new Storage();
+
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+
+  class CSSStyleDeclaration {
+    getPropertyPriority() {}
+    getPropertyValue() {}
+    item() {}
+    removeProperty() {}
+    setProperty() {}
+  }
+
+  const shims = {
+    document,
+    customElements,
+    Event,
+    CustomEvent,
+    DocumentFragment,
+    DOMParser,
+    HTMLElement,
+    HTMLTemplateElement,
+    MutationObserver,
+    localStorage,
+    ResizeObserver,
+    CSSStyleDeclaration,
+    getComputedStyle: function getComputedStyle() { return new CSSStyleDeclaration(); },
+    requestAnimationFrame: function requestAnimationFrame() {},
+    cancelAnimationFrame: function cancelAnimationFrame() {},
+  };
+
+  preshimGlobalThis = {};
+  for (let shim in shims) {
+    preshimGlobalThis[shim] = globalThis[shim];
+  }
+
+  Object.assign(globalThis, shims);
+}
+
+export function unshim() {
+  Object.assign(globalThis, preshimGlobalThis);
+  preshimGlobalThis = undefined;
+}
+
 
 const voidElements = new Set(['area', 'base', 'br', 'col', 'command',
 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source',
@@ -14,7 +89,7 @@ const defaults = {
   minifyCss: true,
 };
 
-export async function renderToString(html, opts = defaults) {
+export async function renderToDom(html, opts = defaults) {
   html = String(html);
 
   // Remove doctype and save in the options object.
@@ -33,15 +108,21 @@ export async function renderToString(html, opts = defaults) {
 
   await opts.getRenderComplete();
 
-  if (isFragment) {
-    return document.documentElement.childNodes
-      .map(n => stringify(n, opts)).join('');
-  }
-
-  return stringify(document, opts);
+  return isFragment ? document.documentElement.childNodes : document;
 }
 
-function stringify(node, opts) {
+export async function renderToString(html, opts = defaults) {
+  const dom = await renderToDom(html, opts);
+  const isFragment = !html.includes('<html');
+
+  if (isFragment) {
+    return dom.map(n => stringify(n, opts)).join('');
+  }
+
+  return stringify(dom, opts);
+}
+
+export function stringify(node, opts) {
   let str = '';
 
   if (node.nodeName === '#document') {

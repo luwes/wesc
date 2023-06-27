@@ -9,8 +9,14 @@
     ".": {
       "import": "./src/index.js"
     },
+    "./unshim": {
+      "import": "./dist/unshim.js"
+    },
     "./server": {
       "import": "./dist/server.js"
+    },
+    "./react": {
+      "import": "./dist/react.js"
     }
   },
   "repository": "luwes/wesc",
@@ -23,8 +29,8 @@
   "scripts": {
     "lint": "npx eslint src/*.js -c ./node_modules/wet-run/.eslintrc.json",
     "test": "pta test/**/*.spec.js --reporter tap",
-    "dev": "wet serve --cors --redirect :examples/ & esbuild src/server.js --format=esm --outdir=dist --bundle --watch",
-    "build": "esbuild src/server.js --format=esm --outdir=dist --bundle --minify --tree-shaking=true",
+    "dev": "wet serve --cors --redirect :examples/ & esbuild src/server.js src/unshim.js src/react.js --format=esm --external:react --external:react-dom --external:./server.js --outdir=dist --bundle --watch",
+    "build": "esbuild src/server.js src/unshim.js src/react.js --format=esm --external:react --external:react-dom --external:./server.js --outdir=dist --bundle --minify --tree-shaking=true",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
@@ -35,5 +41,9 @@
   },
   "dependencies": {
     "linkedom": "github:luwes/linkedom#wesc"
+  },
+  "peerDependencies": {
+    "react": "^17.0.2 || ^18",
+    "react-dom": "^17.0.2 || ^18"
   }
 }
