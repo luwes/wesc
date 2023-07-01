@@ -1,6 +1,6 @@
 {
   "name": "wesc",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "We are the Superlative Components!",
   "type": "module",
   "main": "src/index.js",
