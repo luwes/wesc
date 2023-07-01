@@ -1,0 +1,24 @@
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.player {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.player media-controller {
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 2.4;
+}
+
+.player video {
+  width: 100%;
+}
