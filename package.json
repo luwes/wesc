@@ -16,7 +16,7 @@
       "import": "./dist/server.js"
     },
     "./react": {
-      "import": "./dist/react.js"
+      "import": "./dist/react/index.js"
     }
   },
   "repository": "luwes/wesc",
@@ -29,8 +29,8 @@
   "scripts": {
     "lint": "npx eslint src/*.js -c ./node_modules/wet-run/.eslintrc.json",
     "test": "pta test/**/*.spec.js --reporter tap",
-    "dev": "wet serve --cors --redirect :examples/ & esbuild src/server.js src/unshim.js src/react.js --format=esm --external:react --external:react-dom --external:./server.js --outdir=dist --bundle --watch",
-    "build": "esbuild src/server.js src/unshim.js src/react.js --format=esm --external:react --external:react-dom --external:./server.js --outdir=dist --bundle --minify --tree-shaking=true",
+    "dev": "wet serve --cors --redirect :examples/ & esbuild src/server.js src/unshim.js src/react/index.js src/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist --bundle --watch",
+    "build": "esbuild src/server.js src/unshim.js src/react/index.js src/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist --bundle --minify --tree-shaking=true",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

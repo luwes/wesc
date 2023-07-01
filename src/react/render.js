@@ -1,89 +1,18 @@
 import { createElement } from 'react';
 
-let cache = {};
-let prerendering = false;
+export async function render(children) {
 
-export function prerender(callback) {
-  prerendering = true;
-  resolve(callback());
-  prerendering = false;
+  const container = document.createElement('div');
+  renderChildren(children, container);
+  document.body.appendChild(container);
 
-  return new Promise((resolve) => setTimeout(resolve, 30));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  container.remove();
+
+  return children;
 }
 
-// Must go in a client component
-// > Otherwise will error:
-// > Attempted to call the default export of ... from the server but it's on the client.
-// > It's not possible to invoke a client function from the server, it can only be rendered
-// > as a Component or passed to props of a Client Component.
-
-export function WeSC(props) {
-
-  if (typeof window === 'undefined') {
-
-    const children = resolve(props.children);
-    const cacheId = props.id ?? JSON.stringify(children);
-
-    if (cache[cacheId]) {
-      return cache[cacheId];
-    }
-
-    const container = document.createElement('div');
-    render(children, container);
-    document.body.appendChild(container);
-
-    const asyncResult = new Promise((resolve) => setTimeout(resolve, 30))
-      .then(() => {
-        container.remove();
-        cache[cacheId] = children;
-        return children;
-      });
-
-    // If we're prerendering it means return sync now,
-    // cache async result and return cache in 2nd render pass.
-    return prerendering ? props.children : asyncResult;
-  }
-
-  return props.children;
-}
-
-const reservedReactProperties = new Set([
-  'children',
-  'localName',
-  'ref',
-]);
-
-/**
- * Resolve vdom tree and create node copies because the original objects are immutable in dev.
- *
- * @param  {Array|object}  children
- * @param  {Array}         result
- * @return {Array}
- */
-function resolve(children, result = []) {
-  children = [].concat(children ?? []);
-
-  for (let node of children) {
-
-    if (typeof node.type === 'string') {
-      let copy = { ...node, props: { ...node.props } };
-      if (copy.props.children) copy.props.children = [];
-
-      resolve(node.props.children, copy.props.children);
-      result.push(copy);
-
-    } else if (typeof node.type === 'function') {
-      resolve(node.type(node.props), result);
-
-    } else if (typeof node.type === 'object' && typeof node.type.render === 'function') {
-      resolve(node.type.render(node.props), result);
-    }
-  }
-
-  return result;
-}
-
-function render(children, domNode) {
+function renderChildren(children, domNode) {
 
   for (let node of children ?? []) {
 
@@ -97,10 +26,9 @@ function render(children, domNode) {
 
         if (node.type.includes('-')) {
 
-          const proto = dom.constructor.prototype;
-          const originalConnected = proto.connectedCallback;
+          const originalConnected = dom.connectedCallback;
+          dom.connectedCallback = function() {
 
-          proto.connectedCallback = function() {
             originalConnected?.call(dom);
 
             if (dom.shadowRoot) {
@@ -137,6 +65,12 @@ function render(children, domNode) {
     }
   }
 }
+
+const reservedReactProperties = new Set([
+  'children',
+  'localName',
+  'ref',
+]);
 
 function createDom(type, props) {
   const dom = document.createElement(type);
