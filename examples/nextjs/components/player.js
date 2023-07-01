@@ -60,8 +60,6 @@ export default function Player() {
           <MediaMuteButton></MediaMuteButton>
           <MediaVolumeRange></MediaVolumeRange>
           <MediaPlaybackRateButton></MediaPlaybackRateButton>
-          <MediaCaptionsButton></MediaCaptionsButton>
-          <MediaAirplayButton></MediaAirplayButton>
           <MediaPipButton></MediaPipButton>
           <MediaFullscreenButton></MediaFullscreenButton>
         </MediaControlBar>
