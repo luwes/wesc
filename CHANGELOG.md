@@ -1,3 +1,17 @@
+# [0.2.0](https://github.com/luwes/wesc/compare/v0.1.0...v0.2.0) (2023-07-02)
+
+
+### Bug Fixes
+
+* package lock (updated Next.js settings) ([38b9d95](https://github.com/luwes/wesc/commit/38b9d959847aaa23c825f8b759d69ed8c73a1bc1))
+
+
+### Features
+
+* add Astro SSR renderer ([1010f13](https://github.com/luwes/wesc/commit/1010f1304fd97112a070a309e9dd73fee3337249))
+
+
+
 # 0.1.0 (2023-07-01)
 
 
