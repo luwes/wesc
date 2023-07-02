@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Player from '../components/Player.astro';
+---
+
+<Layout title="WeSC - Astro example">
+	<main class="main">
+		<h1>Astro - <a href="https://github.com/muxinc/media-chrome" target="_blank">Media Chrome</a> SSG example</h1>
+		<div class="player">
+      <Player />
+    </div>
+	</main>
+</Layout>
+
+<style is:global>
+  body {
+    margin: 0;
+  }
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .player {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .player media-controller {
+    display: block;
+    width: 100%;
+    max-width: 960px;
+    aspect-ratio: 2.4;
+  }
+
+  .player video {
+    width: 100%;
+  }
+</style>
