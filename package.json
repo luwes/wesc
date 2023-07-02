@@ -4,20 +4,17 @@
   "description": "We are the Superlative Components!",
   "type": "module",
   "main": "src/index.js",
-  "files": [],
+  "files": [
+    "src",
+    "dist"
+  ],
   "exports": {
-    ".": {
-      "import": "./src/index.js"
-    },
-    "./unshim": {
-      "import": "./dist/unshim.js"
-    },
-    "./server": {
-      "import": "./dist/server.js"
-    },
-    "./react": {
-      "import": "./dist/react/index.js"
-    }
+    ".": "./src/index.js",
+    "./unshim": "./dist/unshim.js",
+    "./server": "./dist/server.js",
+    "./react": "./dist/react/index.js",
+    "./astro": "./src/astro/index.js",
+    "./astro/*": "./src/astro/*"
   },
   "repository": "luwes/wesc",
   "author": "Wesley Luyten <me@wesleyluyten.com> (https://wesleyluyten.com)",
