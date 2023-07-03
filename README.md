@@ -11,6 +11,17 @@ We are the Superlative Components!
 - Server language agnostic
 
 
+## Custom elements
+
+Custom elements are a crucial part of reaching these goals. 
+The first problem WeSC is aiming to solve is rendering DSD 
+([declarative shadow DOM](https://developer.chrome.com/en/articles/declarative-shadow-dom/))
+in an approachable way for most use cases.
+
+Look at the [examples](./examples) to see if your use case is handled and
+feel free to open an [issue](https://github.com/luwes/wesc/issues/new) if not.
+
+
 ## Related
 
 - [Web Components Compiler (WCC)](https://github.com/ProjectEvergreen/wcc)
