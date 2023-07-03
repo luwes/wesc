@@ -6,7 +6,7 @@
     "build": "node index.js"
   },
   "dependencies": {
-    "media-chrome": "^1.0.0",
+    "media-chrome": "github:luwes/media-chrome#wesc",
     "wesc": "file:../.."
   }
 }
