@@ -123,6 +123,64 @@ export async function renderToString(html, opts = defaults) {
   return stringify(dom, opts);
 }
 
+// Process only custom element ancestors
+const customElementOpenRegex = /<(\w+-\w+)([^>]*?)>/m;
+const customElementsRegex = /<(\w+-\w+)([^>]*?)>([^]*?)<\/\1>/gm;
+
+export function renderToStream(rs) {
+  const reader = rs.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  return new ReadableStream({
+    async start(controller) {
+      let html = '';
+
+      while (true) { // eslint-disable-line
+        const { done, value } = await reader.read();
+
+        // When no more data needs to be consumed, break the reading
+        if (done) {
+          controller.enqueue(encoder.encode(html));
+          break;
+        }
+
+        const decoded = decoder.decode(value, { stream: true });
+        html += decoded;
+
+        if (customElementOpenRegex.test(html)) {
+
+          let out = '';
+          let start = 0;
+
+          let match;
+          while ((match = customElementsRegex.exec(html)) !== null) {
+
+            out += html.slice(start, match.index);
+            out += await renderToString(match[0]);
+            start = customElementsRegex.lastIndex;
+          }
+
+          if (out) {
+            controller.enqueue(encoder.encode(out));
+            html = html.slice(start);
+          }
+
+          continue;
+        }
+
+        // Enqueue the next data chunk into our target stream
+        controller.enqueue(encoder.encode(html));
+        html = '';
+      }
+
+      // Close the stream
+      controller.close();
+      reader.releaseLock();
+    }
+  });
+}
+
 export function stringify(node, opts) {
   let str = '';
 
