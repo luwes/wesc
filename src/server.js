@@ -59,6 +59,7 @@ export function shim() {
     getComputedStyle: function getComputedStyle() { return new CSSStyleDeclaration(); },
     requestAnimationFrame: function requestAnimationFrame() {},
     cancelAnimationFrame: function cancelAnimationFrame() {},
+    navigator: {},
   };
 
   preshimGlobalThis = {};

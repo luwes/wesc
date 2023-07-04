@@ -33,25 +33,26 @@ function renderChildren(children, domNode) {
 
             if (dom.shadowRoot) {
 
-              for (let style of dom.shadowRoot.querySelectorAll('style')) {
-                style.textContent = minimizeCss(style.textContent);
-              }
-
-              const templateShadowRoot = createElement('template', {
-                shadowrootmode: dom.shadowRoot.mode ?? 'open',
-                dangerouslySetInnerHTML: {
-                  __html: dom.shadowRoot.innerHTML,
-                },
-              });
-
-              if (node.props.children) {
-                node.props.children.unshift(templateShadowRoot);
-              } else {
-                node.props.children = [templateShadowRoot];
-              }
-
               // Some web components defer updates. Add a timeout larger than micro task.
               setTimeout(() => {
+
+                for (let style of dom.shadowRoot.querySelectorAll('style')) {
+                  style.textContent = minimizeCss(style.textContent);
+                }
+
+                const templateShadowRoot = createElement('template', {
+                  shadowrootmode: dom.shadowRoot.mode ?? 'open',
+                  dangerouslySetInnerHTML: {
+                    __html: dom.shadowRoot.innerHTML,
+                  },
+                });
+
+                if (node.props.children) {
+                  node.props.children.unshift(templateShadowRoot);
+                } else {
+                  node.props.children = [templateShadowRoot];
+                }
+
                 Object.assign(node.props, attributesToProps(dom.attributes));
 
                 if (typeof node.props.style === 'string') {

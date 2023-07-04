@@ -55,7 +55,10 @@ function resolve(children, result = []) {
 
   for (let node of children) {
 
-    if (typeof node.type === 'string') {
+    if (typeof node === 'string') {
+      result.push(node);
+
+    } else if (typeof node.type === 'string') {
       let copy = { ...node, props: { ...node.props } };
       if (copy.props.children) copy.props.children = [];
 
@@ -63,7 +66,16 @@ function resolve(children, result = []) {
       result.push(copy);
 
     } else if (typeof node.type === 'function') {
-      resolve(node.type(node.props), result);
+
+      if (/^\s*class\s+/.test(node.type.toString())) {
+        // Class component
+        const comp = new node.type(node.props);
+        const vnode = comp.render();
+        resolve(vnode, result);
+      } else {
+        // Function component
+        resolve(node.type(node.props), result);
+      }
 
     } else if (typeof node.type === 'object' && typeof node.type.render === 'function') {
       resolve(node.type.render(node.props), result);
