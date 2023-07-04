@@ -7,13 +7,10 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/
  */
-import { renderToString } from 'wesc/server';
-
-// Process only custom element ancestors
-const customElementsRegex = /<(\w+-\w+)([^>]*?)>([^]*?)<\/\1>/gm;
+import { renderToStream } from 'wesc/server';
 
 export default {
-	async fetch(request, env, ctx) {
+  async fetch(request, env, ctx) {
     let out = '';
 
     const url = new URL(request.url);
@@ -30,29 +27,18 @@ export default {
 
     if (contentUrl) {
       const res = await fetch(contentUrl);
-      const content = new HTMLRewriter() // eslint-disable-line
+
+      const newRes = new HTMLRewriter() // eslint-disable-line
         .on('title', new TitleElementHandler())
         .transform(res);
 
-      const html = await content.text();
-
-      let start = 0;
-
-      let match;
-      while ((match = customElementsRegex.exec(html)) !== null) {
-
-        out += html.slice(start, match.index);
-        out += await renderToString(match[0]);
-        start = customElementsRegex.lastIndex;
-      }
-
-      out += html.slice(start);
+      out = renderToStream(newRes.body);
     }
 
-		return new Response(out, {
+    return new Response(out, {
       headers: {
         "content-type": "text/html;charset=UTF-8",
       },
     });
-	},
+  },
 };
