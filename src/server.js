@@ -127,7 +127,7 @@ export async function renderToString(html, opts = defaults) {
 const customElementOpenRegex = /<(\w+-\w+)([^>]*?)>/m;
 const customElementsRegex = /<(\w+-\w+)([^>]*?)>([^]*?)<\/\1>/gm;
 
-export function renderToStream(rs) {
+export function renderToStream(rs, opts) {
   const reader = rs.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
@@ -157,7 +157,7 @@ export function renderToStream(rs) {
           while ((match = customElementsRegex.exec(html)) !== null) {
 
             out += html.slice(start, match.index);
-            out += await renderToString(match[0]);
+            out += await renderToString(match[0], opts);
             start = customElementsRegex.lastIndex;
           }
 
