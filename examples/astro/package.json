@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "astro": "^2.7.2",
-    "media-chrome": "github:luwes/media-chrome#wesc",
+    "media-chrome": "^1.1.5-canary",
     "wesc": "file:../.."
   }
 }

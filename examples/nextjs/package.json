@@ -11,7 +11,7 @@
   "dependencies": {
     "eslint": "8.44.0",
     "eslint-config-next": "13.4.8",
-    "media-chrome": "github:luwes/media-chrome#wesc",
+    "media-chrome": "^1.1.5-canary",
     "next": "13.4.8",
     "react": "18.2.0",
     "react-dom": "18.2.0",

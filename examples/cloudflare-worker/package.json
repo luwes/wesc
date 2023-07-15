@@ -12,7 +12,7 @@
     "wrangler": "^3.0.0"
   },
   "dependencies": {
-    "media-chrome": "github:luwes/media-chrome#wesc",
+    "media-chrome": "^1.1.5-canary",
     "wesc": "file:../.."
   }
 }
