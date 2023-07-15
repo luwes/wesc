@@ -22,6 +22,15 @@ Look at the [examples](./examples) to see if your use case is handled and
 feel free to open an [issue](https://github.com/luwes/wesc/issues/new) if not.
 
 
+### Examples
+
+- [Cloudflare Worker](https://wesc.luwes.workers.dev/?url=https%3A%2F%2Fmedia-chrome.mux.dev%2Fexamples%2Fvanilla%2Fadvanced.html) ([source](./examples/cloudflare-worker))
+- [Next.js](https://wesc-nextjs.vercel.app/) ([source](./examples/nextjs))
+- [Astro](https://wesc-astro-luwes.vercel.app/) ([source](./examples/astro))
+- [Sveltekit](https://wesc-coe.pages.dev/) ([source](./examples/sveltekit))
+- Node ([source](./examples/node))
+
+
 ## Related
 
 - [Web Components Compiler (WCC)](https://github.com/ProjectEvergreen/wcc)
