@@ -1,3 +1,19 @@
+# [0.3.0](https://github.com/luwes/wesc/compare/v0.2.0...v0.3.0) (2023-07-16)
+
+
+### Bug Fixes
+
+* improve React node resolver ([7005536](https://github.com/luwes/wesc/commit/7005536f93288b90aec10e74e1277018dbfb614d))
+* pass options to renderToStream ([f0db21a](https://github.com/luwes/wesc/commit/f0db21a91b2389e5f3be97ed95043ae446cf2f6f))
+* render race condition and mutation bug ([b3250ee](https://github.com/luwes/wesc/commit/b3250eed0aa414399db81d24f92e019cd0c45cc0))
+
+
+### Features
+
+* add renderToStream ([d427534](https://github.com/luwes/wesc/commit/d4275346778e4c41163f7022080b5d8392e66240))
+
+
+
 # [0.2.0](https://github.com/luwes/wesc/compare/v0.1.0...v0.2.0) (2023-07-02)
 
 
