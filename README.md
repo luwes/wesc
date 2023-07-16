@@ -34,5 +34,6 @@ feel free to open an [issue](https://github.com/luwes/wesc/issues/new) if not.
 
 ## Related
 
-- [Web Components Compiler (WCC)](https://github.com/ProjectEvergreen/wcc)
-- [custom-elements-ssr](https://github.com/thepassle/custom-elements-ssr/)
+- [Linkedom](https://github.com/WebReflection/linkedom) - This project is powered by Linkedom.
+- [Web Components Compiler (WCC)](https://github.com/ProjectEvergreen/wcc) - Experimental native Web Components compiler.
+- [custom-elements-ssr](https://github.com/thepassle/custom-elements-ssr/) - Renders Lit custom elements on the server.

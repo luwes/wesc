@@ -114,6 +114,10 @@ export async function renderToDom(html, opts = { ...defaults }) {
 
   document.documentElement.outerHTML = html;
 
+  // Some custom elements render async to batch render calls so wait a
+  // configurable amount of time before rendering the DOM.
+  // Using a setTimeout of 0s by default to make it wait a macrotask so
+  // microtasks will be finished by then.
   await renderComplete;
 
   return document;
