@@ -76,50 +76,51 @@ export function unshim() {
 }
 
 
-const voidElements = new Set(['area', 'base', 'br', 'col', 'command',
+const nonClosingElements = new Set(['area', 'base', 'br', 'col', 'command',
 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source',
 'track', 'wbr']);
-
-const nonClosingElements = new Set([
-  ...voidElements,
-  'html'
-]);
 
 const defaults = {
   getRenderComplete: () => new Promise((resolve) => setTimeout(resolve, 0)),
   minifyCss: true,
+  stripHtmlTag: false,
 };
 
-export async function renderToDom(html, opts = defaults) {
+let renderCompleteQueue = new Set();
+
+export async function renderToDom(html, opts = { ...defaults }) {
   html = String(html);
 
   // Remove doctype and save in the options object.
-  html = html.replace(/<!DOCTYPE[^>]*?>/i, (doctype) => {
+  html = html.replace(/(<!DOCTYPE[^>]*?>)\s*\n/i, (_, doctype) => {
     opts.doctype = opts.doctype ?? doctype;
+    return '';
   });
 
-  // Wrap a fragment with a html tag to avoid issues
+  // Wrap with a html tag if it's missing to avoid issues
   // where Node.getRootNode() would point to itself.
-  const isFragment = !html.includes('<html');
-  if (isFragment) {
+  if (!html.includes('<html')) {
     html = `<html>${html}</html>`;
+    opts.stripHtmlTag = true;
   }
+
+  const renderComplete = opts.getRenderComplete();
+  renderCompleteQueue.add(renderComplete);
+  renderComplete.then(() => renderCompleteQueue.delete(renderComplete));
+
+  // There is just 1 global document so we have to queue parsing requests
+  // if many renderToDom calls are made at once.
+  await Promise.all(renderCompleteQueue);
 
   document.documentElement.outerHTML = html;
 
-  await opts.getRenderComplete();
+  await renderComplete;
 
-  return isFragment ? document.documentElement.childNodes : document;
+  return document;
 }
 
-export async function renderToString(html, opts = defaults) {
+export async function renderToString(html, opts = { ...defaults }) {
   const dom = await renderToDom(html, opts);
-  const isFragment = !html.includes('<html');
-
-  if (isFragment) {
-    return dom.map(n => stringify(n, opts)).join('');
-  }
-
   return stringify(dom, opts);
 }
 
@@ -183,30 +184,36 @@ export function renderToStream(rs, opts) {
 
 export function stringify(node, opts) {
   let str = '';
+  let skipNode = false;
 
   if (node.nodeName === '#document') {
     if (opts.doctype) {
       str += `${opts.doctype}\n`;
     }
+
     node = node.documentElement;
+    skipNode = opts.stripHtmlTag;
   }
 
-  if (node.nodeName === '#text') {
-    let text = node.textContent.replace(/\xA0/g, '&nbsp;');
+  if (!skipNode) {
 
-    if (opts.minifyCss && node.parentNode.localName === 'style') {
-      text = minimizeCss(text);
+    if (node.nodeName === '#text') {
+      let text = node.textContent.replace(/\xA0/g, '&nbsp;');
+
+      if (opts.minifyCss && node.parentNode.localName === 'style') {
+        text = minimizeCss(text);
+      }
+      return text;
     }
-    return text;
-  }
 
-  if (node.nodeName === '#comment') {
-    return `<!--${node.textContent}-->`;
-  }
+    if (node.nodeName === '#comment') {
+      return `<!--${node.textContent}-->`;
+    }
 
-  str += `<${node.localName}${(node.attributes || [])
-    .map(a => ` ${a.name}${a.value === '' ? '' : `="${a.value}"`}`)
-    .join('')}>`;
+    str += `<${node.localName}${(node.attributes || [])
+      .map(a => ` ${a.name}${a.value === '' ? '' : `="${a.value}"`}`)
+      .join('')}>`;
+  }
 
   if (node.shadowRoot) {
     str += `<template shadowrootmode="open">${node.shadowRoot.childNodes
@@ -218,7 +225,7 @@ export function stringify(node, opts) {
     str += node.childNodes.map((n) => stringify(n, opts)).join('');
   }
 
-  if(!nonClosingElements.has(node.localName)) {
+  if(!skipNode && !nonClosingElements.has(node.localName)) {
     str += `</${node.localName}>`;
   }
 
