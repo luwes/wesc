@@ -25,8 +25,8 @@ feel free to open an [issue](https://github.com/luwes/wesc/issues/new) if not.
 - [Eleventy](https://wesc-eleventy.netlify.app/) ([source](./examples/eleventy))
 - [Astro](https://wesc-astro-luwes.vercel.app/) ([source](./examples/astro))
 - [Next.js](https://wesc-nextjs.vercel.app/) ([source](./examples/nextjs))
-- [Sveltekit](https://wesc-coe.pages.dev/) ([source](./examples/sveltekit))
-- Node ([source](./examples/node))
+- [Sveltekit](https://wesc-sveltekit.vercel.app/) ([source](./examples/sveltekit))
+- [Node](https://wesc-node.netlify.app/) ([source](./examples/node))
 
 
 ### Simple Node usage
