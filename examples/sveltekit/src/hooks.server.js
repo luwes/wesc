@@ -8,7 +8,10 @@ export async function handle({ event, resolve }) {
   await import('media-chrome/dist/media-theme-element.js');
 
   const response = await resolve(event);
-  const headers = new Headers(response.headers);
+  const body = renderToStream(response.body);
 
-  return new Response(renderToStream(response.body), { headers });
+  const headers = new Headers(response.headers);
+  headers.delete('content-length');
+
+  return new Response(body, { headers });
 }
