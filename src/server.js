@@ -158,12 +158,12 @@ export function renderToStream(rs, opts) {
           let out = '';
           let start = 0;
 
-          let match;
-          while ((match = customElementsRegex.exec(html)) !== null) {
+          const matches = html.matchAll(customElementsRegex);
 
+          for (const match of matches) {
             out += html.slice(start, match.index);
             out += await renderToString(match[0], opts);
-            start = customElementsRegex.lastIndex;
+            start = match.index + match[0].length;
           }
 
           if (out) {
