@@ -21,7 +21,7 @@ function renderChildren(children, domNode) {
       const dom = createDom(node.type, node.props);
 
       if (dom) {
-        render(node.props.children, dom);
+        renderChildren(node.props.children, dom);
         domNode.appendChild(dom);
 
         if (node.type.includes('-')) {
