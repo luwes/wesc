@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@11ty/eleventy": "^2.0.1",
-    "media-chrome": "^1.1.5-canary",
+    "media-chrome": "^1.1.5",
     "wesc": "file:../.."
   }
 }

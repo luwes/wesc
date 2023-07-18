@@ -6,7 +6,7 @@
     "build": "node index.js"
   },
   "dependencies": {
-    "media-chrome": "^1.1.5-canary",
+    "media-chrome": "^1.1.5",
     "wesc": "file:../.."
   }
 }
