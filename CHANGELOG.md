@@ -1,3 +1,12 @@
+## [0.3.2](https://github.com/luwes/wesc/compare/v0.3.1...v0.3.2) (2023-07-18)
+
+
+### Bug Fixes
+
+* React children render bug ([3fea989](https://github.com/luwes/wesc/commit/3fea9893b295e806f3c76e99c683ee0d79af25d6))
+
+
+
 ## [0.3.1](https://github.com/luwes/wesc/compare/v0.3.0...v0.3.1) (2023-07-18)
 
 
