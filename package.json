@@ -31,7 +31,7 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "esbuild": "^0.17.18",
+    "esbuild": "^0.18.14",
     "pta": "^1.2.0",
     "wet-run": "^0.2.0",
     "zora": "^5.2.0"
