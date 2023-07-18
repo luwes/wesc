@@ -1,3 +1,13 @@
+## [0.3.1](https://github.com/luwes/wesc/compare/v0.3.0...v0.3.1) (2023-07-18)
+
+
+### Bug Fixes
+
+* upgrade linkedom ([e351f34](https://github.com/luwes/wesc/commit/e351f343640ceb0501c8a8680e3eda1e0e97741e))
+* use matchAll in renderToStream ([d7632ed](https://github.com/luwes/wesc/commit/d7632edca2c4c4f21d7ec2a436bf8c39c65c8df0))
+
+
+
 # [0.3.0](https://github.com/luwes/wesc/compare/v0.2.0...v0.3.0) (2023-07-16)
 
 
