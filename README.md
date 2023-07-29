@@ -26,6 +26,7 @@ feel free to open an [issue](https://github.com/luwes/wesc/issues/new) if not.
 - [Astro](https://wesc-astro-luwes.vercel.app/) ([source](./examples/astro))
 - [Next.js](https://wesc-nextjs.vercel.app/) ([source](./examples/nextjs))
 - [Sveltekit](https://wesc-sveltekit.vercel.app/) ([source](./examples/sveltekit))
+- [Remix](https://wesc-remixrun.netlify.app/) ([source](./examples/remixrun))
 - [Node](https://wesc-node.netlify.app/) ([source](./examples/node))
 
 
