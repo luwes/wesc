@@ -17,7 +17,7 @@ import {
   MediaPipButton,
   MediaFullscreenButton,
   MediaPosterImage,
-} from 'media-chrome/dist/react/index.js';
+} from 'media-chrome/react';
 
 import { WeSC } from 'wesc/react';
 
