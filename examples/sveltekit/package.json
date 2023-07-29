@@ -15,7 +15,7 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"media-chrome": "^1.1.5",
+		"media-chrome": "^1.2.0",
 		"wesc": "file:../.."
 	}
 }
