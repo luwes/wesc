@@ -12,7 +12,7 @@ export default function Index() {
   return (
     <main className={styles.main}>
       <h1 className={styles.title}>
-        Remix - <a href="https://github.com/muxinc/media-chrome" target="_blank" rel="noreferrer">Media Chrome</a> SSG example
+        Remix - <a href="https://github.com/muxinc/media-chrome" target="_blank" rel="noreferrer">Media Chrome</a> SSR example
       </h1>
       <div className={styles.player}>
         <Player />
