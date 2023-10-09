@@ -56,6 +56,8 @@ export function shim() {
     localStorage,
     ResizeObserver,
     CSSStyleDeclaration,
+    addEventListener: function addEventListener() {},
+    removeEventListener: function removeEventListener() {},
     getComputedStyle: function getComputedStyle() { return new CSSStyleDeclaration(); },
     requestAnimationFrame: function requestAnimationFrame() {},
     cancelAnimationFrame: function cancelAnimationFrame() {},
