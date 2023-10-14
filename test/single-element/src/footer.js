@@ -33,6 +33,10 @@ class Footer extends HTMLElement {
   constructor() {
     super();
 
+    globalThis.addEventListener('resize', () => {});
+    globalThis.removeEventListener('resize', () => {});
+    globalThis.dispatchEvent(new Event('resize'));
+
     if (this.shadowRoot) {
       console.debug('Footer => shadowRoot detected!');
     }

@@ -9,7 +9,11 @@ export function shim() {
 
   let {
     document,
+    navigator,
     customElements,
+    addEventListener,
+    removeEventListener,
+    dispatchEvent,
     Event,
     CustomEvent,
     DocumentFragment,
@@ -45,7 +49,11 @@ export function shim() {
 
   const shims = {
     document,
+    navigator,
     customElements,
+    addEventListener,
+    removeEventListener,
+    dispatchEvent,
     Event,
     CustomEvent,
     DocumentFragment,
@@ -59,7 +67,6 @@ export function shim() {
     getComputedStyle: function getComputedStyle() { return new CSSStyleDeclaration(); },
     requestAnimationFrame: function requestAnimationFrame() {},
     cancelAnimationFrame: function cancelAnimationFrame() {},
-    navigator: {},
   };
 
   preshimGlobalThis = {};
