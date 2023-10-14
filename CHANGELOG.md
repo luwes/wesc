@@ -1,3 +1,13 @@
+## [0.3.3](https://github.com/luwes/wesc/compare/v0.3.2...v0.3.3) (2023-10-14)
+
+
+### Bug Fixes
+
+* add event methods to globalThis. closes [#4](https://github.com/luwes/wesc/issues/4) ([d174a6e](https://github.com/luwes/wesc/commit/d174a6e1427874f73e6a9a068a8c64305d7fda0a))
+* move recursive renderChildren call after appendChild ([#3](https://github.com/luwes/wesc/issues/3)) ([5fe5aef](https://github.com/luwes/wesc/commit/5fe5aef3182cf42d57c7adf2f73c58eefc08ea1c))
+
+
+
 ## [0.3.2](https://github.com/luwes/wesc/compare/v0.3.1...v0.3.2) (2023-07-18)
 
 
