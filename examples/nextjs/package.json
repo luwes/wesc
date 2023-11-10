@@ -9,10 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "eslint": "8.51.0",
-    "eslint-config-next": "13.5.4",
-    "media-chrome": "^1.4.3",
-    "next": "13.5.4",
+    "eslint": "8.53.0",
+    "eslint-config-next": "14.0.2",
+    "media-chrome": "^1.5.2",
+    "next": "14.0.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "wesc": "file:../.."
