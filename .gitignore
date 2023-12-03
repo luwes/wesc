@@ -3,3 +3,4 @@
 node_modules/
 /examples/node/index.html
 _site/
+examples/cloudflare-worker/.wrangler/
