@@ -24,7 +24,7 @@ template.innerHTML = `
 
   <footer class="footer">
     <h4>
-      <a href="https://www.greenwoodjs.io/">My Blog &copy;${new Date().getFullYear()} &#9672 Built with GreenwoodJS</a>
+      <a href="https://www.greenwoodjs.io/">My Blog &copy;2023 &#9672 Built with GreenwoodJS</a>
     </h4>
   </footer>
 `;
