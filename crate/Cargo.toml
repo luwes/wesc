@@ -1,0 +1,20 @@
+[package]
+name = "wesc"
+version = "0.1.0"
+edition = "2021"
+include = [
+    "/Cargo.toml",
+    "/README.md",
+    "/src"
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.4.11", features = ["derive"] }
+futures = "0.3.30"
+lol_html = "1.2.0"
+shellexpand = "3.1.0"
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"
