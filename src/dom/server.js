@@ -2,7 +2,8 @@ import { parseHTML } from 'linkedom';
 
 let preshimGlobalThis;
 
-shim();
+const isServer = typeof window === 'undefined';
+if (isServer) shim();
 
 export function shim() {
   if (preshimGlobalThis) return;
@@ -16,7 +17,9 @@ export function shim() {
     dispatchEvent,
     Event,
     CustomEvent,
+    Document,
     DocumentFragment,
+    ShadowRoot,
     DOMParser,
     HTMLElement,
     HTMLTemplateElement,
@@ -56,7 +59,9 @@ export function shim() {
     dispatchEvent,
     Event,
     CustomEvent,
+    Document,
     DocumentFragment,
+    ShadowRoot,
     DOMParser,
     HTMLElement,
     HTMLTemplateElement,

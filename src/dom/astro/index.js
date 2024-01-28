@@ -1,11 +1,11 @@
 export default function wescAstro() {
   return {
-    name: "wesc/astro",
+    name: "wesc/dom/astro",
     hooks: {
       "astro:config:setup": ({ addRenderer }) => {
         addRenderer({
-          name: "wesc/astro",
-          serverEntrypoint: "wesc/astro/server.js"
+          name: "wesc/dom/astro",
+          serverEntrypoint: "wesc/dom/astro/server.js"
         });
       }
     }

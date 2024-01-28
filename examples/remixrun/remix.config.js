@@ -10,7 +10,7 @@ module.exports = {
   // assetsBuildDirectory: "public/build",
   // publicPath: "/build/",
   serverModuleFormat: "cjs",
-  serverDependenciesToBundle: ["wesc/server", "media-chrome/react"],
+  serverDependenciesToBundle: ["wesc/dom/server", "media-chrome/react"],
   future: {
     v2_dev: true,
     v2_errorBoundary: true,

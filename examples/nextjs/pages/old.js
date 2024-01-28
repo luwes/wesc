@@ -1,5 +1,5 @@
-import 'wesc/server';
-import { prerender } from 'wesc/react';
+import 'wesc/dom/server';
+import { prerender } from 'wesc/dom/react';
 
 import styles from '../app/page.module.css';
 import Player from '../components/player.js';

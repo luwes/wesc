@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { renderToString } from 'wesc/server';
+import { renderToString } from 'wesc/dom/server';
 
 import 'media-chrome';
 import 'media-chrome/dist/media-theme-element.js';

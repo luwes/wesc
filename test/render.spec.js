@@ -1,5 +1,5 @@
 import { test } from 'zora';
-import { renderToString } from '../src/server.js';
+import { renderToString } from '../src/dom/server.js';
 
 test('normal document input equals output with no custom elements', async function (t) {
 

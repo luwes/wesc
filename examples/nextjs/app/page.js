@@ -1,4 +1,4 @@
-import 'wesc/server';
+import 'wesc/dom/server';
 
 import styles from './page.module.css';
 import Player from '../components/player.js';

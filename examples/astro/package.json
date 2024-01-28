@@ -10,8 +10,8 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^4.0.0-beta.7",
-    "media-chrome": "^1.5.4",
+    "astro": "^4.2.6",
+    "media-chrome": "^2.1.0",
     "wesc": "file:../.."
   }
 }

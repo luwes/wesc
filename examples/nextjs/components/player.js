@@ -19,7 +19,7 @@ import {
   MediaPosterImage,
 } from 'media-chrome/react';
 
-import { WeSC } from 'wesc/react';
+import { WeSC } from 'wesc/dom/react';
 
 export default function Player() {
   return (

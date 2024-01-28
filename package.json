@@ -10,11 +10,11 @@
   ],
   "exports": {
     ".": "./src/index.js",
-    "./unshim": "./dist/unshim.js",
-    "./server": "./dist/server.js",
-    "./react": "./dist/react/index.js",
-    "./astro": "./src/astro/index.js",
-    "./astro/*": "./src/astro/*"
+    "./dom/unshim": "./dist/dom/unshim.js",
+    "./dom/server": "./dist/dom/server.js",
+    "./dom/react": "./dist/dom/react/index.js",
+    "./dom/astro": "./src/dom/astro/index.js",
+    "./dom/astro/*": "./src/dom/astro/*"
   },
   "repository": "luwes/wesc",
   "author": "Wesley Luyten <me@wesleyluyten.com> (https://wesleyluyten.com)",
@@ -24,16 +24,16 @@
     "url": "https://github.com/luwes/wesc/issues"
   },
   "scripts": {
-    "lint": "npx eslint src/*.js -c ./node_modules/wet-run/.eslintrc.json",
+    "lint": "npx eslint src/*.js src/**/*.js -c ./node_modules/wet-run/.eslintrc.json",
     "test": "pta 'test/**/*.spec.js' --reporter tap",
-    "dev": "wet serve --cors --redirect :examples/ & esbuild src/server.js src/unshim.js src/react/index.js src/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist --bundle --watch",
-    "build": "esbuild src/server.js src/unshim.js src/react/index.js src/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist --bundle --minify --tree-shaking=true",
+    "dev": "wet serve --cors --redirect :examples/ & esbuild src/dom/server.js src/dom/unshim.js src/dom/react/index.js src/dom/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist/dom --bundle --watch",
+    "build": "esbuild src/dom/server.js src/dom/unshim.js src/dom/react/index.js src/dom/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist/dom --bundle --minify --tree-shaking=true",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "esbuild": "^0.19.10",
+    "esbuild": "^0.20.0",
     "pta": "^1.2.0",
-    "wet-run": "^1.0.1",
+    "wet-run": "^1.0.3",
     "zora": "^5.2.0"
   },
   "dependencies": {

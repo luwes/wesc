@@ -1,6 +1,6 @@
 /** @type {import('@sveltejs/kit').Handle} */
 
-import { renderToStream } from 'wesc/server';
+import { renderToStream } from 'wesc/dom/server';
 
 export async function handle({ event, resolve }) {
 

@@ -1,5 +1,5 @@
 import { test } from 'zora';
-import { renderToString } from '../../src/server.js';
+import { renderToString } from '../../src/dom/server.js';
 import './src/footer.js';
 
 test('renders declarative shadow DOM', async function (t) {

@@ -7,7 +7,7 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/
  */
-import { renderToStream } from 'wesc/server';
+import { renderToStream } from 'wesc/dom/server';
 
 export default {
   async fetch(request, env, ctx) {
