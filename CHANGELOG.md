@@ -1,3 +1,18 @@
+# [0.4.0](https://github.com/luwes/wesc/compare/v0.3.3...v0.4.0) (2024-01-28)
+
+
+### Bug Fixes
+
+* upgrade deps ([eb68e8d](https://github.com/luwes/wesc/commit/eb68e8ded95b3b2072fe2980cbc068f48493236c))
+* upgrade Linkedom to 0.15.6 ([93859dc](https://github.com/luwes/wesc/commit/93859dca095e652fc10cae51281d59487d90141f))
+
+
+### Features
+
+* move DOM SSR to wesc/dom submodule ([5e76fa0](https://github.com/luwes/wesc/commit/5e76fa09832bd7a6004fdedc8a3445f16a27f692))
+
+
+
 ## [0.3.3](https://github.com/luwes/wesc/compare/v0.3.2...v0.3.3) (2023-10-14)
 
 
