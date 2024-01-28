@@ -5,6 +5,7 @@ import { installGlobals } from "@remix-run/node";
 installGlobals();
 
 export const handler = createRequestHandler({
+  // @ts-ignore
   build,
   mode: process.env.NODE_ENV,
 });
