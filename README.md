@@ -9,6 +9,36 @@ We are the Superlative Components!
 - Define and create a superlative component authoring experience
 - Server language agnostic
 
+## Syntax
+
+**index.html**
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <link rel="definition" name="w-card" href="./components/card.html">
+  </head>
+  <body>
+    <w-card>
+      <h3 slot="title">Title</h3>
+      Description
+    </w-card>
+  </body>
+</html>
+```
+
+**components/card.html**
+
+```html
+<template>
+  <div>
+    <h3><slot name="title">Add a slotted title</slot></h3>
+    <p><slot>Add default slotted content</slot></p>
+  </div>
+</template>
+```
+
 ## Custom element server-side rendering
 
 Custom elements are a crucial part of reaching these goals. 
