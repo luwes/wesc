@@ -40,7 +40,7 @@ npm install wesc
 
 ```js
 import { promises as fs } from 'fs';
-import { renderToString } from 'wesc/server';
+import { renderToString } from 'wesc/dom/server';
 
 // Import web component library
 import 'media-chrome';
