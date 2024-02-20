@@ -11,6 +11,11 @@ fn default_slot() {
 }
 
 #[test]
+fn named_slot() {
+    test_file("./tests/fixtures/named-slot/index.html");
+}
+
+#[test]
 fn default_slot_fallback() {
     test_file("./tests/fixtures/default-slot-fallback/index.html");
 }
@@ -40,7 +45,7 @@ fn test_file(file_path: &str) {
     );
 
     let actual = String::from_utf8_lossy(&output);
-    // println!("\nACTUAL:\n{:}\n", actual);
+    println!("\nACTUAL:\n{:}\n", actual);
     let actual = prettier(&actual);
 
     let dir = Path::new(&file_path).parent().unwrap();
