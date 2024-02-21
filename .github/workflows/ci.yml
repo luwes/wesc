@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: npm i -g prettier      # prettier JS is used in the Rust tests
+      - uses: dtolnay/rust-toolchain@stable
       - run: cargo test
 
   build-rust:
