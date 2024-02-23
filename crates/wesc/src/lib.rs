@@ -1,13 +1,19 @@
-use lol_html::{element, rewrite_str, HtmlRewriter, RewriteStrSettings, Settings};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::{self};
 use std::ops::Range;
 use std::path::Path;
-use std::rc::Rc;
 
 pub mod chunk_reader;
-use self::chunk_reader::ChunkReader;
+pub mod component_definitions;
+use self::component_definitions::find_component_definitions;
+pub mod slotted_positions;
+use self::slotted_positions::find_slotted_positions;
+pub mod write_tags;
+use self::write_tags::{write_until_end_tag, write_until_start_tag, write_until_tag};
+
+// TODO: figure out optimal chunk size
+pub const CHUNK_SIZE: usize = 512;
+pub const DEFAULT_SLOT_NAME: &str = "&default";
+pub const CONTENT_IN_PROGRESS: usize = 0;
 
 #[derive(Debug, Clone)]
 pub struct BuildOptions {
@@ -15,18 +21,13 @@ pub struct BuildOptions {
 }
 
 #[derive(Debug, Clone)]
-struct Tag {
+pub struct Tag {
     tag_name: String,
     is_end_tag: bool,
     can_have_content: bool,
     attributes: HashMap<String, String>,
     position: Range<usize>,
 }
-
-// TODO: figure out optimal chunk size
-const CHUNK_SIZE: usize = 512;
-const DEFAULT_SLOT_NAME: &str = "&default";
-const CONTENT_IN_PROGRESS: usize = 0;
 
 pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
     let file_path = &build_options.entry_points[0];
@@ -491,12 +492,6 @@ fn build_component_content(
             return Some(light_tag);
         }
 
-        // Break the loop if no named slotted element was found.
-        // TODO: find out how to continue not adjacent named slotted elements.
-        // if slot_name_option.is_some() {
-        //     return None;
-        // }
-
         if light_tag.is_end_tag {
             read_positions.insert(host_pos_key.clone(), light_tag.position.start);
         }
@@ -505,289 +500,6 @@ fn build_component_content(
     }
 
     return None;
-}
-
-fn write_until_tag(
-    file_path: &str,
-    position: usize,
-    start_tag_names: &Vec<&str>,
-    end_tag_names: &Vec<&str>,
-    prefix: &str,
-    include_tag: bool,
-    output_handler: &mut impl FnMut(&[u8]) -> (),
-) -> io::Result<Tag> {
-    let will_pause = Rc::new(RefCell::new(false));
-    let will_pause_clone = Rc::clone(&will_pause);
-
-    let paused = Rc::new(RefCell::new(false));
-    let paused_clone = Rc::clone(&paused);
-
-    let tag = Rc::new(RefCell::new(Tag {
-        tag_name: String::from(""),
-        is_end_tag: false,
-        can_have_content: false,
-        attributes: HashMap::new(),
-        position: position..position,
-    }));
-    let tag_clone = Rc::clone(&tag);
-
-    // Merge start and end tag names into a single vector.
-    let tag_names = start_tag_names
-        .iter()
-        .chain(end_tag_names.iter())
-        .collect::<Vec<_>>();
-
-    let end_tag_names_clone = end_tag_names
-        .iter()
-        .map(|name| name.to_string())
-        .collect::<Vec<_>>();
-
-    let end_tag_names_ref = Rc::new(RefCell::new(end_tag_names_clone));
-
-    let ignore_prefix = Rc::new(RefCell::new(prefix != ""));
-    let ignore_prefix_clone = Rc::clone(&ignore_prefix);
-
-    let element_content_handlers = tag_names
-        .iter()
-        .flat_map(|element_name| {
-            [element!(element_name, |el| {
-                let mut tag = tag_clone.borrow_mut();
-                let exclude_start_tag = *ignore_prefix.borrow() && tag.position.end == position;
-
-                if !exclude_start_tag {
-                    *will_pause.borrow_mut() = true;
-
-                    if tag.tag_name == "" {
-                        tag.tag_name = el.tag_name();
-                        tag.can_have_content = el.can_have_content();
-                        tag.attributes = el
-                            .attributes()
-                            .iter()
-                            .map(|attr| (attr.name(), attr.value()))
-                            .collect::<HashMap<_, _>>();
-                    }
-                }
-
-                let will_pause_clone = Rc::clone(&will_pause);
-                let end_tag_names_ref_clone = Rc::clone(&end_tag_names_ref);
-                let tag_clone = Rc::clone(&tag_clone);
-                let element_name = element_name.to_string();
-                let el_tag_name = el.tag_name().to_string();
-
-                if let Some(handlers) = el.end_tag_handlers() {
-                    handlers.push(Box::new(move |end| {
-                        let end_tag_names = end_tag_names_ref_clone.borrow();
-                        let mut tag = tag_clone.borrow_mut();
-
-                        let is_end_of_named_slotted =
-                            element_name.contains("*[slot]") && end.name() == el_tag_name;
-
-                        if tag.tag_name == ""
-                            && (end_tag_names.contains(&end.name()) || is_end_of_named_slotted)
-                        {
-                            tag.tag_name = end.name();
-                            tag.is_end_tag = true;
-                            *will_pause_clone.borrow_mut() = true;
-                        }
-
-                        Ok(())
-                    }));
-                }
-
-                Ok(())
-            })]
-        })
-        .collect::<Vec<_>>();
-
-    let mut rewriter = HtmlRewriter::new(
-        Settings {
-            element_content_handlers,
-            ..Settings::default()
-        },
-        move |chunk: &[u8]| {
-            if *paused.borrow() {
-                return;
-            }
-
-            if *will_pause_clone.borrow() {
-                *paused.borrow_mut() = true;
-            }
-
-            let mut tag = tag.borrow_mut();
-
-            let html = String::from_utf8(chunk.to_vec()).unwrap();
-
-            if *ignore_prefix_clone.borrow() && html == prefix && position == tag.position.end {
-                ignore_prefix_clone.replace(false);
-                return;
-            }
-
-            tag.position.start = tag.position.end;
-            tag.position.end += chunk.len();
-
-            let start_tags = start_tag_names
-                .iter()
-                .map(|name| format!("<{}", name))
-                .collect::<Vec<_>>();
-
-            let end_tags = end_tag_names
-                .iter()
-                .map(|name| format!("</{}>", name))
-                .collect::<Vec<_>>();
-
-            let is_named_slotted = start_tag_names.iter().any(|name| name.contains("*[slot]"))
-                && html.starts_with("<")
-                && html.ends_with(">")
-                && html.contains("slot=\"");
-
-            // Exclude start tag if include_tag is false and the html starts with a start tag.
-            let exclude_start_tag = !include_tag
-                && (start_tags.iter().any(|tag| html.starts_with(tag)) || is_named_slotted);
-
-            // Exclude end tag if include_tag is false and the html equals an end tag.
-            let exclude_end_tag = !include_tag && end_tags.iter().any(|tag| &html == tag);
-
-            if !exclude_start_tag && !exclude_end_tag {
-                // Remove the slot attribute from all parsed elements.
-                let clean_html = rewrite_str(
-                    &html,
-                    RewriteStrSettings {
-                        element_content_handlers: vec![element!("*[slot]", |el| {
-                            el.remove_attribute("slot");
-                            Ok(())
-                        })],
-                        ..RewriteStrSettings::default()
-                    },
-                )
-                .unwrap();
-
-                output_handler(clean_html.as_bytes());
-            }
-        },
-    );
-
-    let mut reader = ChunkReader::new(file_path, CHUNK_SIZE).unwrap();
-
-    reader.seek(position as u64)?;
-    rewriter.write(prefix.as_bytes()).unwrap();
-
-    loop {
-        if *paused_clone.borrow() {
-            rewriter.end().unwrap();
-            break;
-        }
-
-        if let Some(chunk) = reader.read_next_chunk()? {
-            rewriter.write(&chunk).unwrap();
-        } else {
-            rewriter.end().unwrap();
-            break;
-        }
-    }
-
-    let tag = tag_clone.borrow();
-
-    if tag.tag_name == "" {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "tag not found".to_string(),
-        ));
-    }
-
-    Ok(tag.clone())
-}
-
-/// Streaming write the contents of a file until a start tag is found.
-fn write_until_start_tag(
-    file_path: &str,
-    position: usize,
-    tag_names: &Vec<&str>,
-    prefix: &str,
-    include_tag: bool,
-    output_handler: &mut impl FnMut(&[u8]) -> (),
-) -> io::Result<Tag> {
-    write_until_tag(
-        file_path,
-        position,
-        tag_names,
-        &vec![],
-        prefix,
-        include_tag,
-        output_handler,
-    )
-}
-
-/// Streaming write the contents of a file until an end tag is found.
-fn write_until_end_tag(
-    file_path: &str,
-    position: usize,
-    tag_names: &Vec<&str>,
-    prefix: &str,
-    include_tag: bool,
-    output_handler: &mut impl FnMut(&[u8]) -> (),
-) -> io::Result<Tag> {
-    write_until_tag(
-        file_path,
-        position,
-        &vec![],
-        tag_names,
-        prefix,
-        include_tag,
-        output_handler,
-    )
-}
-
-/// Find all custom element definitions in a file.
-///
-/// A custom element definition is a link tag with a rel attribute of "definition".
-/// The name of the custom element is the name attribute of the link tag.
-/// The href attribute of the link tag is the path to the file that contains the custom element definition.
-///
-/// # Example
-///
-/// ```html
-/// <link rel="definition" name="my-element" href="./my-element.html">
-/// ```
-fn find_component_definitions(
-    definitions: &mut HashMap<String, HashMap<String, String>>,
-    file_path: &str,
-) -> io::Result<HashMap<String, String>> {
-    if definitions.contains_key(file_path) {
-        return Ok(definitions[file_path].clone());
-    }
-
-    let mut reader = ChunkReader::new(file_path, CHUNK_SIZE).unwrap();
-    let mut component_definitions: HashMap<String, String> = HashMap::new();
-
-    let mut rewriter = HtmlRewriter::new(
-        Settings {
-            element_content_handlers: vec![element!("link[rel=definition]", |el| {
-                let href = el.get_attribute("href").unwrap();
-                let name = el.get_attribute("name").unwrap();
-                component_definitions.insert(name, href);
-                Ok(())
-            })],
-            ..Settings::default()
-        },
-        |_c: &[u8]| {},
-    );
-
-    // TODO: we probably want to require definitions be at the top of the files
-    // and then we can break out of the loop asap once we've found them all.
-
-    loop {
-        if let Some(chunk) = reader.read_next_chunk()? {
-            rewriter.write(&chunk).unwrap();
-        } else {
-            break;
-        }
-    }
-
-    rewriter.end().unwrap();
-
-    definitions.insert(file_path.to_string(), component_definitions.clone());
-
-    Ok(component_definitions)
 }
 
 fn get_component_file_path(
@@ -800,174 +512,4 @@ fn get_component_file_path(
     let component_href = Path::new(component_href);
     let component_file_path = dir.join(&component_href);
     component_file_path.to_string_lossy().to_string().into()
-}
-
-fn find_slotted_positions(
-    slotted_positions: &mut HashMap<String, HashMap<String, Vec<Range<usize>>>>,
-    read_position: usize,
-    host_file_path: &str,
-    component_name: &str,
-    component_file_index: &usize,
-    _component_file_path: &str,
-) -> io::Result<HashMap<String, Vec<Range<usize>>>> {
-    let key = pos_key(*component_file_index, &host_file_path);
-
-    // todo: cache slotted positions result
-    // if slotted_positions.contains_key(&key) {
-    //     return Ok(slotted_positions[&key].clone());
-    // }
-
-    let mut reader = ChunkReader::new(host_file_path, CHUNK_SIZE).unwrap();
-    reader.seek(read_position as u64)?;
-
-    let mut component_slotted_positions: HashMap<String, Vec<Range<usize>>> = HashMap::new();
-
-    let position = Rc::new(RefCell::new(read_position));
-    let position_clone = Rc::clone(&position);
-
-    let stop = Rc::new(RefCell::new(false));
-    let stop_clone = Rc::clone(&stop);
-
-    let is_end_tag = Rc::new(RefCell::new(false));
-
-    let slot_name = Rc::new(RefCell::new("".to_string()));
-    let last_slot_name = Rc::new(RefCell::new("".to_string()));
-
-    let mut rewriter = HtmlRewriter::new(
-        Settings {
-            element_content_handlers: vec![
-                element!(format!("root > {}", component_name), |el| {
-                    if let Some(handlers) = el.end_tag_handlers() {
-                        *slot_name.borrow_mut() = DEFAULT_SLOT_NAME.to_string();
-
-                        let stop = Rc::clone(&stop_clone);
-
-                        handlers.push(Box::new(move |_end| {
-                            *stop.borrow_mut() = true;
-                            Ok(())
-                        }));
-                    }
-                    Ok(())
-                }),
-                element!(format!("root > {} > *[slot]", component_name), |el| {
-                    *slot_name.borrow_mut() = el.get_attribute("slot").unwrap();
-
-                    let is_end_tag = is_end_tag.clone();
-
-                    if let Some(handlers) = el.end_tag_handlers() {
-                        handlers.push(Box::new(move |_end| {
-                            *is_end_tag.borrow_mut() = true;
-                            Ok(())
-                        }));
-                    }
-
-                    Ok(())
-                }),
-                element!(format!("root > {} > *:not([slot])", component_name), |el| {
-                    *slot_name.borrow_mut() = DEFAULT_SLOT_NAME.to_string();
-
-                    let is_end_tag = is_end_tag.clone();
-
-                    if let Some(handlers) = el.end_tag_handlers() {
-                        handlers.push(Box::new(move |_end| {
-                            *is_end_tag.borrow_mut() = true;
-                            Ok(())
-                        }));
-                    }
-
-                    Ok(())
-                }),
-            ],
-            ..Settings::default()
-        },
-        |chunk: &[u8]| {
-            let html = String::from_utf8(chunk.to_vec()).unwrap();
-
-            if html == "<root>" {
-                return;
-            }
-
-            let mut position = position_clone.borrow_mut();
-
-            if *stop.borrow() {
-                component_slotted_positions
-                    .get_mut(DEFAULT_SLOT_NAME)
-                    .unwrap()
-                    .last_mut()
-                    .unwrap()
-                    .end = *position;
-
-                return;
-            }
-
-            if *last_slot_name.borrow() != *slot_name.borrow() {
-                let positions = component_slotted_positions
-                    .entry(slot_name.borrow().clone())
-                    .or_insert(vec![]);
-
-                let mut start = *position;
-                // The first time add the length of the component start tag
-                if *last_slot_name.borrow() == "" {
-                    start += chunk.len();
-                }
-
-                let range = start..0;
-                positions.push(range);
-
-                if *last_slot_name.borrow() != "" {
-                    component_slotted_positions
-                        .get_mut(DEFAULT_SLOT_NAME)
-                        .unwrap()
-                        .last_mut()
-                        .unwrap()
-                        .end = *position;
-                }
-            }
-
-            *position += chunk.len();
-
-            if is_end_tag.borrow().clone() {
-                *is_end_tag.borrow_mut() = false;
-
-                component_slotted_positions
-                    .get_mut(slot_name.borrow().as_str())
-                    .unwrap()
-                    .last_mut()
-                    .unwrap()
-                    .end = *position;
-
-                if *slot_name.borrow() != DEFAULT_SLOT_NAME {
-                    let positions = component_slotted_positions
-                        .get_mut(DEFAULT_SLOT_NAME)
-                        .unwrap();
-                    let range = *position..0;
-                    positions.push(range);
-                }
-
-                *slot_name.borrow_mut() = DEFAULT_SLOT_NAME.to_string();
-            }
-
-            *last_slot_name.borrow_mut() = slot_name.borrow().clone();
-        },
-    );
-
-    rewriter.write("<root>".as_bytes()).unwrap();
-
-    loop {
-        if *stop.borrow() {
-            break;
-        }
-
-        if let Some(chunk) = reader.read_next_chunk()? {
-            rewriter.write(&chunk).unwrap();
-        } else {
-            break;
-        }
-    }
-
-    rewriter.end().unwrap();
-
-    slotted_positions.insert(key.clone(), component_slotted_positions.clone());
-
-    Ok(component_slotted_positions)
 }
