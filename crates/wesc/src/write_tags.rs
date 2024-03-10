@@ -38,12 +38,22 @@ pub fn write_until_tag(
         .chain(end_tag_names.iter())
         .collect::<Vec<_>>();
 
-    let end_tag_names_clone = end_tag_names
+    let start_tag_names_clone = start_tag_names
         .iter()
-        .map(|name| name.to_string())
+        .map(|&name| name.to_owned())
         .collect::<Vec<_>>();
 
-    let end_tag_names_ref = Rc::new(RefCell::new(end_tag_names_clone));
+    let end_tag_names_clone = end_tag_names
+        .iter()
+        .map(|&name| name.to_owned())
+        .collect::<Vec<_>>();
+
+    let end_tag_names_ref = Rc::new(RefCell::new(
+        end_tag_names
+            .iter()
+            .map(|&name| name.to_owned())
+            .collect::<Vec<_>>(),
+    ));
 
     let ignore_prefix = Rc::new(RefCell::new(prefix != ""));
     let ignore_prefix_clone = Rc::clone(&ignore_prefix);
@@ -70,21 +80,24 @@ pub fn write_until_tag(
                 }
 
                 let will_pause_clone = Rc::clone(&will_pause);
-                let end_tag_names_ref_clone = Rc::clone(&end_tag_names_ref);
+                let end_tag_names_ref = Rc::clone(&end_tag_names_ref);
                 let tag_clone = Rc::clone(&tag_clone);
                 let element_name = element_name.to_string();
                 let el_tag_name = el.tag_name().to_string();
 
                 if let Some(handlers) = el.end_tag_handlers() {
                     handlers.push(Box::new(move |end| {
-                        let end_tag_names = end_tag_names_ref_clone.borrow();
+                        let end_tag_names = end_tag_names_ref.borrow().to_vec();
+                        let clean_end_tag_names = only_tag_names(&end_tag_names);
+
                         let mut tag = tag_clone.borrow_mut();
 
                         let is_end_of_named_slotted =
                             element_name.contains("*[slot]") && end.name() == el_tag_name;
 
                         if tag.tag_name == ""
-                            && (end_tag_names.contains(&end.name()) || is_end_of_named_slotted)
+                            && (clean_end_tag_names.contains(&end.name().as_str())
+                                || is_end_of_named_slotted)
                         {
                             tag.tag_name = end.name();
                             tag.is_end_tag = true;
@@ -114,9 +127,13 @@ pub fn write_until_tag(
                 *paused.borrow_mut() = true;
             }
 
-            let mut tag = tag.borrow_mut();
-
             let html = String::from_utf8(chunk.to_vec()).unwrap();
+
+            if html == "<root>" {
+                return;
+            }
+
+            let mut tag = tag.borrow_mut();
 
             if *ignore_prefix_clone.borrow() && html == prefix && position == tag.position.end {
                 ignore_prefix_clone.replace(false);
@@ -126,12 +143,12 @@ pub fn write_until_tag(
             tag.position.start = tag.position.end;
             tag.position.end += chunk.len();
 
-            let start_tags = start_tag_names
+            let start_tags = only_tag_names(&start_tag_names_clone)
                 .iter()
                 .map(|name| format!("<{}", name))
                 .collect::<Vec<_>>();
 
-            let end_tags = end_tag_names
+            let end_tags = only_tag_names(&end_tag_names_clone)
                 .iter()
                 .map(|name| format!("</{}>", name))
                 .collect::<Vec<_>>();
@@ -170,6 +187,8 @@ pub fn write_until_tag(
     let mut reader = ChunkReader::new(file_path, CHUNK_SIZE).unwrap();
 
     reader.seek(position as u64)?;
+
+    rewriter.write("<root>".as_bytes()).unwrap();
     rewriter.write(prefix.as_bytes()).unwrap();
 
     loop {
@@ -196,6 +215,20 @@ pub fn write_until_tag(
     }
 
     Ok(tag.clone())
+}
+
+fn only_tag_names(selectors: &Vec<String>) -> Vec<&str> {
+    selectors
+        .iter()
+        .map(|name| {
+            let parts: Vec<&str> = name.splitn(2, ">").collect();
+            if parts.len() > 1 {
+                parts[1].trim()
+            } else {
+                name
+            }
+        })
+        .collect::<Vec<_>>()
 }
 
 /// Streaming write the contents of a file until a start tag is found.

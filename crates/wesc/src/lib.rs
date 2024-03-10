@@ -41,10 +41,12 @@ pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])
     // Keep a stack of the component tags that are being built.
     let mut tag_stacks: HashMap<String, Vec<String>> = HashMap::new();
     // Store the definitions of the components.
+    // e.g. <link rel="definition" name="w-card" href="./card.html">
     let mut definitions: HashMap<String, HashMap<String, String>> = HashMap::new();
     // Store the parent file path of the component file path.
     let mut parents: HashMap<String, String> = HashMap::new();
-
+    // Store the slotted positions of the light DOM content of the component.
+    // There is a default slot and named slots that can have multiple ranges that are out-of-order.
     let mut slotted_positions: HashMap<String, HashMap<String, Vec<Range<usize>>>> = HashMap::new();
 
     build_file(
@@ -171,11 +173,11 @@ fn build_component(
     )
     .unwrap();
 
-    // Write until after the start tag of the template.
+    // Write until after the start tag of the <template>.
     let template_tag = write_until_start_tag(
         &component_file_path,
         0,
-        &vec!["template"],
+        &vec!["root > template"],
         "",
         false,
         &mut |_chunk: &[u8]| {},
@@ -186,6 +188,7 @@ fn build_component(
     read_positions.insert(component_pos_key.clone(), template_tag.position.end);
 
     let mut component_until_start_tags = component_definition_names.clone();
+    component_until_start_tags.push("root > template");
     component_until_start_tags.push("slot");
 
     loop {
@@ -193,7 +196,7 @@ fn build_component(
             &component_file_path,
             read_positions[&component_pos_key],
             &component_until_start_tags,
-            &vec!["template"],
+            &vec!["root > template"],
             "<template>",
             false,
             output_handler,
@@ -205,23 +208,6 @@ fn build_component(
         };
 
         read_positions.insert(component_pos_key.clone(), tag.position.end);
-
-        if component_definition_names.contains(&tag.tag_name.as_str()) {
-            read_positions.insert(component_pos_key.clone(), tag.position.start);
-
-            build_component(
-                &component_file_path,
-                file_indexes,
-                read_positions,
-                tag_stacks,
-                definitions,
-                parents,
-                slotted_positions,
-                output_handler,
-            );
-
-            continue;
-        }
 
         if tag.tag_name == "template" && tag.is_end_tag {
             // If there is no default slot, skip slotted content.
@@ -254,6 +240,23 @@ fn build_component(
             break false;
         }
 
+        if component_definition_names.contains(&tag.tag_name.as_str()) {
+            read_positions.insert(component_pos_key.clone(), tag.position.start);
+
+            build_component(
+                &component_file_path,
+                file_indexes,
+                read_positions,
+                tag_stacks,
+                definitions,
+                parents,
+                slotted_positions,
+                output_handler,
+            );
+
+            continue;
+        }
+
         if tag.tag_name == "slot" {
             let host_start_pos = read_positions[&host_pos_key];
             let slot_name = tag.attributes.get("name");
@@ -270,10 +273,6 @@ fn build_component(
                     slotted_positions,
                     output_handler,
                 ) {
-                    // if light_tag.is_end_tag && slot_name == light_tag.attributes.get("slot") {
-                    //     break;
-                    // }
-
                     if light_tag.is_end_tag && light_tag.tag_name == component_tag.tag_name {
                         break;
                     }
@@ -420,8 +419,6 @@ fn build_component_content(
                     );
 
                     read_positions.insert(host_pos_key.clone(), light_tag.position.end);
-
-                    println!("light_tag: {:?}", light_tag);
 
                     if light_tag.can_have_content {
                         if let Ok(mut end_slot_tag) = write_until_end_tag(

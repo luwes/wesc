@@ -30,6 +30,11 @@ fn slot_forwarding() {
     test_file("./tests/fixtures/slot-forwarding/index.html");
 }
 
+#[test]
+fn nested_template() {
+    test_file("./tests/fixtures/nested-template/index.html");
+}
+
 fn test_file(file_path: &str) {
     let mut output = Vec::new();
 
