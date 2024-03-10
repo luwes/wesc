@@ -35,6 +35,11 @@ fn nested_template() {
     test_file("./tests/fixtures/nested-template/index.html");
 }
 
+#[test]
+fn shadow_template() {
+    test_file("./tests/fixtures/shadow-template/index.html");
+}
+
 fn test_file(file_path: &str) {
     let mut output = Vec::new();
 

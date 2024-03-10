@@ -184,12 +184,28 @@ fn build_component(
     )
     .unwrap();
 
-    // Save the end position of the start tag of the template.
-    read_positions.insert(component_pos_key.clone(), template_tag.position.end);
+    let has_shadowrootmode = template_tag.attributes.contains_key("shadowrootmode");
 
     let mut component_until_start_tags = component_definition_names.clone();
     component_until_start_tags.push("root > template");
-    component_until_start_tags.push("slot");
+
+    if has_shadowrootmode {
+        output_handler(b"\n");
+        write_until_start_tag(
+            &component_file_path,
+            0,
+            &vec!["root > template"],
+            "",
+            true,
+            output_handler,
+        )
+        .unwrap();
+    } else {
+        component_until_start_tags.push("slot");
+    }
+
+    // Save the end position of the start tag of the template.
+    read_positions.insert(component_pos_key.clone(), template_tag.position.end);
 
     loop {
         let tag = write_until_tag(
@@ -210,6 +226,10 @@ fn build_component(
         read_positions.insert(component_pos_key.clone(), tag.position.end);
 
         if tag.tag_name == "template" && tag.is_end_tag {
+            if has_shadowrootmode {
+                output_handler(b"</template>\n");
+            }
+
             // If there is no default slot, skip slotted content.
             if let Ok(component_end_tag) = write_until_end_tag(
                 &host_file_path,
