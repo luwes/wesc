@@ -17,7 +17,7 @@ include = [
 
 [dependencies]
 clap = { version = "4.4.11", features = ["derive"] }
-lol_html = "1.2.0"
+lol_html = "1.2.1"
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
