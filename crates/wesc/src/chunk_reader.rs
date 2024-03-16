@@ -8,13 +8,11 @@ pub struct ChunkReader {
 }
 
 impl ChunkReader {
-    // Create a new ChunkReader
     pub fn new(filepath: &str, chunk_size: usize) -> io::Result<Self> {
         let file = File::open(filepath)?;
         Ok(ChunkReader { file, chunk_size })
     }
 
-    // Read the next chunk
     pub fn read_next_chunk(&mut self) -> io::Result<Option<Vec<u8>>> {
         let mut buffer = vec![0; self.chunk_size];
         let bytes_read = self.file.read(&mut buffer)?;
@@ -31,7 +29,6 @@ impl ChunkReader {
         Ok(self.file.stream_position()?)
     }
 
-    // seek to a position
     pub fn seek(&mut self, position: u64) -> io::Result<()> {
         self.file.seek(SeekFrom::Start(position))?;
         Ok(())

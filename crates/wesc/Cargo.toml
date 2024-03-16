@@ -1,7 +1,12 @@
 [package]
 name = "wesc"
 version = "0.1.0"
+authors = ["Wesley Luyten <me@wesleyluyten.com>"]
 edition = "2021"
+license = "MIT"
+description = "We are the Superlative Components!"
+repository = "https://github.com/luwes/wesc"
+readme = "README.md"
 include = [
     "/Cargo.toml",
     "/README.md",
@@ -12,7 +17,6 @@ include = [
 
 [dependencies]
 clap = { version = "4.4.11", features = ["derive"] }
-futures = "0.3.30"
 lol_html = "1.2.0"
 
 [dev-dependencies]
