@@ -8,6 +8,44 @@ struct Cli {
     path: String,
 }
 
+/// The `wesc` command line tool.
+/// Compile web components into a single file.
+///
+/// # Example
+///
+/// ```sh
+/// wesc ./index.html
+/// ```
+///
+/// ## Syntax
+///
+/// **index.html**
+///
+/// ```html
+/// <!doctype html>
+/// <html>
+///   <head>
+///     <link rel="definition" name="w-card" href="./components/card.html">
+///   </head>
+///   <body>
+///     <w-card>
+///       <h3 slot="title">Title</h3>
+///       Description
+///     </w-card>
+///   </body>
+/// </html>
+/// ```
+///
+/// **components/card.html**
+///
+/// ```html
+/// <template>
+///   <div>
+///     <h3><slot name="title">Add a slotted title</slot></h3>
+///     <p><slot>Add default slotted content</slot></p>
+///   </div>
+/// </template>
+/// ```
 fn main() {
     let args = Cli::parse();
     let mut stdout = io::stdout();

@@ -29,6 +29,25 @@ pub struct Tag {
     position: Range<usize>,
 }
 
+/// Build the web components from the entry points to an output handler function.
+///
+/// # Example
+///
+/// ```rust
+/// use wesc::{build, BuildOptions};
+///
+/// let build_options = BuildOptions {
+///    entry_points: vec!["./index.html".to_string()],
+/// };
+///
+/// build(build_options, &mut |chunk: &[u8]| {
+///   println!("{}", String::from_utf8_lossy(chunk));
+///   // Write the chunk to a file or stream.
+///   // file.write_all(chunk).unwrap();
+///   // stream.write_all(chunk).unwrap();
+///   // etc.
+/// });
+/// ```
 pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
     let file_path = &build_options.entry_points[0];
 
