@@ -37,7 +37,7 @@ pub struct Tag {
 /// use wesc::{build, BuildOptions};
 ///
 /// let build_options = BuildOptions {
-///    entry_points: vec!["./index.html".to_string()],
+///    entry_points: vec!["./tests/fixtures/default-slot/index.html".to_string()],
 /// };
 ///
 /// build(build_options, &mut |chunk: &[u8]| {
