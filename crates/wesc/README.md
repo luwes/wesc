@@ -10,11 +10,23 @@ the HTML result super fast (streaming, low memory) and is server language agnost
 TODO: The JS (and CSS) in the top level script and style tag are bundled up separately 
 and can be output as JS and CSS files.
 
+
+## Features
+
+- [x] Streaming HTML bundler
+- [x] Custom element definition
+- [x] Default and named slots with fallback content
+- [x] Declarative Shadow DOM
+- [ ] CSS bundling
+- [ ] JS bundling
+
+
 ## Example
 
 ```sh
 wesc ./index.html
 ```
+
 
 ## Syntax
 
@@ -39,9 +51,39 @@ wesc ./index.html
 
 ```html
 <template>
+<!-- or <template shadowrootmode="open"> -->
+  <style>
+    @scope {
+      h3 {
+        color: red;
+      }
+    }
+  </style>
   <div>
     <h3><slot name="title">Add a slotted title</slot></h3>
     <p><slot>Add default slotted content</slot></p>
   </div>
 </template>
+
+<!-- TODO: bundle to a global styles.css -->
+<style>
+  w-card {
+    display: block;
+  }
+</style>
+
+<!-- TODO: bundle to a global scripts.js -->
+<script>
+  class WCard extends HTMLElement {
+    connectedCallback() {
+      console.log('w-card connected');
+    }
+  }
+  customElements.define('w-card', WCard);
+</script>
 ```
+
+
+## Related
+
+- [WebC](https://github.com/11ty/webc)
