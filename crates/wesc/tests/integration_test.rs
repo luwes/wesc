@@ -40,6 +40,11 @@ fn shadow_template() {
     test_file("./tests/fixtures/shadow-template/index.html");
 }
 
+#[test]
+fn real_world() {
+    test_file("./tests/fixtures/real-world/index.html");
+}
+
 fn test_file(file_path: &str) {
     let mut output = Vec::new();
 

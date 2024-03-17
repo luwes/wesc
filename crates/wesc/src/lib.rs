@@ -11,7 +11,7 @@ pub mod write_tags;
 use self::write_tags::{write_until_end_tag, write_until_start_tag, write_until_tag};
 
 // TODO: figure out optimal chunk size
-pub const CHUNK_SIZE: usize = 512;
+pub const CHUNK_SIZE: usize = 1024;
 pub const DEFAULT_SLOT_NAME: &str = "&default";
 pub const CONTENT_IN_PROGRESS: usize = 0;
 

@@ -1,4 +1,4 @@
-use lol_html::{element, rewrite_str, HtmlRewriter, RewriteStrSettings, Settings};
+use lol_html::{element, HtmlRewriter, Settings};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self};
@@ -127,15 +127,16 @@ pub fn write_until_tag(
                 *paused.borrow_mut() = true;
             }
 
-            let html = String::from_utf8(chunk.to_vec()).unwrap();
-
-            if html == "<root>" {
+            if chunk == b"<root>" {
                 return;
             }
 
             let mut tag = tag.borrow_mut();
 
-            if *ignore_prefix_clone.borrow() && html == prefix && position == tag.position.end {
+            if *ignore_prefix_clone.borrow()
+                && chunk == prefix.as_bytes()
+                && position == tag.position.end
+            {
                 ignore_prefix_clone.replace(false);
                 return;
             }
@@ -153,6 +154,8 @@ pub fn write_until_tag(
                 .map(|name| format!("</{}>", name))
                 .collect::<Vec<_>>();
 
+            let html = String::from_utf8_lossy(chunk);
+
             let is_named_slotted = start_tag_names.iter().any(|name| name.contains("*[slot]"))
                 && html.starts_with("<")
                 && html.ends_with(">")
@@ -167,19 +170,21 @@ pub fn write_until_tag(
 
             if !exclude_start_tag && !exclude_end_tag {
                 // Remove the slot attribute from all parsed elements.
-                let clean_html = rewrite_str(
-                    &html,
-                    RewriteStrSettings {
+                let mut rewriter = HtmlRewriter::new(
+                    Settings {
                         element_content_handlers: vec![element!("*[slot]", |el| {
                             el.remove_attribute("slot");
                             Ok(())
                         })],
-                        ..RewriteStrSettings::default()
+                        ..Settings::default()
                     },
-                )
-                .unwrap();
+                    |c: &[u8]| {
+                        output_handler(c);
+                    },
+                );
 
-                output_handler(clean_html.as_bytes());
+                rewriter.write(chunk).unwrap();
+                rewriter.end().unwrap();
             }
         },
     );
