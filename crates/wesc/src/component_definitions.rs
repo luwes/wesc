@@ -1,6 +1,8 @@
 use lol_html::{element, HtmlRewriter, Settings};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self};
+use std::rc::Rc;
 
 use crate::chunk_reader::ChunkReader;
 use crate::CHUNK_SIZE;
@@ -26,24 +28,36 @@ pub fn find_component_definitions(
 
     let mut reader = ChunkReader::new(file_path, CHUNK_SIZE).unwrap();
     let mut component_definitions: HashMap<String, String> = HashMap::new();
+    let should_end = Rc::new(RefCell::new(false));
 
     let mut rewriter = HtmlRewriter::new(
         Settings {
-            element_content_handlers: vec![element!("link[rel=definition]", |el| {
-                let href = el.get_attribute("href").unwrap();
-                let name = el.get_attribute("name").unwrap();
-                component_definitions.insert(name, href);
-                Ok(())
-            })],
+            element_content_handlers: vec![
+                element!("link[rel=definition]", |el| {
+                    let href = el.get_attribute("href").unwrap();
+                    let name = el.get_attribute("name").unwrap();
+                    component_definitions.insert(name, href);
+                    Ok(())
+                }),
+                element!("body", |_el| {
+                    *should_end.borrow_mut() = true;
+                    Ok(())
+                }),
+                element!("template", |_el| {
+                    *should_end.borrow_mut() = true;
+                    Ok(())
+                }),
+            ],
             ..Settings::default()
         },
         |_c: &[u8]| {},
     );
 
-    // TODO: we probably want to require definitions be at the top of the files
-    // and then we can break out of the loop asap once we've found them all.
-
     loop {
+        if *should_end.borrow() {
+            break;
+        }
+
         if let Some(chunk) = reader.read_next_chunk()? {
             rewriter.write(&chunk).unwrap();
         } else {
