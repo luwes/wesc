@@ -9,7 +9,33 @@ We are the Superlative Components!
 - Define and create a superlative component authoring experience
 - Server language agnostic
 
-## Syntax
+
+## WeSC Bundler
+
+A streaming custom element bundler written in Rust using the lol-html parser.
+
+The idea is to create a single-file HTML component format and builder that builds 
+the HTML result super fast (streaming, low memory) and is server language agnostic. 
+
+
+### Features
+
+- [x] Streaming HTML bundler
+- [x] Custom element definition
+- [x] Default and named slots with fallback content
+- [x] Declarative Shadow DOM
+- [ ] CSS bundling
+- [ ] JS bundling
+
+
+### Example
+
+```sh
+wesc ./index.html
+```
+
+
+### Syntax
 
 **index.html**
 
@@ -32,14 +58,40 @@ We are the Superlative Components!
 
 ```html
 <template>
+<!-- or <template shadowrootmode="open"> -->
+  <style>
+    @scope {
+      h3 {
+        color: red;
+      }
+    }
+  </style>
   <div>
     <h3><slot name="title">Add a slotted title</slot></h3>
     <p><slot>Add default slotted content</slot></p>
   </div>
 </template>
+
+<!-- TODO: bundle to a global styles.css -->
+<style>
+  w-card {
+    display: block;
+  }
+</style>
+
+<!-- TODO: bundle to a global scripts.js -->
+<script>
+  class WCard extends HTMLElement {
+    connectedCallback() {
+      console.log('w-card connected');
+    }
+  }
+  customElements.define('w-card', WCard);
+</script>
 ```
 
-## Custom element server-side rendering
+
+## WeSC DOM - Custom element server-side rendering
 
 Custom elements are a crucial part of reaching these goals. 
 The first problem WeSC is aiming to solve is rendering DSD 
@@ -123,3 +175,4 @@ view-source:https://wesc-node.netlify.app
 - [Ocean](https://github.com/matthewp/ocean) - Web component server-side rendering.
 - [Web Components Compiler (WCC)](https://github.com/ProjectEvergreen/wcc) - Experimental native Web Components compiler.
 - [custom-elements-ssr](https://github.com/thepassle/custom-elements-ssr/) - Renders Lit custom elements on the server.
+- [WebC](https://github.com/11ty/webc)
