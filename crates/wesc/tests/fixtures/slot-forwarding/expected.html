@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="definition" name="w-dialog" href="./dialog.html" />
+    <link rel="definition" name="w-button" href="./button.html" />
+  </head>
+  <body>
+    <w-dialog>
+      dialog text before card
+
+      <w-card>
+        card text before counter
+
+        <w-counter>
+          <button>+</button>
+          <div class="c0">
+            <h1>0</h1>
+            <w-button>
+              <button>+++</button>
+            </w-button>
+          </div>
+          <button>-</button>
+        </w-counter>
+
+        card text after counter
+      </w-card>
+
+      dialog text after card
+    </w-dialog>
+  </body>
+</html>

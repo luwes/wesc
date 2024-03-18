@@ -1,0 +1,5 @@
+root = true
+
+[*.html]
+charset = utf-8
+trim_trailing_whitespace = false

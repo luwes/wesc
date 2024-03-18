@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="definition" name="w-card" href="./card.html">
+    <link rel="definition" name="w-button" href="./button.html">
+  </head>
+  <body>
+    <w-card class="card">
+      Text before div
+      <div>
+        <p>Slotted &lt;p&gt; tag</p>
+        <w-card>
+          Text before div
+          <div>Nested w-card default slotted text</div>
+          Text after div
+        </w-card>
+        Text between nested
+        <w-button>
+          <button>default button slot fallback</button>
+        </w-button>
+        Text after nested w-button
+      </div>
+      Text after div
+    </w-card>
+  </body>
+</html>
