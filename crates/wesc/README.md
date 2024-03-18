@@ -2,7 +2,7 @@
 
 We are the Superlative Components!
 
-A streaming custom element bundler written in Rust using the lol-html parser.
+A streaming web component bundler written in Rust using the [lol-html](https://github.com/cloudflare/lol-html) parser.
 
 The idea is to create a single-file HTML component format and builder that builds 
 the HTML result super fast (streaming, low memory) and is server language agnostic. 
@@ -14,7 +14,7 @@ and can be output as JS and CSS files.
 ## Features
 
 - [x] Streaming HTML bundler
-- [x] Custom element definition
+- [x] Web component definition
 - [x] Default and named slots with fallback content
 - [x] Declarative Shadow DOM
 - [ ] CSS bundling
