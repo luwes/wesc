@@ -169,22 +169,7 @@ pub fn write_until_tag(
             let exclude_end_tag = !include_tag && end_tags.iter().any(|tag| &html == tag);
 
             if !exclude_start_tag && !exclude_end_tag {
-                // Remove the slot attribute from all parsed elements.
-                let mut rewriter = HtmlRewriter::new(
-                    Settings {
-                        element_content_handlers: vec![element!("*[slot]", |el| {
-                            el.remove_attribute("slot");
-                            Ok(())
-                        })],
-                        ..Settings::default()
-                    },
-                    |c: &[u8]| {
-                        output_handler(c);
-                    },
-                );
-
-                rewriter.write(chunk).unwrap();
-                rewriter.end().unwrap();
+                output_handler(chunk);
             }
         },
     );
