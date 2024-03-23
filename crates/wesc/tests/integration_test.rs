@@ -45,6 +45,11 @@ fn real_world() {
     test_file("./tests/fixtures/real-world/index.html");
 }
 
+#[test]
+fn layouts() {
+    test_file("./tests/fixtures/layouts/index.html");
+}
+
 fn test_file(file_path: &str) {
     let mut output = Vec::new();
 
