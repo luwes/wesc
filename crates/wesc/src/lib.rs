@@ -4,6 +4,8 @@ use std::path::Path;
 
 pub mod chunk_reader;
 pub mod component_definitions;
+use lol_html::{element, HtmlRewriter, Settings};
+
 use self::component_definitions::find_component_definitions;
 pub mod slotted_positions;
 use self::slotted_positions::find_slotted_positions;
@@ -405,15 +407,16 @@ fn build_component_content(
         .map(|element| element.0.as_str())
         .collect::<Vec<_>>();
 
-    let mut host_until_start_tags = host_definition_names.clone();
-    host_until_start_tags.push("slot");
-    host_until_start_tags.push("*[slot]");
-
     // Get the component tag name from the stack.
     let tag_stack = tag_stacks
         .entry(host_file_path.to_string())
         .or_insert(vec![]);
     let current_tag = tag_stack.last().unwrap().as_str();
+
+    let mut host_until_start_tags = host_definition_names.clone();
+    host_until_start_tags.push("slot");
+    let names_slot_content_tag = format!("{} > *[slot]", current_tag);
+    host_until_start_tags.push(&names_slot_content_tag);
 
     let host_pos_key = pos_key(file_indexes[host_file_path], &host_file_path);
     let component_slotted_positions = slotted_positions.get_mut(&host_pos_key).unwrap();
@@ -504,7 +507,24 @@ fn build_component_content(
                         &vec![light_tag.tag_name.as_str()],
                         "",
                         true,
-                        output_handler,
+                        &mut |chunk: &[u8]| {
+                            // Remove the slot attribute.
+                            let mut rewriter = HtmlRewriter::new(
+                                Settings {
+                                    element_content_handlers: vec![element!("*[slot]", |el| {
+                                        el.remove_attribute("slot");
+                                        Ok(())
+                                    })],
+                                    ..Settings::default()
+                                },
+                                |c: &[u8]| {
+                                    output_handler(c);
+                                },
+                            );
+
+                            rewriter.write(chunk).unwrap();
+                            rewriter.end().unwrap();
+                        },
                     );
 
                     read_positions.insert(host_pos_key.clone(), light_tag.position.end);
