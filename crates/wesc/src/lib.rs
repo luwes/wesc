@@ -93,8 +93,26 @@ fn build_file(
     file_indexes.insert(host_file_path.to_string(), 0);
     read_positions.insert(pos_key(0, host_file_path), 0);
 
+    let html_or_template_tag = write_until_start_tag(
+        &host_file_path,
+        0,
+        &vec!["root > html", "root > template"],
+        "",
+        false,
+        &mut |_chunk: &[u8]| {},
+    )
+    .unwrap();
+
+    let entry_is_component = html_or_template_tag.tag_name == "template";
+    let host_pos_key = pos_key(0, &host_file_path);
+
+    if entry_is_component {
+        read_positions.insert(host_pos_key.clone(), html_or_template_tag.position.end);
+    }
+
     loop {
         let ended = build_component(
+            entry_is_component,
             &host_file_path,
             file_indexes,
             read_positions,
@@ -116,6 +134,7 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 }
 
 fn build_component(
+    entry_is_component: bool,
     host_file_path: &str,
     file_indexes: &mut HashMap<String, usize>,
     read_positions: &mut HashMap<String, usize>,
@@ -128,21 +147,31 @@ fn build_component(
     // Find the component definitions in the host file.
     let host_definitions = find_component_definitions(&mut definitions, &host_file_path).unwrap();
     // Put the component definition names in a vector.
-    let host_definition_names = host_definitions
+    let mut host_definition_names = host_definitions
         .iter()
         .map(|element| element.0.as_str())
         .collect::<Vec<_>>();
+
+    let mut prefix = "";
+    let mut until_end_tags = vec![];
+
+    if entry_is_component {
+        host_definition_names.push("root > template");
+        until_end_tags.push("root > template");
+        prefix = "<template>";
+    }
 
     let host_file_index = file_indexes[host_file_path];
     let host_pos_key = pos_key(host_file_index, &host_file_path);
 
     // Write until after the start tag of a component.
-    let component_tag = write_until_start_tag(
+    let component_tag = write_until_tag(
         &host_file_path,
         read_positions[&host_pos_key],
         &host_definition_names,
-        "",
-        true,
+        &until_end_tags,
+        prefix,
+        false,
         output_handler,
     );
 
@@ -150,6 +179,21 @@ fn build_component(
         Ok(tag) => tag,
         Err(_error) => return true,
     };
+
+    if component_tag.tag_name == "template" {
+        return true;
+    }
+
+    if !component_tag.attributes.contains_key("w-trim") {
+        let _ = write_until_start_tag(
+            &host_file_path,
+            component_tag.position.start,
+            &host_definition_names,
+            "",
+            true,
+            output_handler,
+        );
+    }
 
     // Save the end position of the start tag of the component.
     read_positions.insert(host_pos_key.clone(), component_tag.position.end);
@@ -271,7 +315,9 @@ fn build_component(
                     }
                 }
 
-                output_handler(format!("</{}>", component_tag.tag_name).as_bytes());
+                if !component_tag.attributes.contains_key("w-trim") {
+                    output_handler(format!("</{}>", component_tag.tag_name).as_bytes());
+                }
 
                 read_positions.insert(host_pos_key, component_end_tag.position.end);
             }
@@ -283,6 +329,7 @@ fn build_component(
             read_positions.insert(component_pos_key.clone(), tag.position.start);
 
             build_component(
+                entry_is_component,
                 &component_file_path,
                 file_indexes,
                 read_positions,
@@ -302,6 +349,7 @@ fn build_component(
 
             loop {
                 if let Some(light_tag) = build_component_content(
+                    entry_is_component,
                     slot_name,
                     &host_file_path,
                     file_indexes,
@@ -340,6 +388,7 @@ fn build_component(
 }
 
 fn build_component_content(
+    entry_is_component: bool,
     slot_name_option: Option<&String>,
     host_file_path: &str,
     file_indexes: &mut HashMap<String, usize>,
@@ -408,6 +457,7 @@ fn build_component_content(
                 // slotted_ranges.remove(0);
 
                 let light_tag = build_component_content(
+                    entry_is_component,
                     slot_name_option,
                     &parent_file_path,
                     file_indexes,
@@ -514,6 +564,7 @@ fn build_component_content(
                 read_positions.insert(host_pos_key.clone(), light_tag.position.start);
 
                 build_component(
+                    entry_is_component,
                     &host_file_path,
                     file_indexes,
                     read_positions,
