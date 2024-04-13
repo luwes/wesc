@@ -24,7 +24,7 @@ the HTML result super fast (streaming, low memory) and is server language agnost
 - [x] Web component definition
 - [x] Default and named slots with fallback content
 - [x] Declarative Shadow DOM
-- [ ] CSS bundling
+- [x] CSS bundling
 - [ ] JS bundling
 
 
@@ -72,7 +72,6 @@ wesc ./index.html
   </div>
 </template>
 
-<!-- TODO: bundle to a global styles.css -->
 <style>
   w-card {
     display: block;
