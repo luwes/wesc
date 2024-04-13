@@ -1,11 +1,34 @@
+use indexmap::IndexMap;
 use lol_html::{element, HtmlRewriter, Settings};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self};
+use std::path::Path;
 use std::rc::Rc;
+use std::sync::{LazyLock, Mutex};
 
 use crate::chunk_reader::ChunkReader;
 use crate::CHUNK_SIZE;
+
+// Store the definitions of the components.
+// e.g. <link rel="definition" name="w-card" href="./card.html">
+static DEFINITIONS: LazyLock<Mutex<HashMap<String, IndexMap<String, String>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+pub fn get_component_file_path(current_file_path: &str, name: &str) -> Option<String> {
+    let dir = Path::new(&current_file_path).parent().unwrap();
+    let defs = find_component_definitions(current_file_path).unwrap();
+    let component_href = defs[name].as_str();
+    let component_href = Path::new(component_href);
+    let component_file_path = dir.join(&component_href);
+    component_file_path.to_string_lossy().to_string().into()
+}
+
+pub fn find_component_definition_names(file_path: &str) -> io::Result<Vec<String>> {
+    let defs = find_component_definitions(file_path)?;
+
+    Ok(defs.keys().cloned().collect())
+}
 
 /// Find all custom element definitions in a file.
 ///
@@ -18,16 +41,15 @@ use crate::CHUNK_SIZE;
 /// ```html
 /// <link rel="definition" name="my-element" href="./my-element.html">
 /// ```
-pub fn find_component_definitions(
-    definitions: &mut HashMap<String, HashMap<String, String>>,
-    file_path: &str,
-) -> io::Result<HashMap<String, String>> {
-    if definitions.contains_key(file_path) {
-        return Ok(definitions[file_path].clone());
+pub fn find_component_definitions(file_path: &str) -> io::Result<IndexMap<String, String>> {
+    let mut defs = DEFINITIONS.lock().unwrap();
+
+    if defs.contains_key(file_path) {
+        return Ok(defs[file_path].clone());
     }
 
     let mut reader = ChunkReader::new(file_path, CHUNK_SIZE).unwrap();
-    let mut component_definitions: HashMap<String, String> = HashMap::new();
+    let mut component_definitions: IndexMap<String, String> = IndexMap::new();
     let should_end = Rc::new(RefCell::new(false));
 
     let mut rewriter = HtmlRewriter::new(
@@ -67,7 +89,7 @@ pub fn find_component_definitions(
 
     rewriter.end().unwrap();
 
-    definitions.insert(file_path.to_string(), component_definitions.clone());
+    defs.insert(file_path.to_string(), component_definitions.clone());
 
     Ok(component_definitions)
 }

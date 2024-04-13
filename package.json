@@ -24,7 +24,7 @@
     "url": "https://github.com/luwes/wesc/issues"
   },
   "scripts": {
-    "lint": "npx eslint src/*.js src/**/*.js -c ./node_modules/wet-run/.eslintrc.json",
+    "lint": "npx eslint@8 src/*.js src/**/*.js -c ./node_modules/wet-run/.eslintrc.json",
     "test": "pta 'test/**/*.spec.js' --reporter tap",
     "dev": "wet serve --cors --redirect :examples/ & esbuild src/dom/server.js src/dom/unshim.js src/dom/react/index.js src/dom/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist/dom --bundle --watch",
     "build": "esbuild src/dom/server.js src/dom/unshim.js src/dom/react/index.js src/dom/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist/dom --bundle --minify --tree-shaking=true",
