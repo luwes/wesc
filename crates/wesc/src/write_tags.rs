@@ -8,11 +8,11 @@ use crate::chunk_reader::ChunkReader;
 use crate::Tag;
 use crate::CHUNK_SIZE;
 
-pub fn write_until_tag(
+pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
     file_path: &str,
     position: usize,
-    start_tag_names: &Vec<&str>,
-    end_tag_names: &Vec<&str>,
+    start_tag_names: &[T],
+    end_tag_names: &[U],
     prefix: &str,
     include_tag: bool,
     output_handler: &mut impl FnMut(&[u8]) -> (),
@@ -32,8 +32,19 @@ pub fn write_until_tag(
     }));
     let tag_clone = Rc::clone(&tag);
 
+    let start_tag_names = start_tag_names
+        .iter()
+        .map(|name| name.as_ref())
+        .collect::<Vec<_>>();
+
+    let end_tag_names = end_tag_names
+        .iter()
+        .map(|name| name.as_ref())
+        .collect::<Vec<_>>();
+
     // Merge start and end tag names into a single vector.
-    let tag_names = start_tag_names
+    let binding = start_tag_names.clone();
+    let tag_names = binding
         .iter()
         .chain(end_tag_names.iter())
         .collect::<Vec<_>>();
@@ -222,10 +233,10 @@ fn only_tag_names(selectors: &Vec<String>) -> Vec<&str> {
 }
 
 /// Streaming write the contents of a file until a start tag is found.
-pub fn write_until_start_tag(
+pub fn write_until_start_tag<T: AsRef<str>>(
     file_path: &str,
     position: usize,
-    tag_names: &Vec<&str>,
+    tag_names: &[T],
     prefix: &str,
     include_tag: bool,
     output_handler: &mut impl FnMut(&[u8]) -> (),
@@ -234,7 +245,7 @@ pub fn write_until_start_tag(
         file_path,
         position,
         tag_names,
-        &vec![],
+        &vec![] as &[&str],
         prefix,
         include_tag,
         output_handler,
@@ -242,10 +253,10 @@ pub fn write_until_start_tag(
 }
 
 /// Streaming write the contents of a file until an end tag is found.
-pub fn write_until_end_tag(
+pub fn write_until_end_tag<T: AsRef<str>>(
     file_path: &str,
     position: usize,
-    tag_names: &Vec<&str>,
+    tag_names: &[T],
     prefix: &str,
     include_tag: bool,
     output_handler: &mut impl FnMut(&[u8]) -> (),
@@ -253,10 +264,62 @@ pub fn write_until_end_tag(
     write_until_tag(
         file_path,
         position,
-        &vec![],
+        &vec![] as &[&str],
         tag_names,
         prefix,
         include_tag,
         output_handler,
+    )
+}
+
+pub fn read_until_tag<T: AsRef<str>, U: AsRef<str>>(
+    file_path: &str,
+    position: usize,
+    start_tag_names: &[T],
+    end_tag_names: &[U],
+    prefix: &str,
+) -> io::Result<Tag> {
+    write_until_tag(
+        file_path,
+        position,
+        start_tag_names,
+        end_tag_names,
+        prefix,
+        false,
+        &mut |_chunk: &[u8]| {},
+    )
+}
+
+pub fn read_until_start_tag<T: AsRef<str>>(
+    file_path: &str,
+    position: usize,
+    tag_names: &[T],
+    prefix: &str,
+) -> io::Result<Tag> {
+    write_until_tag(
+        file_path,
+        position,
+        tag_names,
+        &vec![] as &[&str],
+        prefix,
+        false,
+        &mut |_chunk: &[u8]| {},
+    )
+}
+
+pub fn read_until_end_tag<T: AsRef<str>>(
+    file_path: &str,
+    position: usize,
+    tag_names: &[T],
+    prefix: &str,
+) -> io::Result<Tag> {
+    write_until_tag(
+        file_path,
+        position,
+        &vec![] as &[&str],
+        tag_names,
+        prefix,
+        false,
+        &mut |_chunk: &[u8]| {},
     )
 }

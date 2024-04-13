@@ -4,26 +4,34 @@ use std::collections::HashMap;
 use std::io::{self};
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::{LazyLock, Mutex};
 
 use crate::chunk_reader::ChunkReader;
 use crate::CHUNK_SIZE;
 use crate::DEFAULT_SLOT_NAME;
+
+// Store the slotted positions of the light DOM content of the component.
+// There is a default slot and named slots that can have multiple ranges that are out-of-order.
+static SLOTTED_POSITIONS: LazyLock<Mutex<HashMap<String, HashMap<String, Vec<Range<usize>>>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn pos_key(file_index: usize, file_path: &str) -> String {
     format!("{}:{}", file_index, file_path)
 }
 
 pub fn find_slotted_positions(
-    slotted_positions: &mut HashMap<String, HashMap<String, Vec<Range<usize>>>>,
     read_position: usize,
     host_file_path: &str,
     component_name: &str,
     component_file_index: &usize,
-    _component_file_path: &str,
+    component_file_path: &str,
 ) -> io::Result<HashMap<String, Vec<Range<usize>>>> {
-    let key = pos_key(*component_file_index, &host_file_path);
+    let mut slotted_positions = SLOTTED_POSITIONS.lock().unwrap();
 
-    // todo: cache slotted positions result
+    let key = pos_key(*component_file_index, &component_file_path);
+
+    // to cache this we still need to know the count of the element in the host file
+    // because there can be multiple components with the same name
     // if slotted_positions.contains_key(&key) {
     //     return Ok(slotted_positions[&key].clone());
     // }

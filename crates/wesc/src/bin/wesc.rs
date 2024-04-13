@@ -3,9 +3,15 @@ use std::io;
 use std::io::prelude::*;
 use wesc::{build, BuildOptions};
 
+/// The `wesc` command line tool.
 #[derive(Parser)]
 struct Cli {
+    /// The path to the entry point file.
     path: String,
+
+    /// The output CSS file.
+    #[arg(short, long)]
+    outcss: Option<String>,
 }
 
 /// The `wesc` command line tool.
@@ -57,6 +63,7 @@ fn main() {
     build(
         BuildOptions {
             entry_points: vec![args.path],
+            outcss: args.outcss,
         },
         &mut output_handler,
     );
