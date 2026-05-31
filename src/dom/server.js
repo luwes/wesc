@@ -74,6 +74,14 @@ export function shim() {
     cancelAnimationFrame: function cancelAnimationFrame() {},
   };
 
+  for (let shim in shims) {
+    let descriptor = Object.getOwnPropertyDescriptor(globalThis, shim);
+
+    if (descriptor && !descriptor.writable && !descriptor.set) {
+      delete shims[shim];
+    }
+  }
+
   preshimGlobalThis = {};
   for (let shim in shims) {
     preshimGlobalThis[shim] = globalThis[shim];
