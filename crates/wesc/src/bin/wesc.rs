@@ -12,6 +12,14 @@ struct Cli {
     /// The output CSS file.
     #[arg(short, long)]
     outcss: Option<String>,
+
+    /// The output JS file.
+    #[arg(short = 'j', long)]
+    outjs: Option<String>,
+
+    /// Minify generated assets where supported.
+    #[arg(short, long)]
+    minify: bool,
 }
 
 /// The `wesc` command line tool.
@@ -64,6 +72,8 @@ fn main() {
         BuildOptions {
             entry_points: vec![args.path],
             outcss: args.outcss,
+            outjs: args.outjs,
+            minify: args.minify,
         },
         &mut output_handler,
     );

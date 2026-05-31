@@ -1,0 +1,32 @@
+<template>
+  <header class="header">
+    <h1>Todos</h1>
+  </header>
+</template>
+
+<style>
+  .header h1 {
+    color: rgb(175 47 47 / 15%);
+    font-size: 80px;
+    font-weight: 100;
+    position: absolute;
+    text-align: center;
+    text-rendering: optimizeLegibility;
+    top: -155px;
+    width: 100%;
+  }
+
+  .header {
+    margin: 0;
+  }
+
+  todo-header {
+    display: block;
+  }
+</style>
+
+<script type="module">
+  class TodoHeader extends HTMLElement {}
+
+  customElements.define('todo-header', TodoHeader);
+</script>

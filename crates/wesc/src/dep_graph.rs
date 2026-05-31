@@ -45,11 +45,17 @@ impl DepGraph {
     }
 }
 
-pub fn resolve_dependencies(file_path: &str, dep_graph: &mut DepGraph) {
-    resolve_component_dependencies("root", file_path, dep_graph);
+pub fn resolve_dependencies(file_path: &str) -> DepGraph {
+    let mut dep_graph = DepGraph::new();
+    resolve_component_dependencies("root", file_path, &mut dep_graph);
+    dep_graph
 }
 
-pub fn resolve_component_dependencies(name: &str, file_path: &str, dep_graph: &mut DepGraph) {
+pub fn resolve_component_dependencies(
+    name: &str,
+    file_path: &str,
+    dep_graph: &mut DepGraph,
+) -> NodeId {
     let module = Module::new(name.to_owned(), file_path.to_owned());
     let dependency = dep_graph.new_node(module);
     let host_definitions = find_component_definitions(&file_path).unwrap();
@@ -60,10 +66,10 @@ pub fn resolve_component_dependencies(name: &str, file_path: &str, dep_graph: &m
         let component_file_path = dir.join(&component_href);
         let component_file_path_string = component_file_path.to_string_lossy().to_string();
 
-        resolve_component_dependencies(&component_name, &component_file_path_string, dep_graph);
-
-        let module = Module::new(component_name, component_file_path_string.clone());
-        let component_dependency = dep_graph.new_node(module);
+        let component_dependency =
+            resolve_component_dependencies(&component_name, &component_file_path_string, dep_graph);
         dependency.append(component_dependency, &mut dep_graph.arena);
     }
+
+    dependency
 }

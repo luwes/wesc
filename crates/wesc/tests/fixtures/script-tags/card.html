@@ -1,0 +1,28 @@
+<link rel="definition" name="w-counter" href="./counter.html">
+
+<template>
+  card text before counter
+
+  <w-counter>
+    <slot>card default slot fallback content</slot>
+  </w-counter>
+
+  card text after counter
+</template>
+
+<style>
+  w-card {
+    color: springgreen;
+  }
+</style>
+
+<script type="module">
+  import './counter.js';
+
+  class WCard extends HTMLElement {
+    connectedCallback() {
+      console.log('w-card connected');
+    }
+  }
+  customElements.define('w-card', WCard);
+</script>

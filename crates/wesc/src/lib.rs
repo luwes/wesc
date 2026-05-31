@@ -1,13 +1,15 @@
-#![feature(lazy_cell)]
-
-use dep_graph::resolve_dependencies;
+use dep_graph::{resolve_dependencies, Module};
+use indextree::Node;
 use lol_html::{element, HtmlRewriter, Settings};
+use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
 use std::collections::HashMap;
 use std::fs::remove_file;
 use std::io::Write;
 use std::ops::Range;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use std::{fs, thread};
+use tokio::runtime::Builder;
 
 pub mod chunk_reader;
 
@@ -33,6 +35,8 @@ pub const CONTENT_IN_PROGRESS: usize = 0;
 pub struct BuildOptions {
     pub entry_points: Vec<String>,
     pub outcss: Option<String>,
+    pub outjs: Option<String>,
+    pub minify: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +58,8 @@ pub struct Tag {
 /// let build_options = BuildOptions {
 ///    entry_points: vec!["./tests/fixtures/default-slot/index.html".to_string()],
 ///    outcss: None,
+///    outjs: None,
+///    minify: false,
 /// };
 ///
 /// build(build_options, &mut |chunk: &[u8]| {
@@ -76,15 +82,12 @@ pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])
     // Keep a stack of the component tags that are being built.
     let mut tag_stacks: HashMap<String, Vec<String>> = HashMap::new();
 
-    let mut dep_graph = &mut DepGraph::new();
-
     build_file(
         file_path,
         &build_options,
         &mut file_indexes,
         &mut read_positions,
         &mut tag_stacks,
-        &mut dep_graph,
         output_handler,
     );
 }
@@ -95,20 +98,18 @@ fn build_file(
     file_indexes: &mut HashMap<String, usize>,
     read_positions: &mut HashMap<String, usize>,
     tag_stacks: &mut HashMap<String, Vec<String>>,
-    dep_graph: &mut DepGraph,
     output_handler: &mut impl FnMut(&[u8]),
 ) {
     // Resolve all the dependencies of the entry point.
-    resolve_dependencies(host_file_path, dep_graph);
+    let dep_graph = &resolve_dependencies(host_file_path);
 
-    let dependencies = dep_graph
-        .arena
-        .iter()
-        .filter(|node| node.parent().is_some())
-        .map(|node| node.get().file_path.clone())
-        .collect::<Vec<String>>();
+    let dep_graph_ptr = Arc::new(Mutex::new(dep_graph.clone()));
+    let dep_graph_ptr_clone = dep_graph_ptr.clone();
 
     let outcss = build_options.outcss.clone();
+    let outjs = build_options.outjs.clone();
+    let minify = build_options.minify;
+    let host_file_path_string = host_file_path.to_owned();
 
     let css_thread_handle = thread::spawn(move || {
         if let Some(outcss) = outcss {
@@ -116,7 +117,16 @@ fn build_file(
                 remove_file(&outcss).unwrap();
             }
 
-            for dep_file_path in dependencies {
+            let dep_graph = dep_graph_ptr.lock().unwrap();
+            let dependencies = dep_graph
+                .arena
+                .iter()
+                .filter(|node| node.parent().is_some())
+                .collect::<Vec<&Node<Module>>>();
+
+            for dependency in dependencies.iter() {
+                let dep_file_path = &dependency.get().file_path;
+
                 if let Ok(style_tag) =
                     read_until_start_tag(&dep_file_path, 0, &vec!["root > style"], "")
                 {
@@ -127,12 +137,96 @@ fn build_file(
                         "<style>",
                         false,
                         &mut |chunk: &[u8]| {
-                            append_data_to_file(&outcss, chunk).unwrap();
+                            append_data_to_file(Path::new(&outcss), chunk).unwrap();
                         },
                     )
                     .unwrap();
                 }
             }
+        }
+    });
+
+    let js_thread_handle = thread::spawn(move || {
+        let dep_graph = dep_graph_ptr_clone.lock().unwrap();
+        let dependencies = dep_graph
+            .arena
+            .iter()
+            .filter(|node| node.parent().is_some())
+            .collect::<Vec<&Node<Module>>>();
+
+        for dependency in dependencies.iter() {
+            let dep_file_path_string = &dependency.get().file_path;
+            let binding = dep_file_path_string.clone();
+            let dep_file_path = Path::new(&binding);
+            let folder = Path::new("./.wesc/scripts");
+            let outjs = folder.join(dep_file_path).with_extension("js");
+
+            if outjs.exists() {
+                remove_file(&outjs).unwrap();
+            }
+
+            if let Ok(script_tag) =
+                read_until_start_tag(&dep_file_path_string, 0, &vec!["root > script"], "")
+            {
+                let _script_tag = write_until_end_tag(
+                    &dep_file_path_string,
+                    script_tag.position.end,
+                    &vec!["script"],
+                    "<script>",
+                    false,
+                    &mut |chunk: &[u8]| {
+                        append_data_to_file(&outjs, chunk).unwrap();
+                    },
+                )
+                .unwrap();
+            }
+        }
+
+        if let Some(outjs) = outjs {
+            if Path::new(&outjs).exists() {
+                remove_file(&outjs).unwrap();
+            }
+
+            let entry_path = Path::new("./.wesc/scripts").join("__entry.js");
+            if entry_path.exists() {
+                remove_file(&entry_path).unwrap();
+            }
+
+            for dependency in dependencies.iter() {
+                let parent_file_path = dep_graph
+                    .get_parent_file_path(&dependency.get().file_path)
+                    .unwrap();
+
+                if parent_file_path == host_file_path_string {
+                    let dep_file_path = Path::new(&dependency.get().file_path);
+                    let script_path = Path::new("./.wesc/scripts")
+                        .join(dep_file_path)
+                        .with_extension("js");
+                    let script_path = script_path
+                        .strip_prefix("./.wesc/scripts")
+                        .unwrap_or(&script_path);
+                    let import = format!("import './{}';\n", script_path.to_string_lossy());
+                    append_data_to_file(&entry_path, import.as_bytes()).unwrap();
+                }
+            }
+
+            let mut bundler_options = BundlerOptions {
+                input: Some(vec![InputItem::from(
+                    entry_path.to_string_lossy().to_string(),
+                )]),
+                file: Some(outjs),
+                format: Some(OutputFormat::Esm),
+                ..BundlerOptions::default()
+            };
+
+            if minify {
+                bundler_options.minify = Some(RawMinifyOptions::Bool(true));
+            }
+
+            let mut bundler = Bundler::new(bundler_options).unwrap();
+
+            let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+            runtime.block_on(bundler.write()).unwrap();
         }
     });
 
@@ -191,6 +285,7 @@ fn build_file(
     }
 
     css_thread_handle.join().unwrap();
+    js_thread_handle.join().unwrap();
 }
 
 fn pos_key(file_index: usize, file_path: &str) -> String {
@@ -605,13 +700,19 @@ fn build_component_content(
     None
 }
 
-fn append_data_to_file(path: &str, data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)?;
+fn append_data_to_file(file_path: &Path, data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(p) = file_path.parent() {
+        fs::create_dir_all(p)?;
 
-    file.write_all(&data)?;
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_path)?;
 
-    Ok(())
+        file.write_all(&data)?;
+
+        return Ok(());
+    }
+
+    Err("Could not append data to file".into())
 }

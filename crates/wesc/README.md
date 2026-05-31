@@ -18,7 +18,7 @@ and can be output as JS and CSS files.
 - [x] Default and named slots with fallback content
 - [x] Declarative Shadow DOM
 - [x] CSS bundling
-- [ ] JS bundling
+- [x] JS bundling
 
 
 ## Example

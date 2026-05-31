@@ -1,0 +1,117 @@
+<template>
+  <footer class="footer">
+    <span class="todo-count"><strong>2</strong> items left</span>
+    <ul class="filters">
+      <li><a class="selected" href="#/">All</a></li>
+      <li><a href="#/active">Active</a></li>
+      <li><a href="#/completed">Completed</a></li>
+    </ul>
+    <button class="clear-completed" type="button">Clear completed</button>
+  </footer>
+</template>
+
+<style>
+  .footer {
+    border-top: 1px solid #e6e6e6;
+    box-shadow:
+      0 1px 1px rgb(0 0 0 / 20%),
+      0 8px 0 -3px #f6f6f6,
+      0 9px 1px -3px rgb(0 0 0 / 20%),
+      0 16px 0 -6px #f6f6f6,
+      0 17px 2px -6px rgb(0 0 0 / 20%);
+    color: #777;
+    font-size: 0.875rem;
+    height: 20px;
+    padding: 10px 15px;
+    position: relative;
+    text-align: center;
+  }
+
+  .todo-count {
+    float: left;
+    text-align: left;
+  }
+
+  .todo-count strong {
+    font-weight: 300;
+  }
+
+  .filters {
+    left: 0;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    right: 0;
+  }
+
+  .filters li {
+    display: inline;
+  }
+
+  .filters li a {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: inherit;
+    margin: 3px;
+    padding: 3px 7px;
+    text-decoration: none;
+  }
+
+  .filters li a:hover {
+    border-color: rgb(175 47 47 / 10%);
+  }
+
+  .filters li a.selected {
+    border-color: rgb(175 47 47 / 20%);
+  }
+
+  .clear-completed {
+    cursor: pointer;
+    float: right;
+    line-height: 20px;
+    position: relative;
+  }
+
+  .clear-completed:hover {
+    text-decoration: underline;
+  }
+</style>
+
+<script type="module">
+  class TodoFooter extends HTMLElement {
+    static get observedAttributes() {
+      return ['count'];
+    }
+
+    connectedCallback() {
+      this.updateCount();
+      this.querySelector('.clear-completed')?.addEventListener('click', () => {
+        this.dispatchEvent(new CustomEvent('todo-clear-completed', { bubbles: true }));
+      });
+    }
+
+    attributeChangedCallback() {
+      this.updateCount();
+    }
+
+    updateCount() {
+      const count = Number(this.getAttribute('count') ?? 0);
+      const label = count === 1 ? 'item' : 'items';
+      const countElement = this.querySelector('.todo-count');
+
+      if (countElement) {
+        countElement.innerHTML = `<strong>${count}</strong> ${label} left`;
+      }
+    }
+
+    selectFilter(filter) {
+      this.querySelectorAll('.filters a').forEach((link) => {
+        const linkFilter = link.getAttribute('href').replace('#/', '') || 'all';
+        link.classList.toggle('selected', linkFilter === filter);
+      });
+    }
+  }
+
+  customElements.define('todo-footer', TodoFooter);
+</script>

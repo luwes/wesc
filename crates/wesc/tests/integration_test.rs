@@ -2,8 +2,11 @@
 use pretty_assertions::assert_eq;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::{LazyLock, Mutex};
 use std::{fs, path::Path};
 use wesc::{build, BuildOptions};
+
+static BUILD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 #[test]
 fn default_slot() {
@@ -62,21 +65,88 @@ fn style_tags() {
 }
 
 #[test]
+fn script_tags() {
+    test_file_with_outputs(
+        "./tests/fixtures/script-tags/index.html",
+        Some("./tests/fixtures/script-tags/styles.css"),
+        Some("./tests/fixtures/script-tags/scripts.js"),
+    );
+}
+
+#[test]
+fn todo_app() {
+    test_file_with_outputs_and_cleanup(
+        "./tests/fixtures/todo-app/index.html",
+        Some("./tests/fixtures/todo-app/styles.css"),
+        Some("./tests/fixtures/todo-app/scripts.js"),
+        true,
+    );
+}
+
+#[test]
+fn minify_js() {
+    let outjs = "./tests/fixtures/todo-app/minified.js";
+    let mut output = Vec::new();
+    let mut output_handler = |c: &[u8]| {
+        output.extend_from_slice(c);
+    };
+
+    let _build_lock = BUILD_LOCK.lock().unwrap();
+    build(
+        BuildOptions {
+            entry_points: vec![String::from("./tests/fixtures/todo-app/index.html")],
+            outcss: None,
+            outjs: Some(String::from(outjs)),
+            minify: true,
+        },
+        &mut output_handler,
+    );
+
+    let minified = fs::read_to_string(outjs).expect("Should have been able to read the file");
+    let expected = fs::read_to_string("./tests/fixtures/todo-app/expected.min.js")
+        .expect("Should read expected minified JS");
+    let readable = fs::read_to_string("./tests/fixtures/todo-app/expected.js")
+        .expect("Should read readable JS");
+
+    assert_eq!(minified, expected);
+    assert!(minified.len() < readable.len());
+    assert!(!minified.contains("//#region"));
+
+    fs::remove_file(outjs).expect("Should have been able to remove the file");
+}
+
+#[test]
 fn real_world() {
     test_file("./tests/fixtures/real-world/index.html", None);
 }
 
 fn test_file(file_path: &str, outcss: Option<&str>) {
+    test_file_with_outputs(file_path, outcss, None);
+}
+
+fn test_file_with_outputs(file_path: &str, outcss: Option<&str>, outjs: Option<&str>) {
+    test_file_with_outputs_and_cleanup(file_path, outcss, outjs, false);
+}
+
+fn test_file_with_outputs_and_cleanup(
+    file_path: &str,
+    outcss: Option<&str>,
+    outjs: Option<&str>,
+    cleanup_outcss: bool,
+) {
     let mut output = Vec::new();
 
     let mut output_handler = |c: &[u8]| {
         output.extend_from_slice(c);
     };
 
+    let _build_lock = BUILD_LOCK.lock().unwrap();
     build(
         BuildOptions {
             entry_points: vec![String::from(file_path)],
             outcss: outcss.map(String::from),
+            outjs: outjs.map(String::from),
+            minify: false,
         },
         &mut output_handler,
     );
@@ -107,13 +177,41 @@ fn test_file(file_path: &str, outcss: Option<&str>) {
         );
 
         assert_eq!(actual_css, expected_css);
+
+        if cleanup_outcss {
+            fs::remove_file(actual_css_file_path)
+                .expect("Should have been able to remove the file");
+        }
+    }
+
+    if let Some(outjs) = outjs {
+        let expected_js_file_path = dir.join("expected.js");
+        let expected_js = prettier_for(
+            &fs::read_to_string(expected_js_file_path)
+                .expect("Should have been able to read the file"),
+            "index.js",
+        );
+
+        let actual_js_file_path = Path::new(outjs);
+        let actual_js = prettier_for(
+            &fs::read_to_string(actual_js_file_path)
+                .expect("Should have been able to read the file"),
+            "index.js",
+        );
+
+        assert_eq!(actual_js, expected_js);
+        fs::remove_file(actual_js_file_path).expect("Should have been able to remove the file");
     }
 }
 
 fn prettier(file_contents: &str) -> String {
+    prettier_for(file_contents, "index.html")
+}
+
+fn prettier_for(file_contents: &str, file_path: &str) -> String {
     let mut child = Command::new("prettier")
         .arg("--stdin-filepath")
-        .arg("index.html")
+        .arg(file_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()

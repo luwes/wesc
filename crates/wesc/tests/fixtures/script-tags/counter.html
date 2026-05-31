@@ -1,0 +1,20 @@
+<template>
+  <button>+</button>
+  <div class="c0"><slot>0</slot></div>
+  <button>-</button>
+</template>
+
+<style>
+  w-counter {
+    color: darkorchid;
+  }
+</style>
+
+<script type="module">
+  class WCounter extends HTMLElement {
+    connectedCallback() {
+      console.log('w-counter connected');
+    }
+  }
+  customElements.define('w-counter', WCounter);
+</script>

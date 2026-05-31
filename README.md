@@ -25,7 +25,7 @@ the HTML result super fast (streaming, low memory) and is server language agnost
 - [x] Default and named slots with fallback content
 - [x] Declarative Shadow DOM
 - [x] CSS bundling
-- [ ] JS bundling
+- [x] JS bundling
 
 
 ### Example
