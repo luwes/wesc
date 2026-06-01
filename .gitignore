@@ -8,7 +8,7 @@ target/
 .wesc/
 
 # napi-rs generated artifacts
-index.cjs
-index.d.ts
+# index.cjs / index.d.ts are committed so the published main package always has
+# its loader (the CI publish job doesn't regenerate them).
 *.node
 /npm/

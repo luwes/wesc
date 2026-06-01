@@ -28,6 +28,9 @@
   },
   "napi": {
     "name": "wesc",
+    "package": {
+      "name": "@wesc/binding"
+    },
     "triples": {
       "defaults": true,
       "additional": [
@@ -36,6 +39,9 @@
         "x86_64-unknown-linux-musl"
       ]
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "repository": "luwes/wesc",
   "author": "Wesley Luyten <me@wesleyluyten.com> (https://wesleyluyten.com)",
