@@ -1,3 +1,42 @@
+# [0.5.0](https://github.com/luwes/wesc/compare/v0.4.0...v0.5.0) (2026-06-01)
+
+
+### Bug Fixes
+
+* add big real world & fix byte->str bottleneck ([5be783c](https://github.com/luwes/wesc/commit/5be783cd3129ae25a1eab9b9f824fad8cc4eb636))
+* avoid readonly globals in server shim ([7f23768](https://github.com/luwes/wesc/commit/7f2376852111296eceae8d2b9486b22f3650d293))
+* doc test in lib.rs ([2c735ba](https://github.com/luwes/wesc/commit/2c735ba49b814b6d934977286b529f25bbcfb887))
+* drop platform optionalDependencies from committed manifest ([e0e4dbd](https://github.com/luwes/wesc/commit/e0e4dbdc7b6ada9077e9c3d23b42c6cac7e1446c))
+* end early finding component defs ([1ee4535](https://github.com/luwes/wesc/commit/1ee453532a483d8834e56c49e1c40a18655ff925))
+* keep native compile out of the default `build` script ([4637f0e](https://github.com/luwes/wesc/commit/4637f0ef6d774c1e6c4391f6642e09f13348a7c4))
+* nested template tag in component ([f8a79cb](https://github.com/luwes/wesc/commit/f8a79cbc1b9bd97921ade3498290138ad8a9debd))
+* slot attribute bug ([#25](https://github.com/luwes/wesc/issues/25)) ([58bb34b](https://github.com/luwes/wesc/commit/58bb34b6f4abb08a1388bc75c6dc9d3a8dc690c2))
+* split up code ([fc11601](https://github.com/luwes/wesc/commit/fc116016ae79da3926a25269e3b7719c483ce3ee))
+* upgrade lol_html ([b00360e](https://github.com/luwes/wesc/commit/b00360efa57fd325e63297214d6f8c69ffce59bf))
+* use cargo workspaces ([c99b905](https://github.com/luwes/wesc/commit/c99b905b2f60ffae60861528ffecd0ee13140b32))
+* **wesc:** deduplicate bundled CSS for components declared in multiple files ([4710d3e](https://github.com/luwes/wesc/commit/4710d3ec7ccf72a1a140d55820e83b52faf10fd6))
+* **wesc:** pass through nested <template> elements in component bodies ([37fa95f](https://github.com/luwes/wesc/commit/37fa95f8809560184ac8200a595653f77e10ff26))
+* **wesc:** resolve JS bundler paths correctly for absolute entries ([53f7279](https://github.com/luwes/wesc/commit/53f72796d1d7d4aa0a489dd663e4cc273231fb4e))
+
+
+### Features
+
+* add global CSS bundling ([#31](https://github.com/luwes/wesc/issues/31)) ([c263487](https://github.com/luwes/wesc/commit/c2634872858889e9d7accf1ef5b7e254b40b166e))
+* add JS bundling and TodoMVC fixture ([8fb7ece](https://github.com/luwes/wesc/commit/8fb7ece89c80836583bfe9ba80e5670ac7cf59d3))
+* add named (out of order) slot support ([6df488f](https://github.com/luwes/wesc/commit/6df488f7251eab84669a6ee1b8ed1cf5c07b61ad))
+* add Rust component (default slot) builder ([c8dfdfb](https://github.com/luwes/wesc/commit/c8dfdfbef652e87a69d765dd02477aed12b570bd))
+* distribute the native Rust bundler on npm as `wesc` ([84ab232](https://github.com/luwes/wesc/commit/84ab232e7364419aba96bf3880a1c34f9ecf5f35))
+* support component entry & w-trim attribute ([#24](https://github.com/luwes/wesc/issues/24)) ([3faad1a](https://github.com/luwes/wesc/commit/3faad1a908c58344fec91620453043bf786e77b5))
+* support template w/ shadowrootmode ([a9d29ba](https://github.com/luwes/wesc/commit/a9d29ba1654a367fe866e5f2e64439896063c57a))
+
+
+### Reverts
+
+* Revert "docs(CHANGELOG): 0.6.0" ([9f14f2d](https://github.com/luwes/wesc/commit/9f14f2d1ad3242a97e10d55ab657d9e0ee5a4c4d))
+* Revert "chore(release): 0.6.0" ([55ea2b2](https://github.com/luwes/wesc/commit/55ea2b2581d3c975e31916da3b8f6668b794afed))
+
+
+
 # [0.4.0](https://github.com/luwes/wesc/compare/v0.3.3...v0.4.0) (2024-01-28)
 
 
