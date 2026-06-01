@@ -68,9 +68,11 @@ jobs:
           node-version: 20
 
       # --- Native runners (macOS, Windows): install Rust + target, build directly.
+      # The repo pins nightly via rust-toolchain.toml, so install the build
+      # target onto nightly (cross targets like x86_64 on arm64 need it there).
       - name: Install Rust
         if: ${{ !matrix.settings.docker }}
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.settings.target }}
       - name: Install dependencies
