@@ -65,7 +65,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       # --- Native runners (macOS, Windows): install Rust + target, build directly.
       # The repo pins nightly via rust-toolchain.toml, so install the build
@@ -106,10 +106,7 @@ jobs:
     needs: build
     environment: production
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # provenance for every npm publish (platform packages + main)
-      NPM_CONFIG_PROVENANCE: 'true'
       # passed through to `napi prepublish` inside prepublishOnly so a dry-run
       # never actually publishes the platform packages
       NAPI_PREPUBLISH_FLAGS: ${{ inputs.dryrun && '--dry-run' || '' }}
@@ -117,9 +114,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # full history for tags + conventional changelog
+      # Node 24 (latest stable) ships npm 11, required for Trusted Publishing
+      # (OIDC); npm generates provenance automatically when publishing via OIDC.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - uses: fregante/setup-git-user@v1
       - run: npm ci
