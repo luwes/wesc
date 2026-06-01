@@ -9,14 +9,12 @@ We are the Superlative Components!
 - Define and create a superlative component authoring experience
 - Server language agnostic
 
-
 ## [WeSC Bundler](./crates/wesc/README.md)
 
 A streaming web component bundler written in Rust using the [lol-html](https://github.com/cloudflare/lol-html) parser.
 
 The idea is to create a single-file HTML component format and builder that builds 
 the HTML result super fast (streaming, low memory) and is server language agnostic. 
-
 
 ### Features
 
@@ -27,13 +25,11 @@ the HTML result super fast (streaming, low memory) and is server language agnost
 - [x] CSS bundling
 - [x] JS bundling
 
-
 ### Example
 
 ```sh
 wesc ./index.html
 ```
-
 
 ### Syntax
 
@@ -89,7 +85,6 @@ wesc ./index.html
 </script>
 ```
 
-
 ## WeSC DOM - Custom element server-side rendering
 
 Custom elements are a crucial part of reaching these goals. 
@@ -109,7 +104,6 @@ feel free to open an [issue](https://github.com/luwes/wesc/issues/new) if not.
 - [Sveltekit](https://wesc-sveltekit.vercel.app/) ([source](./examples/sveltekit))
 - [Remix](https://wesc-remixrun.netlify.app/) ([source](./examples/remixrun))
 - [Node](https://wesc-node.netlify.app/) ([source](./examples/node))
-
 
 ### Simple Node usage
 

@@ -4,12 +4,11 @@ We are the Superlative Components!
 
 A streaming web component bundler written in Rust using the [lol-html](https://github.com/cloudflare/lol-html) parser.
 
-The idea is to create a single-file HTML component format and builder that builds 
-the HTML result super fast (streaming, low memory) and is server language agnostic. 
+The idea is to create a single-file HTML component format and builder that builds
+the HTML result super fast (streaming, low memory) and is server language agnostic.
 
-TODO: The JS (and CSS) in the top level script and style tag are bundled up separately 
+The JS (and CSS) in the top level script and style tag are bundled up separately
 and can be output as JS and CSS files.
-
 
 ## Features
 
@@ -20,13 +19,11 @@ and can be output as JS and CSS files.
 - [x] CSS bundling
 - [x] JS bundling
 
-
 ## Example
 
 ```sh
 wesc ./index.html
 ```
-
 
 ## Syntax
 
@@ -81,7 +78,6 @@ wesc ./index.html
   customElements.define('w-card', WCard);
 </script>
 ```
-
 
 ## Related
 
