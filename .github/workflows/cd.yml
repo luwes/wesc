@@ -107,6 +107,8 @@ jobs:
     environment: production
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # wet-run's --github-release uses conventional-github-releaser, which reads this
+      CONVENTIONAL_GITHUB_RELEASER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # passed through to `napi prepublish` inside prepublishOnly so a dry-run
       # never actually publishes the platform packages
       NAPI_PREPUBLISH_FLAGS: ${{ inputs.dryrun && '--dry-run' || '' }}
