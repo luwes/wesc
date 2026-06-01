@@ -31,33 +31,111 @@ on:
 
 run-name: Deploy ${{ inputs.version }} ${{ inputs.dryrun && '--dry-run' || '' }} ${{ inputs.prerelease && format('--prerelease {0}', inputs.prerelease) || '' }}
 
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      contents: write
-      id-token: write
-
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      CONVENTIONAL_GITHUB_RELEASER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+  # Build the native addon once per platform and upload each `*.node` binary.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: macos-13
+            target: x86_64-apple-darwin
+          - host: macos-14
+            target: aarch64-apple-darwin
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+    name: build - ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Fetch all history for all tags and branches
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          # this line is required for the setup-node action to be able to run the npm publish below.
+
+      # --- Native runners (macOS, Windows): install Rust + target, build directly.
+      - name: Install Rust
+        if: ${{ !matrix.settings.docker }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+      - name: Install dependencies
+        if: ${{ !matrix.settings.docker }}
+        run: npm ci
+      - name: Build
+        if: ${{ !matrix.settings.docker }}
+        run: npm run build:native -- --target ${{ matrix.settings.target }}
+        shell: bash
+
+      # --- Linux runners: build inside the napi-rs toolchain image (rust + zig + node).
+      - name: Build (docker)
+        if: ${{ matrix.settings.docker }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.settings.docker }}
+          options: '--user 0:0 -v ${{ github.workspace }}:/build -w /build'
+          run: npm ci && npm run build:native -- --target ${{ matrix.settings.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: '*.node'
+          if-no-files-found: error
+
+  # Publish the platform packages + the main `wesc` package.
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # provenance for every npm publish (platform packages + main)
+      NPM_CONFIG_PROVENANCE: 'true'
+      # passed through to `napi prepublish` inside prepublishOnly so a dry-run
+      # never actually publishes the platform packages
+      NAPI_PREPUBLISH_FLAGS: ${{ inputs.dryrun && '--dry-run' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history for tags + conventional changelog
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
           registry-url: 'https://registry.npmjs.org'
       - uses: fregante/setup-git-user@v1
       - run: npm ci
       - run: npm test
-      - run: npx --yes wet-run@1.0.3 release ${{ inputs.version }} ${{ inputs.dryrun && '--dry-run' || '' }} ${{ inputs.prerelease && format('--prerelease {0}', inputs.prerelease) || '' }} --provenance --changelog --github-release --verbose
-      - name: Get NPM version
-        id: npm-version
-        uses: martinbeentjes/npm-get-version-action@v1.3.1
-      - name: Released ${{ steps.npm-version.outputs.current-version}} ✨
-        run: echo ${{ steps.npm-version.outputs.current-version}}
+
+      # Collect every platform binary into npm/<triple>/ for prepublish.
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - run: npx napi create-npm-dir -t .
+      - run: npx napi artifacts --dir artifacts --dist npm
+      - run: ls -R npm
+
+      # wet-run bumps the version, writes the changelog, tags, pushes, and runs
+      # `npm publish` — which triggers prepublishOnly -> `napi prepublish`,
+      # publishing each wesc-<triple> package and wiring optionalDependencies.
+      - name: Release
+        run: >-
+          npx --yes wet-run@1.0.3 release ${{ inputs.version }}
+          ${{ inputs.dryrun && '--dry-run' || '' }}
+          ${{ inputs.prerelease && format('--prerelease {0}', inputs.prerelease) || '' }}
+          --provenance --changelog --github-release --verbose

@@ -85,6 +85,49 @@ wesc ./index.html
 </script>
 ```
 
+### Node.js
+
+The bundler ships to npm as `wesc` with prebuilt binaries for macOS, Linux, and
+Windows — it runs in-process on a Node server (via [napi-rs](https://napi.rs)),
+no subprocess or WASM.
+
+```sh
+npm install wesc
+```
+
+```js
+import { build, buildAsync, buildStream } from 'wesc';
+
+const opts = { entryPoints: ['./index.html'], minify: true };
+
+// Synchronous — returns the whole document as a Buffer.
+const html = build(opts);
+
+// Async — runs on libuv's thread pool, never blocks the event loop.
+const html2 = await buildAsync(opts);
+
+// Streaming — low memory; chunk by chunk, then `null` at the end.
+buildStream(opts, (chunk) => {
+  if (chunk === null) res.end();
+  else res.write(chunk);
+});
+```
+
+| Option        | Type       | Notes                                       |
+| ------------- | ---------- | ------------------------------------------- |
+| `entryPoints` | `string[]` | First entry is the host document.           |
+| `outcss`      | `string?`  | Path to write the bundled CSS file.         |
+| `outjs`       | `string?`  | Path to write the bundled JS file.          |
+| `minify`      | `boolean?` | Minify generated assets. Defaults to false. |
+
+It's also available as a CLI:
+
+```sh
+npx wesc ./index.html > out.html
+```
+
+See [examples/node-server](./examples/node-server) for a streaming HTTP server.
+
 ## WeSC DOM - Custom element server-side rendering
 
 Custom elements are a crucial part of reaching these goals. 

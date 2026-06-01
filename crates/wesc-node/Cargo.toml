@@ -1,0 +1,22 @@
+[package]
+name = "wesc-node"
+version = "0.1.0"
+authors = ["Wesley Luyten <me@wesleyluyten.com>"]
+edition = "2021"
+license = "MIT"
+description = "Node.js native bindings for the wesc web component bundler"
+repository = "https://github.com/luwes/wesc"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Default features disabled to keep the addon lean; napi4 enables ThreadsafeFunction
+# (needed for streaming chunks to a callback).
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+wesc = { path = "../wesc" }
+
+[build-dependencies]
+napi-build = "2"

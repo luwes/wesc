@@ -5,3 +5,9 @@ node_modules/
 _site/
 examples/cloudflare-worker/.wrangler/
 target/
+
+# napi-rs generated artifacts
+index.cjs
+index.d.ts
+*.node
+/npm/

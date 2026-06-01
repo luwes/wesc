@@ -3,4 +3,10 @@ resolver = "2"
 
 members = [
   "crates/wesc",
+  "crates/wesc-node",
 ]
+
+# Optimize the native Node addon for size/speed when built with --release.
+[profile.release]
+lto = true
+strip = true
