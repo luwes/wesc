@@ -69,14 +69,6 @@
   "dependencies": {
     "linkedom": "github:luwes/linkedom#wesc"
   },
-  "optionalDependencies": {
-    "wesc-darwin-x64": "0.5.0",
-    "wesc-darwin-arm64": "0.5.0",
-    "wesc-linux-x64-gnu": "0.5.0",
-    "wesc-linux-x64-musl": "0.5.0",
-    "wesc-linux-arm64-gnu": "0.5.0",
-    "wesc-win32-x64-msvc": "0.5.0"
-  },
   "peerDependencies": {
     "react": "^17.0.2 || ^18",
     "react-dom": "^17.0.2 || ^18"
