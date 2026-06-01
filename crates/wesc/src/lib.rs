@@ -2,7 +2,7 @@ use dep_graph::{resolve_dependencies, Module};
 use indextree::Node;
 use lol_html::{element, HtmlRewriter, Settings};
 use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::remove_file;
 use std::io::Write;
 use std::ops::Range;
@@ -124,8 +124,16 @@ fn build_file(
                 .filter(|node| node.parent().is_some())
                 .collect::<Vec<&Node<Module>>>();
 
+            // A component declared in multiple files appears as multiple nodes;
+            // only bundle each unique file's styles once.
+            let mut seen_paths: HashSet<String> = HashSet::new();
+
             for dependency in dependencies.iter() {
                 let dep_file_path = &dependency.get().file_path;
+
+                if !seen_paths.insert(dep_file_path.clone()) {
+                    continue;
+                }
 
                 if let Ok(style_tag) =
                     read_until_start_tag(&dep_file_path, 0, &vec!["root > style"], "")

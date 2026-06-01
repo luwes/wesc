@@ -122,11 +122,19 @@ fn real_world() {
 
 #[test]
 fn template_passthrough() {
-    // Regression: a component whose body nests a <template> containing another
-    // component (e.g. a clone template for runtime-created items). The nested
-    // </template> must not be mistaken for the component's own root template
-    // close, which previously truncated everything after it.
-    test_file("./tests/fixtures/template-passthrough/index.html", None);
+    // Regression for two issues:
+    // 1. A component whose body nests a <template> containing another component
+    //    (e.g. a clone template for runtime-created items). The nested
+    //    </template> must not be mistaken for the component's own root template
+    //    close, which previously truncated everything after it.
+    // 2. x-item is declared in two files (index.html and x-list.html), so its
+    //    styles must be bundled only once, not duplicated per declaration.
+    test_file_with_outputs_and_cleanup(
+        "./tests/fixtures/template-passthrough/index.html",
+        Some("./tests/fixtures/template-passthrough/styles.css"),
+        None,
+        true,
+    );
 }
 
 #[test]
