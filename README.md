@@ -126,7 +126,8 @@ It's also available as a CLI:
 npx wesc ./index.html > out.html
 ```
 
-See [examples/node-server](./examples/node-server) for a streaming HTTP server.
+See [examples/node-server](./examples/node-server) for an HTTP server that
+renders the TodoMVC app (HTML + bundled JS/CSS) with the native bundler.
 
 ## WeSC DOM - Custom element server-side rendering
 

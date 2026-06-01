@@ -5,6 +5,7 @@ node_modules/
 _site/
 examples/cloudflare-worker/.wrangler/
 target/
+.wesc/
 
 # napi-rs generated artifacts
 index.cjs
