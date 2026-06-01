@@ -54,9 +54,9 @@ jobs:
           - host: ubuntu-latest
             target: x86_64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
-          - host: ubuntu-latest
+          # Build arm64 Linux natively on a GitHub arm64 runner (no cross-compile).
+          - host: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
     name: build - ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     steps:
