@@ -127,7 +127,8 @@ npx wesc ./index.html > out.html
 ```
 
 See [examples/node-server](./examples/node-server) for an HTTP server that
-renders the TodoMVC app (HTML + bundled JS/CSS) with the native bundler.
+streams the TodoMVC app — HTML streamed chunk by chunk, with the bundled JS/CSS
+cached and served from their own routes.
 
 ## WeSC DOM - Custom element server-side rendering
 
