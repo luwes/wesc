@@ -121,6 +121,15 @@ fn real_world() {
 }
 
 #[test]
+fn template_passthrough() {
+    // Regression: a component whose body nests a <template> containing another
+    // component (e.g. a clone template for runtime-created items). The nested
+    // </template> must not be mistaken for the component's own root template
+    // close, which previously truncated everything after it.
+    test_file("./tests/fixtures/template-passthrough/index.html", None);
+}
+
+#[test]
 fn absolute_entry_path() {
     // Regression: building with an absolute entry path (as a server would pass)
     // must not break the JS bundler. Previously `Path::join("./.wesc/scripts", abs)`

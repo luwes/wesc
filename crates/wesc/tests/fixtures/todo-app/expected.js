@@ -27,25 +27,11 @@ var TodoList = class extends HTMLElement {
 		return [...this.querySelectorAll("todo-item")];
 	}
 	addItem(title) {
-		const item = document.createElement("todo-item");
-		const li = document.createElement("li");
-		const view = document.createElement("div");
-		const toggle = document.createElement("input");
-		const label = document.createElement("label");
-		const destroy = document.createElement("button");
-		const edit = document.createElement("input");
-		view.className = "view";
-		toggle.className = "toggle";
-		toggle.type = "checkbox";
-		label.textContent = title;
-		destroy.className = "destroy";
-		destroy.type = "button";
-		destroy.setAttribute("aria-label", "Remove todo");
-		edit.className = "edit";
-		edit.value = title;
-		view.append(toggle, label, destroy);
-		li.append(view, edit);
-		item.append(li);
+		const item = document.getElementById("todo-item-template").content.firstElementChild.cloneNode(true);
+		const label = item.querySelector("label");
+		if (label) label.textContent = title;
+		const edit = item.querySelector(".edit");
+		if (edit) edit.value = title;
 		this.querySelector(".todo-list")?.append(item);
 	}
 };

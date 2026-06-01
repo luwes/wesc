@@ -289,6 +289,16 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
     format!("{}:{}", file_index, file_path)
 }
 
+/// Emit the raw bytes of a file range verbatim (used to pass through nested
+/// `<template>` open/close tags without losing attribute fidelity).
+fn write_file_range(file_path: &str, range: &Range<usize>, output_handler: &mut impl FnMut(&[u8])) {
+    if let Ok(bytes) = fs::read(file_path) {
+        if range.end <= bytes.len() {
+            output_handler(&bytes[range.start..range.end]);
+        }
+    }
+}
+
 /// Map a component file path to its location in the `./.wesc/scripts` mirror tree.
 ///
 /// `Path::join` discards the base when its argument is absolute, so joining
@@ -387,6 +397,9 @@ fn build_component(
 
     let mut component_until_start_tags = component_definition_names.clone();
     component_until_start_tags.push("root > template".to_owned());
+    // Stop on nested <template> tags too, so their depth can be tracked (see the
+    // template handling in the loop below).
+    component_until_start_tags.push("template".to_owned());
 
     if has_shadowrootmode {
         output_handler(b"\n");
@@ -406,6 +419,9 @@ fn build_component(
     // Save the end position of the start tag of the template.
     read_positions.insert(component_pos_key.clone(), root_tag.position.end);
 
+    // Depth of nested <template> elements within the component body.
+    let mut template_depth: usize = 0;
+
     loop {
         let tag = write_until_tag(
             &component_file_path,
@@ -423,6 +439,23 @@ fn build_component(
         };
 
         read_positions.insert(component_pos_key.clone(), tag.position.end);
+
+        // A nested <template> in the component body: emit it verbatim and track
+        // its depth. Because the body is parsed in fragments (each component
+        // expansion restarts the parser with an injected `<template>` prefix), a
+        // nested </template> would otherwise be mistaken for the component's own
+        // root template close, truncating everything after it.
+        if tag.tag_name == "template" && !tag.is_end_tag {
+            write_file_range(&component_file_path, &tag.position, output_handler);
+            template_depth += 1;
+            continue;
+        }
+
+        if tag.tag_name == "template" && tag.is_end_tag && template_depth > 0 {
+            write_file_range(&component_file_path, &tag.position, output_handler);
+            template_depth -= 1;
+            continue;
+        }
 
         if tag.tag_name == "template" && tag.is_end_tag {
             if has_shadowrootmode {
