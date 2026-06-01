@@ -120,6 +120,46 @@ fn real_world() {
     test_file("./tests/fixtures/real-world/index.html", None);
 }
 
+#[test]
+fn absolute_entry_path() {
+    // Regression: building with an absolute entry path (as a server would pass)
+    // must not break the JS bundler. Previously `Path::join("./.wesc/scripts", abs)`
+    // discarded the base, scattering the extracted component JS next to the source
+    // files and producing a broken import that panicked the bundler.
+    let abs_entry =
+        fs::canonicalize("./tests/fixtures/todo-app/index.html").expect("fixture should exist");
+    let outjs = "./tests/fixtures/todo-app/abs-scripts.js";
+
+    let _build_lock = BUILD_LOCK.lock().unwrap();
+    let mut output = Vec::new();
+    build(
+        BuildOptions {
+            entry_points: vec![abs_entry.to_string_lossy().to_string()],
+            outcss: None,
+            outjs: Some(String::from(outjs)),
+            minify: false,
+        },
+        &mut |c: &[u8]| output.extend_from_slice(c),
+    );
+
+    // The bundle was produced (no panic) and carries the component definitions.
+    let js = fs::read_to_string(outjs).expect("bundled JS should be written");
+    assert!(js.contains("customElements.define"));
+
+    // The HTML still renders the components.
+    let html = String::from_utf8_lossy(&output);
+    assert!(html.contains("class=\"todoapp\""));
+
+    // The extracted component JS stayed inside the .wesc mirror — it was NOT
+    // scattered next to the source files.
+    assert!(
+        !Path::new("./tests/fixtures/todo-app/todo-app.js").exists(),
+        "extracted JS must not be written next to the source"
+    );
+
+    fs::remove_file(outjs).expect("cleanup outjs");
+}
+
 fn test_file(file_path: &str, outcss: Option<&str>) {
     test_file_with_outputs(file_path, outcss, None);
 }

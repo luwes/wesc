@@ -26,8 +26,8 @@ import { build, buildStream } from '../../index.cjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const srcDir = resolve(__dirname, '../../crates/wesc/tests/fixtures/todo-app');
 
-// Work in a throwaway copy — wesc writes .wesc/ and per-component .js next to
-// the entry, and we don't want to touch the source tree.
+// Work in a throwaway copy: we add the asset tags to a writable index.html,
+// and wesc keeps its .wesc/ working dir in the cwd.
 const workDir = mkdtempSync(join(tmpdir(), 'wesc-todo-'));
 cpSync(srcDir, workDir, { recursive: true });
 process.chdir(workDir);

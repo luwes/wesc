@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fs::remove_file;
 use std::io::Write;
 use std::ops::Range;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::{fs, thread};
 use tokio::runtime::Builder;
@@ -158,8 +158,7 @@ fn build_file(
             let dep_file_path_string = &dependency.get().file_path;
             let binding = dep_file_path_string.clone();
             let dep_file_path = Path::new(&binding);
-            let folder = Path::new("./.wesc/scripts");
-            let outjs = folder.join(dep_file_path).with_extension("js");
+            let outjs = mirror_js_path(dep_file_path);
 
             if outjs.exists() {
                 remove_file(&outjs).unwrap();
@@ -199,9 +198,7 @@ fn build_file(
 
                 if parent_file_path == host_file_path_string {
                     let dep_file_path = Path::new(&dependency.get().file_path);
-                    let script_path = Path::new("./.wesc/scripts")
-                        .join(dep_file_path)
-                        .with_extension("js");
+                    let script_path = mirror_js_path(dep_file_path);
                     let script_path = script_path
                         .strip_prefix("./.wesc/scripts")
                         .unwrap_or(&script_path);
@@ -290,6 +287,23 @@ fn build_file(
 
 fn pos_key(file_index: usize, file_path: &str) -> String {
     format!("{}:{}", file_index, file_path)
+}
+
+/// Map a component file path to its location in the `./.wesc/scripts` mirror tree.
+///
+/// `Path::join` discards the base when its argument is absolute, so joining
+/// `./.wesc/scripts` with an absolute entry path (e.g. from a server) would let
+/// the extracted JS escape the mirror and produce a broken import path. Stripping
+/// the root/prefix components keeps the path nested under the mirror, so the write
+/// location and the `__entry.js` import stay consistent regardless of the cwd.
+fn mirror_js_path(dep_file_path: &Path) -> PathBuf {
+    let relative: PathBuf = dep_file_path
+        .components()
+        .filter(|c| !matches!(c, Component::RootDir | Component::Prefix(_)))
+        .collect();
+    Path::new("./.wesc/scripts")
+        .join(relative)
+        .with_extension("js")
 }
 
 fn build_component(
