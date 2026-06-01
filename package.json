@@ -54,7 +54,7 @@
     "build:js": "esbuild src/dom/server.js src/dom/unshim.js src/dom/react/index.js src/dom/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist/dom --bundle --minify --tree-shaking=true",
     "build:native": "napi build --platform --release --cargo-cwd crates/wesc-node --js index.cjs --dts index.d.ts",
     "build:native:debug": "napi build --platform --cargo-cwd crates/wesc-node --js index.cjs --dts index.d.ts",
-    "build": "npm run build:js && npm run build:native",
+    "build": "npm run build:js",
     "artifacts": "napi artifacts",
     "prepublishOnly": "npm run build:js && napi prepublish -t npm --skip-gh-release ${NAPI_PREPUBLISH_FLAGS:-}"
   },
