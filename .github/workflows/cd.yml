@@ -42,7 +42,9 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          - host: macos-13
+          # Build both macOS targets on arm64 runners; x86_64 cross-compiles via
+          # Apple's toolchain (macos-13 Intel runners are retired).
+          - host: macos-14
             target: x86_64-apple-darwin
           - host: macos-14
             target: aarch64-apple-darwin
