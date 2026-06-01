@@ -106,6 +106,12 @@ jobs:
     needs: build
     environment: production
     env:
+      # Token with rights to create new packages — needed to bootstrap the
+      # wesc-<triple> packages on first publish (OIDC trusted publishing can't
+      # create packages that don't exist yet). Once they exist, this can be
+      # dropped in favour of trusted publishing. Provenance still works via the
+      # job's id-token permission + --provenance.
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # wet-run's --github-release uses conventional-github-releaser, which reads this
       CONVENTIONAL_GITHUB_RELEASER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
