@@ -69,7 +69,11 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
     let ignore_prefix = Rc::new(RefCell::new(prefix != ""));
     let ignore_prefix_clone = Rc::clone(&ignore_prefix);
 
-    let element_content_handlers = tag_names
+    let skip_next_definition_link = Rc::new(RefCell::new(false));
+    let skip_next_definition_link_handler = Rc::clone(&skip_next_definition_link);
+    let skip_next_definition_link_output = Rc::clone(&skip_next_definition_link);
+
+    let mut element_content_handlers = tag_names
         .iter()
         .flat_map(|element_name| {
             [element!(element_name, |el| {
@@ -124,6 +128,11 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
         })
         .collect::<Vec<_>>();
 
+    element_content_handlers.push(element!("link[rel=definition]", move |_el| {
+        *skip_next_definition_link_handler.borrow_mut() = true;
+        Ok(())
+    }));
+
     let mut rewriter = HtmlRewriter::new(
         Settings {
             element_content_handlers,
@@ -166,6 +175,15 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
                 .collect::<Vec<_>>();
 
             let html = String::from_utf8_lossy(chunk);
+
+            // Definition links are a build-time directive, not browser-usable
+            // output. Do not mutate the parser token with `el.remove()`: this
+            // scanner's byte positions are source offsets, so the tag must
+            // still count toward `tag.position`.
+            if *skip_next_definition_link_output.borrow() {
+                *skip_next_definition_link_output.borrow_mut() = false;
+                return;
+            }
 
             let is_named_slotted = start_tag_names.iter().any(|name| name.contains("*[slot]"))
                 && html.starts_with("<")
