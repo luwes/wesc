@@ -100,9 +100,7 @@ pub fn find_slotted_positions(
             ..Settings::default()
         },
         |chunk: &[u8]| {
-            let html = String::from_utf8(chunk.to_vec()).unwrap();
-
-            if html == "<root>" {
+            if chunk == b"<root>" {
                 return;
             }
 

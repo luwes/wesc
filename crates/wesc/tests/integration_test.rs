@@ -4,7 +4,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::{LazyLock, Mutex};
 use std::{fs, path::Path};
-use wesc::{build, BuildOptions};
+use wesc::{build, BuildOptions, CHUNK_SIZE, DEFAULT_SLOT_NAME};
 
 static BUILD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -24,6 +24,39 @@ fn no_components() {
 #[test]
 fn named_slot() {
     test_file("./tests/fixtures/named-slot/index.html", None);
+}
+
+#[test]
+fn utf8_slotted_text_split_across_chunks() {
+    let dir = std::env::temp_dir().join(format!("wesc-utf8-slotted-text-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("temp fixture dir should be created");
+
+    let host_file_path = dir.join("index.html");
+    let component_start = "<w-card>";
+    let padding = "a".repeat(CHUNK_SIZE - component_start.len() - 1);
+    fs::write(
+        &host_file_path,
+        format!("{component_start}{padding}ü · Zürich</w-card>"),
+    )
+    .expect("temp host fixture should be written");
+
+    let component_file_path = dir.join("card.html");
+    let positions = wesc::slotted_positions::find_slotted_positions(
+        0,
+        host_file_path.to_str().unwrap(),
+        "w-card",
+        &0,
+        component_file_path.to_str().unwrap(),
+    )
+    .expect("UTF-8 split across chunks should not panic");
+
+    let ranges = positions
+        .get(DEFAULT_SLOT_NAME)
+        .expect("default slot range should be tracked");
+    assert_eq!(ranges.len(), 1);
+    assert!(ranges[0].end > ranges[0].start);
+
+    fs::remove_dir_all(&dir).expect("temp fixture should be removed");
 }
 
 #[test]
