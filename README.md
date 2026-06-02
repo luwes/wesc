@@ -32,6 +32,19 @@ require Node ≥ 16; the standalone CLI binary has no runtime dependency.
 - A first-class authoring experience for single-file components
 - Usable from any backend (standalone CLI; Node bindings today, more welcome)
 
+### What WeSC is
+
+WeSC is an HTML component bundler. It lets developers author web
+components as single-file components (SFCs), then compiles those
+components into final HTML plus optional CSS and JS bundles.
+
+WeSC is not meant to replace full-featured template engines. It does
+not try to own variables, conditionals, loops, layouts, partials, or
+application data flow. Use Handlebars, Nunjucks, Twig, React, your
+backend framework, or plain string output for that layer. WeSC sits
+beside them: it turns component definitions into reusable HTML
+building blocks that can be stamped by whatever renders your data.
+
 ---
 
 ## Bundler
@@ -41,6 +54,33 @@ chunk with low memory overhead, and has no runtime dependency on the
 host language.
 
 See the [crate README](./crates/wesc/README.md) for the Rust API.
+
+### Why SFC?
+
+HTML components tend to have three things that belong together:
+structure, host/shadow styles, and a small upgrade script. Keeping them
+in one file makes the component easy to read, move, review, and bundle.
+
+```html
+<template shadowrootmode="open">
+  <button part="button"><slot></slot></button>
+</template>
+
+<style>
+  w-button {
+    display: inline-block;
+  }
+</style>
+
+<script>
+  customElements.define('w-button', class extends HTMLElement {});
+</script>
+```
+
+At build time, WeSC expands the component markup, collects the
+top-level CSS into a CSS bundle, and collects the top-level JS into a
+JS bundle. Your template engine can still render the data around or
+inside those components.
 
 ### Features
 
@@ -169,9 +209,12 @@ It's also available as a one-shot CLI via `npx`:
 npx wesc ./index.html > out.html
 ```
 
-See [examples/node-server](./examples/node-server) for an HTTP server
-that streams the TodoMVC app — HTML streamed chunk by chunk, with the
-bundled JS/CSS cached and served from their own routes.
+See [examples/departures-board](./examples/departures-board) for an
+HTTP server that streams a 10,000-row flight board — every row is two
+composed web components, so a single request expands to ~20k component
+instances. HTML streamed chunk by chunk (TTFB ≈ 2 ms on the cold
+request), with the bundled JS/CSS cached and served from their own
+routes.
 
 ---
 
