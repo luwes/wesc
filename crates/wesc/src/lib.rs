@@ -12,6 +12,7 @@ use std::{fs, thread};
 use tokio::runtime::Builder;
 
 pub mod chunk_reader;
+use self::chunk_reader::{clear_file_cache, read_file_cached};
 
 pub mod component_definitions;
 use self::component_definitions::{find_component_definition_names, get_component_file_path};
@@ -71,6 +72,8 @@ pub struct Tag {
 /// });
 /// ```
 pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
+    clear_file_cache();
+
     let file_path = &build_options.entry_points[0];
 
     // Store file indexes that gets increased each time a component of this file is built.
@@ -300,7 +303,7 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 /// Emit the raw bytes of a file range verbatim (used to pass through nested
 /// `<template>` open/close tags without losing attribute fidelity).
 fn write_file_range(file_path: &str, range: &Range<usize>, output_handler: &mut impl FnMut(&[u8])) {
-    if let Ok(bytes) = fs::read(file_path) {
+    if let Ok(bytes) = read_file_cached(file_path) {
         if range.end <= bytes.len() {
             output_handler(&bytes[range.start..range.end]);
         }
