@@ -1,0 +1,33 @@
+<template>
+  <span class="pill"><slot></slot></span>
+</template>
+
+<style>
+  status-badge {
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  status-badge .pill {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 3px 10px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: #2a2a2a;
+    color: #aaa;
+  }
+
+  status-badge[status="on-time"] .pill    { background: #14301c; color: #7ee495; }
+  status-badge[status="boarding"] .pill   { background: #142434; color: #74b8ff; }
+  status-badge[status="delayed"] .pill    { background: #3a2614; color: #ffae5c; }
+  status-badge[status="final-call"] .pill { background: #3a1414; color: #ff7373; }
+  status-badge[status="departed"] .pill   { background: #1f1f1f; color: #888; }
+  status-badge[status="cancelled"] .pill  { background: #3a1414; color: #ff7373; text-decoration: line-through; }
+</style>
+
+<script>
+  customElements.define('status-badge', class extends HTMLElement {});
+</script>
