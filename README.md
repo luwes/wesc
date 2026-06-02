@@ -1,20 +1,46 @@
-# WeSC
+# WeSC — We are the Superlative Components
 
-We are the Superlative Components!
+Build and server-render web components from any backend.
+
+WeSC ships in one npm package with two complementary parts:
+
+1. **Bundler** — a streaming HTML/web-component bundler written in Rust
+   (via [lol-html](https://github.com/cloudflare/lol-html)). Compiles
+   single-file `.html` components into Declarative-Shadow-DOM-ready
+   output. Standalone CLI, plus sync / async / streaming Node bindings
+   (via [napi-rs](https://napi.rs)).
+2. **DOM SSR** — `wesc/dom/server` renders custom elements on the
+   server using [Linkedom](https://github.com/WebReflection/linkedom),
+   for components whose shadow DOM is produced by JS at upgrade time.
+
+Status: pre-1.0 (`0.5.x`), APIs may change. MIT-licensed. The Node APIs
+require Node ≥ 16; the standalone CLI binary has no runtime dependency.
+
+### Which one do I want?
+
+- **Bundler** — if your components are declarative: a `<template>`,
+  some scoped CSS, an optional upgrade script. Builds ahead-of-time or
+  streams per-request. Backend language agnostic.
+- **DOM SSR** — if your components only build their shadow DOM by
+  running JS (typical for third-party libraries like `media-chrome`).
+  Node-only.
 
 ### Goals
 
 - HTML first ([The Rule of Least Power](https://www.w3.org/2001/tag/doc/leastPower.html))
-- Stay close to web standards
-- Define and create a superlative component authoring experience
-- Server language agnostic
+- Stay close to web standards (DSD, slots, `<template>`)
+- A first-class authoring experience for single-file components
+- Usable from any backend (standalone CLI; Node bindings today, more welcome)
 
-## [WeSC Bundler](./crates/wesc/README.md)
+---
 
-A streaming web component bundler written in Rust using the [lol-html](https://github.com/cloudflare/lol-html) parser.
+## Bundler
 
-The idea is to create a single-file HTML component format and builder that builds 
-the HTML result super fast (streaming, low memory) and is server language agnostic. 
+Streaming HTML/web-component bundler. Builds the final HTML chunk by
+chunk with low memory overhead, and has no runtime dependency on the
+host language.
+
+See the [crate README](./crates/wesc/README.md) for the Rust API.
 
 ### Features
 
@@ -24,12 +50,6 @@ the HTML result super fast (streaming, low memory) and is server language agnost
 - [x] Declarative Shadow DOM
 - [x] CSS bundling
 - [x] JS bundling
-
-### Example
-
-```sh
-wesc ./index.html
-```
 
 ### Syntax
 
@@ -50,11 +70,14 @@ wesc ./index.html
 </html>
 ```
 
+`rel="definition"` is a WeSC-specific link relation. The bundler
+resolves it at build time, expands every matching custom element, and
+removes the link from the output.
+
 **components/card.html**
 
 ```html
-<template>
-<!-- or <template shadowrootmode="open"> -->
+<template shadowrootmode="open">
   <style>
     @scope {
       h3 {
@@ -74,7 +97,6 @@ wesc ./index.html
   }
 </style>
 
-<!-- TODO: bundle to a global scripts.js -->
 <script>
   class WCard extends HTMLElement {
     connectedCallback() {
@@ -85,32 +107,53 @@ wesc ./index.html
 </script>
 ```
 
-### Node.js
+Three things to notice in the component file:
 
-The bundler ships to npm as `wesc` with prebuilt binaries for macOS, Linux, and
-Windows — it runs in-process on a Node server (via [napi-rs](https://napi.rs)),
-no subprocess or WASM.
+- The root `<template shadowrootmode="open">` is emitted as
+  Declarative Shadow DOM. Drop the attribute (`<template>`) and the
+  same content is inlined into light DOM instead — slots still work,
+  there's just no shadow root.
+- Two `<style>` blocks, two scopes: the one inside the template is
+  scoped shadow-DOM CSS; the top-level one provides host styles for
+  `w-card` itself and gets collected into the bundled CSS.
+- The top-level `<script>` is collected into the bundled JS the same
+  way.
+
+### CLI
+
+```sh
+wesc ./index.html > out.html
+```
+
+### Node
 
 ```sh
 npm install wesc
 ```
+
+Prebuilt binaries for macOS, Linux, and Windows ship as per-platform
+`@wesc/binding-<triple>` packages and are selected automatically at
+install time. The bundler runs in-process — no subprocess, no WASM.
 
 ```js
 import { build, buildAsync, buildStream } from 'wesc';
 
 const opts = { entryPoints: ['./index.html'], minify: true };
 
-// Synchronous — returns the whole document as a Buffer.
-const html = build(opts);
-
 // Async — runs on libuv's thread pool, never blocks the event loop.
-const html2 = await buildAsync(opts);
+// Prefer this on a request-serving path.
+const html = await buildAsync(opts);
 
-// Streaming — low memory; chunk by chunk, then `null` at the end.
+// Streaming — low memory, chunk by chunk. The callback receives each
+// chunk as a Buffer, then `null` once to signal end-of-stream.
 buildStream(opts, (chunk) => {
   if (chunk === null) res.end();
   else res.write(chunk);
 });
+
+// Synchronous — for build scripts and one-shot CLI use. Blocks the
+// calling thread; do not put this on a request hot path.
+const buf = build(opts);
 ```
 
 | Option        | Type       | Notes                                       |
@@ -120,97 +163,97 @@ buildStream(opts, (chunk) => {
 | `outjs`       | `string?`  | Path to write the bundled JS file.          |
 | `minify`      | `boolean?` | Minify generated assets. Defaults to false. |
 
-It's also available as a CLI:
+It's also available as a one-shot CLI via `npx`:
 
 ```sh
 npx wesc ./index.html > out.html
 ```
 
-See [examples/node-server](./examples/node-server) for an HTTP server that
-streams the TodoMVC app — HTML streamed chunk by chunk, with the bundled JS/CSS
-cached and served from their own routes.
+See [examples/node-server](./examples/node-server) for an HTTP server
+that streams the TodoMVC app — HTML streamed chunk by chunk, with the
+bundled JS/CSS cached and served from their own routes.
 
-## WeSC DOM - Custom element server-side rendering
+---
 
-Custom elements are a crucial part of reaching these goals. 
-The first problem WeSC is aiming to solve is rendering DSD 
-([declarative shadow DOM](https://developer.chrome.com/en/articles/declarative-shadow-dom/))
-in a simple and approachable way for most use cases.
+## DOM SSR
+
+`wesc/dom/server` renders custom elements on the server via
+[Linkedom](https://github.com/WebReflection/linkedom). Use it when a
+component's shadow DOM is built by JavaScript (typically inside
+`connectedCallback`) rather than declared in a `<template>` — the
+common case for third-party web-component libraries.
 
 ### Examples
 
-Have a look at the [examples](./examples) to see if your use case is handled and
-feel free to open an [issue](https://github.com/luwes/wesc/issues/new) if not.
+Open an [issue](https://github.com/luwes/wesc/issues/new) if your stack
+isn't covered.
 
-- [Cloudflare Worker](https://wesc.luwes.workers.dev/?url=https%3A%2F%2Fmedia-chrome.mux.dev%2Fexamples%2Fvanilla%2Fadvanced.html) ([source](./examples/cloudflare-worker))
-- [Eleventy](https://wesc-eleventy.netlify.app/) ([source](./examples/eleventy))
-- [Astro](https://wesc-astro-luwes.vercel.app/) ([source](./examples/astro))
-- [Next.js](https://wesc-nextjs.vercel.app/) ([source](./examples/nextjs))
-- [Sveltekit](https://wesc-sveltekit.vercel.app/) ([source](./examples/sveltekit))
-- [Remix](https://wesc-remixrun.netlify.app/) ([source](./examples/remixrun))
-- [Node](https://wesc-node.netlify.app/) ([source](./examples/node))
+| Framework         | Demo                                                                                                          | Source                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Cloudflare Worker | [Demo](https://wesc.luwes.workers.dev/?url=https%3A%2F%2Fmedia-chrome.mux.dev%2Fexamples%2Fvanilla%2Fadvanced.html) | [Source](./examples/cloudflare-worker)  |
+| Eleventy          | [Demo](https://wesc-eleventy.netlify.app/)                                                                    | [Source](./examples/eleventy)           |
+| Astro             | [Demo](https://wesc-astro-luwes.vercel.app/)                                                                  | [Source](./examples/astro)              |
+| Next.js           | [Demo](https://wesc-nextjs.vercel.app/)                                                                       | [Source](./examples/nextjs)             |
+| SvelteKit         | [Demo](https://wesc-sveltekit.vercel.app/)                                                                    | [Source](./examples/sveltekit)          |
+| Remix             | [Demo](https://wesc-remixrun.netlify.app/)                                                                    | [Source](./examples/remixrun)           |
+| Node              | [Demo](https://wesc-node.netlify.app/)                                                                        | [Source](./examples/node)               |
 
-### Simple Node usage
+### Standalone Node script
 
-```bash
+```sh
 npm install wesc
 ```
 
-#### index.js
+**index.js**
 
 ```js
 import { promises as fs } from 'fs';
 import { renderToString } from 'wesc/dom/server';
 
-// Import web component library
+// Web components register themselves on import.
 import 'media-chrome';
 
-// Process full page
-let html = await fs.readFile('./app.html');
-
-let out = await renderToString(html);
+const html = await fs.readFile('./app.html');
+const out = await renderToString(html);
 
 await fs.writeFile('./index.html', out);
 ```
 
-#### app.html
+**app.html** (trimmed)
 
 ```html
-<!-- ... -->
 <media-controller>
-  <video
-    playsinline
-    slot="media"
-    src="https://stream.mux.com/A3VXy02VoUinw01pwyomEO3bHnG4P32xzV7u1j1FSzjNg/high.mp4"
-  ></video>
-  <media-poster-image
-    slot="poster"
-    src="https://image.mux.com/A3VXy02VoUinw01pwyomEO3bHnG4P32xzV7u1j1FSzjNg/thumbnail.jpg"
-    placeholdersrc="data:image/jpeg;base64,/9j/2wBDABQODxIPDRQSEBIXFRQYHjIhHhwcHj0sLiQySUBMS0dARkVQWnNiUFVtVkVGZIhlbXd7gYKBTmCNl4x9lnN+gXz/2wBDARUXFx4aHjshITt8U0ZTfHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHz/wAARCAAUADADASIAAhEBAxEB/8QAGAAAAwEBAAAAAAAAAAAAAAAAAAECBAP/xAAdEAEBAAEEAwAAAAAAAAAAAAAAARECAxITFCFR/8QAGQEAAwADAAAAAAAAAAAAAAAAAAEDAgQF/8QAGBEBAQEBAQAAAAAAAAAAAAAAAAETERL/2gAMAwEAAhEDEQA/ANeC4ldyI1b2EtIzzrrIqYZLvl5FGkGdbfQzGPvo76WsPxXLlfqbaA5va2iVJADgPELACsD/2Q=="
-  ></media-poster-image>
-  <media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
+  <video slot="media" playsinline src="https://stream.mux.com/.../high.mp4"></video>
   <media-control-bar>
     <media-play-button></media-play-button>
-    <media-mute-button></media-mute-button>
-    <media-volume-range></media-volume-range>
-    <media-time-display></media-time-display>
     <media-time-range></media-time-range>
-    <media-duration-display></media-duration-display>
-    <media-playback-rate-button></media-playback-rate-button>
     <media-fullscreen-button></media-fullscreen-button>
   </media-control-bar>
 </media-controller>
-<!-- ... -->
 ```
 
-#### HTML output
+`renderToString` returns a string with the upgraded element trees
+inlined as Declarative Shadow DOM. View source on the [Node example
+demo](https://wesc-node.netlify.app/) to see full output.
 
-view-source:https://wesc-node.netlify.app
+---
 
 ## Related
 
-- [Linkedom](https://github.com/WebReflection/linkedom) - This project is powered by Linkedom.
-- [Ocean](https://github.com/matthewp/ocean) - Web component server-side rendering.
-- [Web Components Compiler (WCC)](https://github.com/ProjectEvergreen/wcc) - Experimental native Web Components compiler.
-- [custom-elements-ssr](https://github.com/thepassle/custom-elements-ssr/) - Renders Lit custom elements on the server.
-- [WebC](https://github.com/11ty/webc)
+**Built on**
+
+- [Linkedom](https://github.com/WebReflection/linkedom) — DOM
+  implementation powering the SSR path.
+- [lol-html](https://github.com/cloudflare/lol-html) — streaming HTML
+  rewriter powering the bundler.
+- [napi-rs](https://napi.rs) — Rust ↔ Node bindings.
+
+**Related projects**
+
+- [Ocean](https://github.com/matthewp/ocean) — web-component
+  server-side rendering.
+- [WCC](https://github.com/ProjectEvergreen/wcc) — experimental native
+  web components compiler.
+- [custom-elements-ssr](https://github.com/thepassle/custom-elements-ssr/) — server-rendering for Lit elements.
+- [WebC](https://github.com/11ty/webc) — single-file web-component
+  format from the 11ty team.

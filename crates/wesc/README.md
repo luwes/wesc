@@ -1,28 +1,26 @@
-# WeSC
+# wesc
 
-We are the Superlative Components!
+Streaming HTML/web-component bundler. Compiles single-file `.html`
+components into Declarative-Shadow-DOM-ready output using
+[lol-html](https://github.com/cloudflare/lol-html) — fast, low-memory,
+chunk-by-chunk, with no runtime dependency on the host language.
 
-A streaming web component bundler written in Rust using the [lol-html](https://github.com/cloudflare/lol-html) parser.
-
-The idea is to create a single-file HTML component format and builder that builds
-the HTML result super fast (streaming, low memory) and is server language agnostic.
-
-The JS (and CSS) in the top level script and style tag are bundled up separately
-and can be output as JS and CSS files.
+This crate is the Rust core. For the Node bindings, examples, and the
+broader project, see [github.com/luwes/wesc](https://github.com/luwes/wesc).
 
 ## Features
 
 - [x] Streaming HTML bundler
-- [x] Web component definition
+- [x] Web component definition (`<link rel="definition">`)
 - [x] Default and named slots with fallback content
 - [x] Declarative Shadow DOM
 - [x] CSS bundling
 - [x] JS bundling
 
-## Example
+## CLI
 
 ```sh
-wesc ./index.html
+wesc ./index.html > out.html
 ```
 
 ## Syntax
@@ -44,11 +42,14 @@ wesc ./index.html
 </html>
 ```
 
+`rel="definition"` is a WeSC-specific link relation. The bundler
+resolves it at build time, expands every matching custom element, and
+removes the link from the output.
+
 **components/card.html**
 
 ```html
-<template>
-<!-- or <template shadowrootmode="open"> -->
+<template shadowrootmode="open">
   <style>
     @scope {
       h3 {
@@ -68,7 +69,6 @@ wesc ./index.html
   }
 </style>
 
-<!-- TODO: bundle to a global scripts.js -->
 <script>
   class WCard extends HTMLElement {
     connectedCallback() {
@@ -79,6 +79,15 @@ wesc ./index.html
 </script>
 ```
 
-## Related
+The root `<template shadowrootmode="open">` is emitted as Declarative
+Shadow DOM. Drop the attribute (`<template>`) and the content is
+inlined into light DOM instead — slots still work, there's just no
+shadow root.
 
-- [WebC](https://github.com/11ty/webc)
+The top-level `<style>` and `<script>` (outside the template) provide
+host styles and the upgrade script for the element, and are collected
+into the bundled CSS / JS outputs.
+
+## License
+
+MIT
