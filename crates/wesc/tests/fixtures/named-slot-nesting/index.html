@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="definition" name="flight-row" href="./flight-row.html">
+    <link rel="definition" name="status-badge" href="./status-badge.html">
+  </head>
+  <body>
+    <flight-row>
+      <span slot="route">ZRH  Zürich · Switzerland</span>
+      <status-badge slot="status" status="boarding">Boarding · Zürich</status-badge>
+      <span slot="status" class="secondary">
+        <status-badge status="delayed">Delayed · São Paulo</status-badge>
+      </span>
+    </flight-row>
+  </body>
+</html>

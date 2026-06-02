@@ -27,6 +27,11 @@ fn named_slot() {
 }
 
 #[test]
+fn named_slot_nesting() {
+    test_file("./tests/fixtures/named-slot-nesting/index.html", None);
+}
+
+#[test]
 fn utf8_slotted_text_split_across_chunks() {
     let dir = std::env::temp_dir().join(format!("wesc-utf8-slotted-text-{}", std::process::id()));
     fs::create_dir_all(&dir).expect("temp fixture dir should be created");

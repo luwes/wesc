@@ -1,13 +1,12 @@
 use dep_graph::{resolve_dependencies, Module};
 use indextree::Node;
-use lol_html::{element, HtmlRewriter, Settings};
 use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
 use std::collections::{HashMap, HashSet};
 use std::fs::remove_file;
 use std::io::Write;
 use std::ops::Range;
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::{fs, thread};
 use tokio::runtime::Builder;
 
@@ -32,6 +31,9 @@ pub const CHUNK_SIZE: usize = 1024;
 pub const DEFAULT_SLOT_NAME: &str = "&default";
 pub const CONTENT_IN_PROGRESS: usize = 0;
 
+static SIMPLE_TEMPLATES: LazyLock<Mutex<HashMap<String, Option<SimpleTemplate>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 #[derive(Debug, Clone)]
 pub struct BuildOptions {
     pub entry_points: Vec<String>,
@@ -47,6 +49,20 @@ pub struct Tag {
     can_have_content: bool,
     attributes: HashMap<String, String>,
     position: Range<usize>,
+}
+
+#[derive(Debug, Clone)]
+struct SimpleTemplate {
+    parts: Vec<SimpleTemplatePart>,
+}
+
+#[derive(Debug, Clone)]
+enum SimpleTemplatePart {
+    Static(Range<usize>),
+    Slot {
+        name: Option<String>,
+        fallback: Range<usize>,
+    },
 }
 
 /// Build the web components from the entry points to an output handler function.
@@ -73,6 +89,7 @@ pub struct Tag {
 /// ```
 pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
     clear_file_cache();
+    SIMPLE_TEMPLATES.lock().unwrap().clear();
 
     let file_path = &build_options.entry_points[0];
 
@@ -310,6 +327,400 @@ fn write_file_range(file_path: &str, range: &Range<usize>, output_handler: &mut 
     }
 }
 
+fn write_start_tag_with_optional_slot_attribute(
+    file_path: &str,
+    range: &Range<usize>,
+    strip_slot_attribute: bool,
+    output_handler: &mut impl FnMut(&[u8]),
+) {
+    if !strip_slot_attribute {
+        write_file_range(file_path, range, output_handler);
+        return;
+    }
+
+    if let Ok(bytes) = read_file_cached(file_path) {
+        if range.end <= bytes.len() {
+            let start_tag = &bytes[range.start..range.end];
+            let start_tag = strip_slot_attribute_from_start_tag(start_tag);
+            output_handler(&start_tag);
+        }
+    }
+}
+
+fn strip_slot_attribute_from_start_tag(start_tag: &[u8]) -> Vec<u8> {
+    let mut i = 0;
+
+    while i < start_tag.len() {
+        if !start_tag[i].is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+
+        let attr_start = i;
+        let mut name_start = i;
+        while name_start < start_tag.len() && start_tag[name_start].is_ascii_whitespace() {
+            name_start += 1;
+        }
+
+        let mut name_end = name_start;
+        while name_end < start_tag.len()
+            && !start_tag[name_end].is_ascii_whitespace()
+            && start_tag[name_end] != b'='
+            && start_tag[name_end] != b'>'
+            && start_tag[name_end] != b'/'
+        {
+            name_end += 1;
+        }
+
+        if name_start == name_end {
+            i += 1;
+            continue;
+        }
+
+        let mut value_end = name_end;
+        while value_end < start_tag.len() && start_tag[value_end].is_ascii_whitespace() {
+            value_end += 1;
+        }
+
+        if value_end < start_tag.len() && start_tag[value_end] == b'=' {
+            value_end += 1;
+            while value_end < start_tag.len() && start_tag[value_end].is_ascii_whitespace() {
+                value_end += 1;
+            }
+
+            if value_end < start_tag.len()
+                && (start_tag[value_end] == b'"' || start_tag[value_end] == b'\'')
+            {
+                let quote = start_tag[value_end];
+                value_end += 1;
+                while value_end < start_tag.len() && start_tag[value_end] != quote {
+                    value_end += 1;
+                }
+                if value_end < start_tag.len() {
+                    value_end += 1;
+                }
+            } else {
+                while value_end < start_tag.len()
+                    && !start_tag[value_end].is_ascii_whitespace()
+                    && start_tag[value_end] != b'>'
+                {
+                    value_end += 1;
+                }
+            }
+        }
+
+        if start_tag[name_start..name_end].eq_ignore_ascii_case(b"slot") {
+            let mut out = Vec::with_capacity(start_tag.len());
+            out.extend_from_slice(&start_tag[..attr_start]);
+            out.extend_from_slice(&start_tag[value_end..]);
+            return out;
+        }
+
+        i = value_end;
+    }
+
+    start_tag.to_vec()
+}
+
+fn get_simple_template(
+    component_file_path: &str,
+    component_definition_names: &[String],
+) -> Option<SimpleTemplate> {
+    if let Some(template) = SIMPLE_TEMPLATES
+        .lock()
+        .unwrap()
+        .get(component_file_path)
+        .cloned()
+    {
+        return template;
+    }
+
+    let template = parse_simple_template(component_file_path, component_definition_names);
+    SIMPLE_TEMPLATES
+        .lock()
+        .unwrap()
+        .insert(component_file_path.to_string(), template.clone());
+    template
+}
+
+fn parse_simple_template(
+    component_file_path: &str,
+    component_definition_names: &[String],
+) -> Option<SimpleTemplate> {
+    let bytes = read_file_cached(component_file_path).ok()?;
+    let template_start = find_start_tag(&bytes, 0, b"template")?;
+    let template_start_end = find_tag_end(&bytes, template_start)?;
+    let template_start_tag = &bytes[template_start..template_start_end];
+
+    if get_attribute_value(template_start_tag, b"shadowrootmode").is_some() {
+        return None;
+    }
+
+    let template_end_start = find_end_tag(&bytes, template_start_end, b"template")?;
+    let body = template_start_end..template_end_start;
+    let body_bytes = &bytes[body.clone()];
+
+    if contains_start_tag(body_bytes, b"template")
+        || contains_start_tag(body_bytes, b"script")
+        || contains_start_tag(body_bytes, b"style")
+        || component_definition_names
+            .iter()
+            .any(|name| contains_start_tag(body_bytes, name.as_bytes()))
+    {
+        return None;
+    }
+
+    let mut parts = Vec::new();
+    let mut pos = body.start;
+
+    while pos < body.end {
+        let Some(slot_start) = find_start_tag(&bytes, pos, b"slot") else {
+            if pos != body.end {
+                parts.push(SimpleTemplatePart::Static(pos..body.end));
+            }
+            break;
+        };
+
+        if slot_start >= body.end {
+            if pos != body.end {
+                parts.push(SimpleTemplatePart::Static(pos..body.end));
+            }
+            break;
+        }
+
+        if pos != slot_start {
+            parts.push(SimpleTemplatePart::Static(pos..slot_start));
+        }
+
+        let slot_start_end = find_tag_end(&bytes, slot_start)?;
+        let slot_start_tag = &bytes[slot_start..slot_start_end];
+        let name = get_attribute_value(slot_start_tag, b"name");
+
+        let (fallback, slot_end) = if is_self_closing_start_tag(slot_start_tag) {
+            (slot_start_end..slot_start_end, slot_start_end)
+        } else {
+            let slot_end_start = find_end_tag(&bytes, slot_start_end, b"slot")?;
+            let slot_end = find_tag_end(&bytes, slot_end_start)?;
+            (slot_start_end..slot_end_start, slot_end)
+        };
+
+        parts.push(SimpleTemplatePart::Slot { name, fallback });
+        pos = slot_end;
+    }
+
+    Some(SimpleTemplate { parts })
+}
+
+fn render_simple_template(
+    template: &SimpleTemplate,
+    component_file_path: &str,
+    host_file_path: &str,
+    component_name: &str,
+    build_options: &BuildOptions,
+    file_indexes: &mut HashMap<String, usize>,
+    read_positions: &mut HashMap<String, usize>,
+    tag_stacks: &mut HashMap<String, Vec<String>>,
+    dep_graph: &DepGraph,
+    component_slotted_positions: &mut HashMap<String, Vec<Range<usize>>>,
+    output_handler: &mut impl FnMut(&[u8]),
+) {
+    let host_pos_key = pos_key(file_indexes[host_file_path], &host_file_path);
+
+    for part in &template.parts {
+        match part {
+            SimpleTemplatePart::Static(range) => {
+                write_file_range(component_file_path, range, output_handler);
+            }
+            SimpleTemplatePart::Slot { name, fallback } => {
+                let slot_name = name.as_ref();
+                let slot_lookup = slot_name
+                    .map(|name| name.as_str())
+                    .unwrap_or(DEFAULT_SLOT_NAME);
+                let has_slotted_content = component_slotted_positions
+                    .get(slot_lookup)
+                    .is_some_and(|ranges| !ranges.is_empty());
+                let host_start_pos = read_positions[&host_pos_key];
+
+                if has_slotted_content {
+                    loop {
+                        if let Some(light_tag) = build_component_content(
+                            slot_name,
+                            host_file_path,
+                            build_options,
+                            file_indexes,
+                            read_positions,
+                            tag_stacks,
+                            dep_graph,
+                            component_slotted_positions,
+                            output_handler,
+                        ) {
+                            if light_tag.is_end_tag && light_tag.tag_name == component_name {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                if host_start_pos == read_positions[&host_pos_key] {
+                    write_file_range(component_file_path, fallback, output_handler);
+                }
+            }
+        }
+    }
+}
+
+fn find_start_tag(bytes: &[u8], start: usize, tag_name: &[u8]) -> Option<usize> {
+    let mut pos = start;
+    while pos < bytes.len() {
+        let tag_start = find_next_byte(bytes, pos, b'<')?;
+        let name_start = tag_start + 1;
+        let name_end = name_start + tag_name.len();
+        if name_end <= bytes.len()
+            && bytes[name_start..name_end].eq_ignore_ascii_case(tag_name)
+            && (name_end == bytes.len()
+                || bytes[name_end].is_ascii_whitespace()
+                || bytes[name_end] == b'>'
+                || bytes[name_end] == b'/')
+        {
+            return Some(tag_start);
+        }
+        pos = tag_start + 1;
+    }
+
+    None
+}
+
+fn find_end_tag(bytes: &[u8], start: usize, tag_name: &[u8]) -> Option<usize> {
+    let mut pos = start;
+    while pos < bytes.len() {
+        let tag_start = find_next_byte(bytes, pos, b'<')?;
+        let name_start = tag_start + 2;
+        let name_end = name_start + tag_name.len();
+        if bytes.get(tag_start + 1) == Some(&b'/')
+            && name_end <= bytes.len()
+            && bytes[name_start..name_end].eq_ignore_ascii_case(tag_name)
+            && (name_end == bytes.len()
+                || bytes[name_end].is_ascii_whitespace()
+                || bytes[name_end] == b'>')
+        {
+            return Some(tag_start);
+        }
+        pos = tag_start + 1;
+    }
+
+    None
+}
+
+fn find_next_byte(bytes: &[u8], start: usize, needle: u8) -> Option<usize> {
+    bytes
+        .get(start..)?
+        .iter()
+        .position(|byte| *byte == needle)
+        .map(|offset| start + offset)
+}
+
+fn find_tag_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut quote = None;
+    let mut pos = start;
+    while pos < bytes.len() {
+        match (quote, bytes[pos]) {
+            (Some(q), c) if c == q => quote = None,
+            (None, b'"' | b'\'') => quote = Some(bytes[pos]),
+            (None, b'>') => return Some(pos + 1),
+            _ => {}
+        }
+        pos += 1;
+    }
+
+    None
+}
+
+fn is_self_closing_start_tag(start_tag: &[u8]) -> bool {
+    let mut pos = start_tag.len().saturating_sub(1);
+    while pos > 0 && start_tag[pos].is_ascii_whitespace() {
+        pos -= 1;
+    }
+    pos > 0 && start_tag[pos] == b'>' && start_tag[pos - 1] == b'/'
+}
+
+fn get_attribute_value(start_tag: &[u8], attr_name: &[u8]) -> Option<String> {
+    let mut pos = 1;
+    while pos < start_tag.len()
+        && !start_tag[pos].is_ascii_whitespace()
+        && start_tag[pos] != b'>'
+        && start_tag[pos] != b'/'
+    {
+        pos += 1;
+    }
+
+    while pos < start_tag.len() {
+        while pos < start_tag.len() && start_tag[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+
+        if pos >= start_tag.len() || start_tag[pos] == b'>' || start_tag[pos] == b'/' {
+            return None;
+        }
+
+        let name_start = pos;
+        while pos < start_tag.len()
+            && !start_tag[pos].is_ascii_whitespace()
+            && start_tag[pos] != b'='
+            && start_tag[pos] != b'>'
+            && start_tag[pos] != b'/'
+        {
+            pos += 1;
+        }
+        let name_end = pos;
+
+        while pos < start_tag.len() && start_tag[pos].is_ascii_whitespace() {
+            pos += 1;
+        }
+
+        let mut value = "";
+        if pos < start_tag.len() && start_tag[pos] == b'=' {
+            pos += 1;
+            while pos < start_tag.len() && start_tag[pos].is_ascii_whitespace() {
+                pos += 1;
+            }
+
+            let value_start;
+            let value_end;
+            if pos < start_tag.len() && (start_tag[pos] == b'"' || start_tag[pos] == b'\'') {
+                let quote = start_tag[pos];
+                pos += 1;
+                value_start = pos;
+                while pos < start_tag.len() && start_tag[pos] != quote {
+                    pos += 1;
+                }
+                value_end = pos;
+                if pos < start_tag.len() {
+                    pos += 1;
+                }
+            } else {
+                value_start = pos;
+                while pos < start_tag.len()
+                    && !start_tag[pos].is_ascii_whitespace()
+                    && start_tag[pos] != b'>'
+                {
+                    pos += 1;
+                }
+                value_end = pos;
+            }
+
+            value = std::str::from_utf8(&start_tag[value_start..value_end]).ok()?;
+        }
+
+        if start_tag[name_start..name_end].eq_ignore_ascii_case(attr_name) {
+            return Some(value.to_string());
+        }
+    }
+
+    None
+}
+
 /// Map a component file path to its location in the `./.wesc/scripts` mirror tree.
 ///
 /// `Path::join` discards the base when its argument is absolute, so joining
@@ -336,6 +747,28 @@ fn build_component(
     dep_graph: &DepGraph,
     output_handler: &mut impl FnMut(&[u8]),
 ) -> bool {
+    build_component_with_start_options(
+        host_file_path,
+        build_options,
+        file_indexes,
+        read_positions,
+        tag_stacks,
+        dep_graph,
+        false,
+        output_handler,
+    )
+}
+
+fn build_component_with_start_options(
+    host_file_path: &str,
+    build_options: &BuildOptions,
+    file_indexes: &mut HashMap<String, usize>,
+    read_positions: &mut HashMap<String, usize>,
+    tag_stacks: &mut HashMap<String, Vec<String>>,
+    dep_graph: &DepGraph,
+    strip_component_slot_attribute: bool,
+    output_handler: &mut impl FnMut(&[u8]),
+) -> bool {
     // Find the component definitions in the host file.
     let host_definition_names = find_component_definition_names(&host_file_path).unwrap();
 
@@ -358,12 +791,10 @@ fn build_component(
     };
 
     if !component_tag.attributes.contains_key("w-trim") {
-        let _ = write_until_start_tag(
+        write_start_tag_with_optional_slot_attribute(
             &host_file_path,
-            component_tag.position.start,
-            &host_definition_names,
-            "",
-            true,
+            &component_tag.position,
+            strip_component_slot_attribute,
             output_handler,
         );
     }
@@ -398,6 +829,35 @@ fn build_component(
         &component_file_path,
     )
     .unwrap();
+
+    if let Some(simple_template) =
+        get_simple_template(&component_file_path, &component_definition_names)
+    {
+        render_simple_template(
+            &simple_template,
+            &component_file_path,
+            host_file_path,
+            &component_tag.tag_name,
+            build_options,
+            file_indexes,
+            read_positions,
+            tag_stacks,
+            dep_graph,
+            &mut component_slotted_positions,
+            output_handler,
+        );
+        finish_component(
+            host_file_path,
+            &component_file_path,
+            &host_definition_names,
+            &component_tag,
+            file_indexes,
+            read_positions,
+            tag_stacks,
+            output_handler,
+        );
+        return false;
+    }
 
     // Read until after the start tag of the <template>.
     let root_tag =
@@ -473,32 +933,16 @@ fn build_component(
                 output_handler(b"</template>\n");
             }
 
-            // If there is no default slot, skip slotted content.
-            if let Ok(component_end_tag) = read_until_end_tag(
-                &host_file_path,
-                read_positions[&host_pos_key],
+            finish_component(
+                host_file_path,
+                &component_file_path,
                 &host_definition_names,
-                format!("<{}>", component_tag.tag_name).as_str(),
-            ) {
-                // Pop the component tag name off the stack.
-                let tag_stack = tag_stacks
-                    .entry(host_file_path.to_string())
-                    .or_insert(vec![]);
-                tag_stack.pop();
-
-                // Decrease file index by 1 if the component ends.
-                if let Some(value) = file_indexes.get_mut(&component_file_path.to_string()) {
-                    if *value > 0 {
-                        *value -= 1;
-                    }
-                }
-
-                if !component_tag.attributes.contains_key("w-trim") {
-                    output_handler(format!("</{}>", component_tag.tag_name).as_bytes());
-                }
-
-                read_positions.insert(host_pos_key.clone(), component_end_tag.position.end);
-            }
+                &component_tag,
+                file_indexes,
+                read_positions,
+                tag_stacks,
+                output_handler,
+            );
 
             break false;
         }
@@ -562,6 +1006,203 @@ fn build_component(
     }
 }
 
+fn finish_component(
+    host_file_path: &str,
+    component_file_path: &str,
+    host_definition_names: &[String],
+    component_tag: &Tag,
+    file_indexes: &mut HashMap<String, usize>,
+    read_positions: &mut HashMap<String, usize>,
+    tag_stacks: &mut HashMap<String, Vec<String>>,
+    output_handler: &mut impl FnMut(&[u8]),
+) {
+    let host_pos_key = pos_key(file_indexes[host_file_path], host_file_path);
+
+    // If there is no default slot, skip slotted content.
+    if let Ok(component_end_tag) = read_until_end_tag(
+        host_file_path,
+        read_positions[&host_pos_key],
+        host_definition_names,
+        format!("<{}>", component_tag.tag_name).as_str(),
+    ) {
+        // Pop the component tag name off the stack.
+        let tag_stack = tag_stacks
+            .entry(host_file_path.to_string())
+            .or_insert(vec![]);
+        tag_stack.pop();
+
+        // Decrease file index by 1 if the component ends.
+        if let Some(value) = file_indexes.get_mut(&component_file_path.to_string()) {
+            if *value > 0 {
+                *value -= 1;
+            }
+        }
+
+        if !component_tag.attributes.contains_key("w-trim") {
+            output_handler(format!("</{}>", component_tag.tag_name).as_bytes());
+        }
+
+        read_positions.insert(host_pos_key.clone(), component_end_tag.position.end);
+    }
+}
+
+fn write_named_slotted_element_content(
+    light_tag: &Tag,
+    host_file_path: &str,
+    build_options: &BuildOptions,
+    file_indexes: &mut HashMap<String, usize>,
+    read_positions: &mut HashMap<String, usize>,
+    tag_stacks: &mut HashMap<String, Vec<String>>,
+    dep_graph: &DepGraph,
+    output_handler: &mut impl FnMut(&[u8]),
+) {
+    let host_definition_names = find_component_definition_names(&host_file_path).unwrap();
+    let host_pos_key = pos_key(file_indexes[host_file_path], &host_file_path);
+
+    if host_definition_names.contains(&light_tag.tag_name) {
+        read_positions.insert(host_pos_key, light_tag.position.start);
+        build_component_with_start_options(
+            host_file_path,
+            build_options,
+            file_indexes,
+            read_positions,
+            tag_stacks,
+            dep_graph,
+            true,
+            output_handler,
+        );
+        return;
+    }
+
+    write_start_tag_with_optional_slot_attribute(
+        host_file_path,
+        &light_tag.position,
+        true,
+        output_handler,
+    );
+    read_positions.insert(host_pos_key.clone(), light_tag.position.end);
+
+    if !light_tag.can_have_content {
+        return;
+    }
+
+    loop {
+        let tag = write_until_tag(
+            host_file_path,
+            read_positions[&host_pos_key],
+            &host_definition_names,
+            &vec![light_tag.tag_name.as_str()],
+            format!("<{}>", light_tag.tag_name).as_str(),
+            false,
+            output_handler,
+        );
+
+        let tag = match tag {
+            Ok(tag) => tag,
+            Err(_error) => break,
+        };
+
+        if tag.is_end_tag && tag.tag_name == light_tag.tag_name {
+            write_file_range(host_file_path, &tag.position, output_handler);
+            read_positions.insert(host_pos_key.clone(), tag.position.end);
+            break;
+        }
+
+        if !tag.is_end_tag && host_definition_names.contains(&tag.tag_name) {
+            read_positions.insert(host_pos_key.clone(), tag.position.start);
+            build_component(
+                host_file_path,
+                build_options,
+                file_indexes,
+                read_positions,
+                tag_stacks,
+                dep_graph,
+                output_handler,
+            );
+            continue;
+        }
+
+        read_positions.insert(host_pos_key.clone(), tag.position.end);
+    }
+}
+
+fn write_simple_named_slotted_range(
+    light_tag: &Tag,
+    host_file_path: &str,
+    slotted_range: &Range<usize>,
+    host_definition_names: &[String],
+    output_handler: &mut impl FnMut(&[u8]),
+) -> bool {
+    if host_definition_names.contains(&light_tag.tag_name) {
+        return false;
+    }
+
+    let bytes = match read_file_cached(host_file_path) {
+        Ok(bytes) => bytes,
+        Err(_error) => return false,
+    };
+
+    if slotted_range.end > bytes.len() || light_tag.position.end > slotted_range.end {
+        return false;
+    }
+
+    let content = &bytes[light_tag.position.end..slotted_range.end];
+    if contains_start_tag(content, b"slot")
+        || host_definition_names
+            .iter()
+            .any(|name| contains_start_tag(content, name.as_bytes()))
+    {
+        return false;
+    }
+
+    write_start_tag_with_optional_slot_attribute(
+        host_file_path,
+        &light_tag.position,
+        true,
+        output_handler,
+    );
+    output_handler(content);
+    true
+}
+
+fn contains_start_tag(bytes: &[u8], tag_name: &[u8]) -> bool {
+    if tag_name.is_empty() {
+        return false;
+    }
+
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'<' || i + 1 >= bytes.len() {
+            i += 1;
+            continue;
+        }
+
+        let name_start = i + 1;
+        if bytes[name_start] == b'/'
+            || bytes[name_start] == b'!'
+            || bytes[name_start] == b'?'
+            || name_start + tag_name.len() > bytes.len()
+        {
+            i += 1;
+            continue;
+        }
+
+        let name_end = name_start + tag_name.len();
+        if bytes[name_start..name_end].eq_ignore_ascii_case(tag_name)
+            && (name_end == bytes.len()
+                || bytes[name_end].is_ascii_whitespace()
+                || bytes[name_end] == b'>'
+                || bytes[name_end] == b'/')
+        {
+            return true;
+        }
+
+        i += 1;
+    }
+
+    false
+}
+
 fn build_component_content(
     slot_name_option: Option<&String>,
     host_file_path: &str,
@@ -594,13 +1235,13 @@ fn build_component_content(
     };
 
     let slotted_ranges = component_slotted_positions.get_mut(slot_name).unwrap();
-    let slotted_range = match slotted_ranges.first() {
-        Some(range) => range,
+    let current_slotted_range = match slotted_ranges.first() {
+        Some(range) => range.clone(),
         None => return None,
     };
 
-    if slotted_range.start != CONTENT_IN_PROGRESS {
-        read_positions.insert(host_pos_key.clone(), slotted_range.start);
+    if current_slotted_range.start != CONTENT_IN_PROGRESS {
+        read_positions.insert(host_pos_key.clone(), current_slotted_range.start);
         slotted_ranges[0].start = CONTENT_IN_PROGRESS;
     }
 
@@ -657,58 +1298,26 @@ fn build_component_content(
             // Handle named slotted elements. e.g. <h3 slot="title">Title</h3>
             if let Some(slot_name) = light_tag.attributes.get("slot") {
                 if slot_name_option.is_some() && slot_name_option.unwrap() == slot_name {
-                    read_positions.insert(host_pos_key.clone(), light_tag.position.start);
-
-                    let _ = write_until_start_tag(
-                        &host_file_path,
-                        read_positions[&host_pos_key],
-                        &vec![light_tag.tag_name.as_str()],
-                        "",
-                        true,
-                        &mut |chunk: &[u8]| {
-                            // Remove the slot attribute.
-                            let mut rewriter = HtmlRewriter::new(
-                                Settings {
-                                    element_content_handlers: vec![element!("*[slot]", |el| {
-                                        el.remove_attribute("slot");
-                                        Ok(())
-                                    })],
-                                    ..Settings::default()
-                                },
-                                |c: &[u8]| {
-                                    output_handler(c);
-                                },
-                            );
-
-                            rewriter.write(chunk).unwrap();
-                            rewriter.end().unwrap();
-                        },
-                    );
-
-                    read_positions.insert(host_pos_key.clone(), light_tag.position.end);
-
-                    if light_tag.can_have_content {
-                        if let Ok(mut end_slot_tag) = write_until_end_tag(
-                            &host_file_path,
-                            read_positions[&host_pos_key],
-                            &vec![light_tag.tag_name.as_str()],
-                            format!("<{}>", light_tag.tag_name).as_str(),
-                            true,
-                            &mut |chunk: &[u8]| {
-                                output_handler(chunk);
-                            },
-                        ) {
-                            read_positions.insert(host_pos_key.clone(), end_slot_tag.position.end);
-
-                            end_slot_tag
-                                .attributes
-                                .insert("slot".to_string(), slot_name.clone());
-
-                            slotted_ranges.remove(0);
-                            return Some(end_slot_tag);
-                        }
+                    if write_simple_named_slotted_range(
+                        &light_tag,
+                        host_file_path,
+                        &current_slotted_range,
+                        &host_definition_names,
+                        output_handler,
+                    ) {
+                        read_positions.insert(host_pos_key.clone(), current_slotted_range.end);
+                    } else {
+                        write_named_slotted_element_content(
+                            &light_tag,
+                            host_file_path,
+                            build_options,
+                            file_indexes,
+                            read_positions,
+                            tag_stacks,
+                            dep_graph,
+                            output_handler,
+                        );
                     }
-
                     slotted_ranges.remove(0);
                     return Some(light_tag);
                 }
