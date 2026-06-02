@@ -59,12 +59,21 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
         .map(|&name| name.to_owned())
         .collect::<Vec<_>>();
 
-    let end_tag_names_ref = Rc::new(RefCell::new(
-        end_tag_names
+    let clean_end_tag_names = Rc::new(
+        only_tag_names(&end_tag_names_clone)
             .iter()
-            .map(|&name| name.to_owned())
+            .map(|name| name.to_string())
             .collect::<Vec<_>>(),
-    ));
+    );
+    let start_tag_prefixes = only_tag_names(&start_tag_names_clone)
+        .iter()
+        .map(|name| format!("<{}", name).into_bytes())
+        .collect::<Vec<_>>();
+    let end_tags = only_tag_names(&end_tag_names_clone)
+        .iter()
+        .map(|name| format!("</{}>", name).into_bytes())
+        .collect::<Vec<_>>();
+    let match_named_slotted_start = start_tag_names.iter().any(|name| name.contains("*[slot]"));
 
     let ignore_prefix = Rc::new(RefCell::new(prefix != ""));
     let ignore_prefix_clone = Rc::clone(&ignore_prefix);
@@ -95,23 +104,22 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
                 }
 
                 let will_pause_clone = Rc::clone(&will_pause);
-                let end_tag_names_ref = Rc::clone(&end_tag_names_ref);
+                let clean_end_tag_names = Rc::clone(&clean_end_tag_names);
                 let tag_clone = Rc::clone(&tag_clone);
                 let element_name = element_name.to_string();
                 let el_tag_name = el.tag_name().to_string();
 
                 if let Some(handlers) = el.end_tag_handlers() {
                     handlers.push(Box::new(move |end| {
-                        let end_tag_names = end_tag_names_ref.borrow().to_vec();
-                        let clean_end_tag_names = only_tag_names(&end_tag_names);
-
                         let mut tag = tag_clone.borrow_mut();
 
                         let is_end_of_named_slotted =
                             element_name.contains("*[slot]") && end.name() == el_tag_name;
 
                         if tag.tag_name == ""
-                            && (clean_end_tag_names.contains(&end.name().as_str())
+                            && (clean_end_tag_names
+                                .iter()
+                                .any(|name| name.as_str() == end.name())
                                 || is_end_of_named_slotted)
                         {
                             tag.tag_name = end.name();
@@ -164,18 +172,6 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
             tag.position.start = tag.position.end;
             tag.position.end += chunk.len();
 
-            let start_tags = only_tag_names(&start_tag_names_clone)
-                .iter()
-                .map(|name| format!("<{}", name))
-                .collect::<Vec<_>>();
-
-            let end_tags = only_tag_names(&end_tag_names_clone)
-                .iter()
-                .map(|name| format!("</{}>", name))
-                .collect::<Vec<_>>();
-
-            let html = String::from_utf8_lossy(chunk);
-
             // Definition links are a build-time directive, not browser-usable
             // output. Do not mutate the parser token with `el.remove()`: this
             // scanner's byte positions are source offsets, so the tag must
@@ -185,17 +181,18 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
                 return;
             }
 
-            let is_named_slotted = start_tag_names.iter().any(|name| name.contains("*[slot]"))
-                && html.starts_with("<")
-                && html.ends_with(">")
-                && html.contains("slot=\"");
+            let is_named_slotted = match_named_slotted_start
+                && chunk.starts_with(b"<")
+                && chunk.ends_with(b">")
+                && contains_bytes(chunk, b"slot=\"");
 
             // Exclude start tag if include_tag is false and the html starts with a start tag.
             let exclude_start_tag = !include_tag
-                && (start_tags.iter().any(|tag| html.starts_with(tag)) || is_named_slotted);
+                && (start_tag_prefixes.iter().any(|tag| chunk.starts_with(tag))
+                    || is_named_slotted);
 
             // Exclude end tag if include_tag is false and the html equals an end tag.
-            let exclude_end_tag = !include_tag && end_tags.iter().any(|tag| &html == tag);
+            let exclude_end_tag = !include_tag && end_tags.iter().any(|tag| chunk == tag);
 
             if !exclude_start_tag && !exclude_end_tag {
                 output_handler(chunk);
@@ -248,6 +245,16 @@ fn only_tag_names(selectors: &Vec<String>) -> Vec<&str> {
             }
         })
         .collect::<Vec<_>>()
+}
+
+fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
 }
 
 /// Streaming write the contents of a file until a start tag is found.
