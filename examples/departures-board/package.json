@@ -1,0 +1,11 @@
+{
+  "name": "wesc-departures-board",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.9"
+  }
+}
