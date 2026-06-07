@@ -215,6 +215,41 @@ fn absolute_entry_path() {
     fs::remove_file(outjs).expect("cleanup outjs");
 }
 
+#[test]
+fn scriptless_component() {
+    // Regression: a component referenced via rel="definition" that has no
+    // top-level <script> (e.g. a styles-only component) previously made the JS
+    // bundler emit an `import` for a .js file that was never written, panicking
+    // with "Module not found". Only components with a script should be imported.
+    let outjs = "./tests/fixtures/scriptless-component/scripts.js";
+
+    let _build_lock = BUILD_LOCK.lock().unwrap();
+    let mut output = Vec::new();
+    build(
+        BuildOptions {
+            entry_points: vec![String::from(
+                "./tests/fixtures/scriptless-component/index.html",
+            )],
+            outcss: None,
+            outjs: Some(String::from(outjs)),
+            minify: false,
+        },
+        &mut |c: &[u8]| output.extend_from_slice(c),
+    );
+
+    // The bundle was produced (no panic) and carries the scripted component,
+    // while the scriptless one contributed nothing.
+    let js = fs::read_to_string(outjs).expect("bundled JS should be written");
+    assert!(js.contains("customElements.define"));
+
+    // Both components still expanded in the HTML output.
+    let html = String::from_utf8_lossy(&output);
+    assert!(html.contains("class=\"wrap\""));
+    assert!(html.contains("<button part=\"button\">"));
+
+    fs::remove_file(outjs).expect("cleanup outjs");
+}
+
 fn test_file(file_path: &str, outcss: Option<&str>) {
     test_file_with_outputs(file_path, outcss, None);
 }

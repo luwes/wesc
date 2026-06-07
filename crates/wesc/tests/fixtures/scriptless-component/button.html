@@ -1,0 +1,13 @@
+<template>
+  <button part="button"><slot></slot></button>
+</template>
+
+<style>
+  w-button {
+    display: inline-block;
+  }
+</style>
+
+<script>
+  customElements.define('w-button', class extends HTMLElement {});
+</script>

@@ -182,6 +182,11 @@ fn build_file(
             .filter(|node| node.parent().is_some())
             .collect::<Vec<&Node<Module>>>();
 
+        // Track which components actually have a top-level <script>. Only those
+        // produce a mirror .js file, and so only those should be imported by the
+        // generated entry below.
+        let mut scripted_deps: HashSet<String> = HashSet::new();
+
         for dependency in dependencies.iter() {
             let dep_file_path_string = &dependency.get().file_path;
             let binding = dep_file_path_string.clone();
@@ -206,6 +211,8 @@ fn build_file(
                     },
                 )
                 .unwrap();
+
+                scripted_deps.insert(dep_file_path_string.clone());
             }
         }
 
@@ -218,13 +225,21 @@ fn build_file(
             if entry_path.exists() {
                 remove_file(&entry_path).unwrap();
             }
+            // Make sure the entry exists even when no component has a script, so
+            // the bundler always has a valid (possibly empty) input.
+            append_data_to_file(&entry_path, b"").unwrap();
 
             for dependency in dependencies.iter() {
                 let parent_file_path = dep_graph
                     .get_parent_file_path(&dependency.get().file_path)
                     .unwrap();
 
-                if parent_file_path == host_file_path_string {
+                // Skip definitions without a top-level <script>: they produce no
+                // mirror .js, so importing them would make the bundler fail with
+                // "Module not found".
+                if parent_file_path == host_file_path_string
+                    && scripted_deps.contains(&dependency.get().file_path)
+                {
                     let dep_file_path = Path::new(&dependency.get().file_path);
                     let script_path = mirror_js_path(dep_file_path);
                     let script_path = script_path
