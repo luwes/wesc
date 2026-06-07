@@ -1,0 +1,11 @@
+{
+  "extraPaths": ["crates/wesc-py/python"],
+  "executionEnvironments": [
+    {
+      "root": "examples/python-server",
+      "extraPaths": ["crates/wesc-py/python"],
+      "reportUnusedCallResult": "none",
+      "reportImplicitOverride": "none"
+    }
+  ]
+}
