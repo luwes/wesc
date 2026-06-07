@@ -90,3 +90,31 @@ export function createDepartureGenerator(seed) {
     };
   };
 }
+
+// A paginated, async data source - the shape of a real DB cursor or a
+// paginated HTTP API. `next()` hands out one row at a time and transparently
+// `await`s a fetch whenever the current page is exhausted.
+export function createDepartureCursor({ total, pageSize = 64, seed = 1 }) {
+  const nextDeparture = createDepartureGenerator(seed);
+  let produced = 0;
+  let buffer = [];
+
+  async function fetchPage() {
+    // A real cursor awaits I/O here (a DB round-trip, an HTTP page, ...), which
+    // completes on a macrotask. That await is what hands the event loop back so
+    // the HTTP socket can flush already-rendered rows before the next page is
+    // ready - i.e. what keeps TTFB low and memory bounded.
+    await new Promise((resolve) => setImmediate(resolve));
+    const size = Math.min(pageSize, total - produced);
+    produced += size;
+    return Array.from({ length: size }, nextDeparture);
+  }
+
+  return {
+    pageSize,
+    async next() {
+      if (buffer.length === 0) buffer = await fetchPage();
+      return buffer.shift();
+    },
+  };
+}

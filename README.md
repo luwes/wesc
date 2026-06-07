@@ -212,9 +212,11 @@ npx wesc ./index.html > out.html
 See [examples/departures-board](./examples/departures-board) for an
 HTTP server that streams a 10,000-row flight board — every row is two
 composed web components, so a single request expands to ~20k component
-instances. HTML streamed chunk by chunk (TTFB ≈ 2 ms on the cold
-request), with the bundled JS/CSS cached and served from their own
-routes.
+instances. wesc expands the components once into a single LiquidJS
+template, which is streamed chunk by chunk with
+[`renderToNodeStream`](https://liquidjs.com/tutorials/streaming.html)
+(TTFB ≈ 10 ms; the shell and early rows flush while the rest render),
+with the bundled JS/CSS cached and served from their own routes.
 
 ---
 

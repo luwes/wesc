@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="definition" name="shell" href="../components/shell.liquid">
+    <link rel="definition" name="flight-row" href="../components/flight-row.liquid">
+    <link rel="definition" name="status-badge" href="../components/status-badge.liquid">
+    <meta charset="utf-8">
+    <title>Departures · WeSC</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header>
+      <h1>Departures</h1>
+      <p>{{ rowCount }} flights · Wesc-stamped rows, streamed by LiquidJS</p>
+    </header>
+    <div class="head-row">
+      <span>Flight</span><span>Destination</span><span>Time</span><span>Gate</span><span>Status</span><span>Info</span>
+    </div>
+    <main>
+      {% for flight in flights %}
+      <flight-row class="{% if flight.delayed %}is-delayed{% endif %}" data-eta="{{ flight.eta }}">
+        <span slot="flight">{{ flight.flight }}</span>
+        <span slot="route">{{ flight.route }}</span>
+        <span slot="time">{{ flight.time }}</span>
+        <span slot="gate">{{ flight.gate }}</span>
+        <status-badge slot="status" status="{{ flight.statusKey }}">{{ flight.statusLabel }}</status-badge>
+        <span slot="details">{{ flight.terminal }} · {{ flight.aircraft }} · {{ flight.connection }}</span>
+      </flight-row>
+      {% endfor %}
+    </main>
+    <script type="module" src="/scripts.js"></script>
+  </body>
+</html>

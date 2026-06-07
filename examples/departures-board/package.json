@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node app/server.mjs"
   },
   "dependencies": {
-    "handlebars": "^4.7.9"
+    "liquidjs": "^10.21.1"
   }
 }
