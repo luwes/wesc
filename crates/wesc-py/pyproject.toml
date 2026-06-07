@@ -1,0 +1,38 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "wesc"
+description = "We are the Superlative Components! — a streaming HTML/web-component bundler."
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Wesley Luyten", email = "me@wesleyluyten.com" }]
+readme = "README.md"
+keywords = ["html", "web-components", "bundler", "ssr", "declarative-shadow-dom", "custom-elements"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Text Processing :: Markup :: HTML",
+]
+# Version comes from the crate's Cargo.toml (see [tool.maturin]).
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/luwes/wesc"
+Repository = "https://github.com/luwes/wesc"
+Issues = "https://github.com/luwes/wesc/issues"
+Changelog = "https://github.com/luwes/wesc/blob/main/CHANGELOG.md"
+
+[tool.maturin]
+# Importable native module + pure-Python wrapper (mixed layout). The wrapper in
+# `python/wesc/` re-exports from the compiled `wesc._wesc` and ships type stubs.
+module-name = "wesc._wesc"
+python-source = "python"
+manifest-path = "Cargo.toml"
+# Hide Python's symbols on the extension; required for a portable abi3 wheel.
+features = ["pyo3/extension-module"]

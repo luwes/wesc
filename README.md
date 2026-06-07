@@ -8,7 +8,8 @@ WeSC ships in one npm package with two complementary parts:
    (via [lol-html](https://github.com/cloudflare/lol-html)). Compiles
    single-file `.html` components into Declarative-Shadow-DOM-ready
    output. Standalone CLI, plus sync / async / streaming Node bindings
-   (via [napi-rs](https://napi.rs)).
+   (via [napi-rs](https://napi.rs)) and Python bindings (via
+   [PyO3](https://pyo3.rs)).
 2. **DOM SSR** — `wesc/dom/server` renders custom elements on the
    server using [Linkedom](https://github.com/WebReflection/linkedom),
    for components whose shadow DOM is produced by JS at upgrade time.
@@ -30,7 +31,7 @@ require Node ≥ 16; the standalone CLI binary has no runtime dependency.
 - HTML first ([The Rule of Least Power](https://www.w3.org/2001/tag/doc/leastPower.html))
 - Stay close to web standards (DSD, slots, `<template>`)
 - A first-class authoring experience for single-file components
-- Usable from any backend (standalone CLI; Node bindings today, more welcome)
+- Usable from any backend (standalone CLI; Node and Python bindings today, more welcome)
 
 ### What WeSC is
 
@@ -217,6 +218,56 @@ template, which is streamed chunk by chunk with
 [`renderToNodeStream`](https://liquidjs.com/tutorials/streaming.html)
 (TTFB ≈ 10 ms; the shell and early rows flush while the rest render),
 with the bundled JS/CSS cached and served from their own routes.
+
+### Python
+
+The same Rust bundler is available to Python via
+[PyO3](https://pyo3.rs), so you can build and server-render web
+components straight from a Python backend (Flask, FastAPI, Django,
+plain `http.server`, …). It runs in-process — no subprocess, no WASM.
+
+```sh
+pip install wesc
+```
+
+Prebuilt `abi3` wheels ship for macOS, Linux, and Windows and work on
+CPython ≥ 3.8 with no Rust toolchain required at install time.
+
+```python
+import asyncio
+import wesc
+
+# One-shot — returns the full HTML as `bytes`. Releases the GIL while it
+# runs, so other threads keep working.
+html = wesc.build(['./index.html'], minify=True)
+
+# Async — `build` releases the GIL, so await it on a worker thread.
+# The right choice on a request-serving path (FastAPI, etc.).
+html = await asyncio.to_thread(wesc.build, ['./index.html'], minify=True)
+
+# Streaming — low memory, chunk by chunk. The callback receives each
+# `bytes` chunk, then `None` once to signal end-of-stream.
+def on_chunk(chunk):
+    if chunk is None:
+        response.close()
+    else:
+        response.write(chunk)
+
+wesc.build_stream(['./index.html'], on_chunk)
+```
+
+| Argument       | Type                                 | Notes                                        |
+| -------------- | ------------------------------------ | -------------------------------------------- |
+| `entry_points` | `list[str]`                          | First entry is the host document.            |
+| `callback`     | `Callable[[bytes \| None], object]`  | `build_stream` only. `None` ends the stream. |
+| `outcss`       | `str \| None`                        | Path to write the bundled CSS file.          |
+| `outjs`        | `str \| None`                        | Path to write the bundled JS file.           |
+| `minify`       | `bool`                               | Minify generated assets. Defaults to `False`.|
+
+See [examples/python-server](./examples/python-server) for an
+`http.server` that streams the TodoMVC document chunk by chunk, with
+the bundled JS/CSS built once and served from their own routes. The
+bindings live in [`crates/wesc-py`](./crates/wesc-py).
 
 ---
 

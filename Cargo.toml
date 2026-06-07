@@ -1,10 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = [
-  "crates/wesc",
-  "crates/wesc-node",
-]
+members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py"]
 
 # Optimize the native Node addon for size/speed when built with --release.
 [profile.release]

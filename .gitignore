@@ -7,6 +7,14 @@ examples/cloudflare-worker/.wrangler/
 target/
 .wesc/
 
+# Python / maturin build artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+/crates/wesc-py/dist/
+.venv/
+
 # napi-rs generated artifacts
 # index.cjs / index.d.ts are committed so the published main package always has
 # its loader (the CI publish job doesn't regenerate them).
