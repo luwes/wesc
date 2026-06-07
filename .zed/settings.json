@@ -2,6 +2,7 @@
 // replacing Biome/Prettier. Requires the "Oxc" extension (zed: extensions).
 // Oxfmt reads its options from the repo-root .oxfmtrc.json.
 {
+  "language_servers": ["!biome"],
   "lsp": {
     "oxfmt": {
       "initialization_options": {

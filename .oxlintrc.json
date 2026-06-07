@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "globals": {
+    "globalThis": "writable"
+  },
+  "categories": {
+    "correctness": "error"
+  }
+}
