@@ -283,11 +283,11 @@ fn test_file_with_outputs_and_cleanup(
 
     let actual = String::from_utf8_lossy(&output);
     // println!("\nACTUAL:\n{:}\n", actual);
-    let actual = prettier(&actual);
+    let actual = oxfmt(&actual);
 
     let dir = Path::new(&file_path).parent().unwrap();
     let expected_file_path = dir.join("expected.html");
-    let expected = prettier(
+    let expected = oxfmt(
         &fs::read_to_string(expected_file_path).expect("Should have been able to read the file"),
     );
 
@@ -295,13 +295,13 @@ fn test_file_with_outputs_and_cleanup(
 
     if let Some(outcss) = outcss {
         let expected_css_file_path = dir.join("expected.css");
-        let expected_css = prettier(
+        let expected_css = oxfmt(
             &fs::read_to_string(expected_css_file_path)
                 .expect("Should have been able to read the file"),
         );
 
         let actual_css_file_path = Path::new(outcss);
-        let actual_css = prettier(
+        let actual_css = oxfmt(
             &fs::read_to_string(actual_css_file_path)
                 .expect("Should have been able to read the file"),
         );
@@ -316,14 +316,14 @@ fn test_file_with_outputs_and_cleanup(
 
     if let Some(outjs) = outjs {
         let expected_js_file_path = dir.join("expected.js");
-        let expected_js = prettier_for(
+        let expected_js = oxfmt_for(
             &fs::read_to_string(expected_js_file_path)
                 .expect("Should have been able to read the file"),
             "index.js",
         );
 
         let actual_js_file_path = Path::new(outjs);
-        let actual_js = prettier_for(
+        let actual_js = oxfmt_for(
             &fs::read_to_string(actual_js_file_path)
                 .expect("Should have been able to read the file"),
             "index.js",
@@ -334,12 +334,12 @@ fn test_file_with_outputs_and_cleanup(
     }
 }
 
-fn prettier(file_contents: &str) -> String {
-    prettier_for(file_contents, "index.html")
+fn oxfmt(file_contents: &str) -> String {
+    oxfmt_for(file_contents, "index.html")
 }
 
-fn prettier_for(file_contents: &str, file_path: &str) -> String {
-    let mut child = Command::new("prettier")
+fn oxfmt_for(file_contents: &str, file_path: &str) -> String {
+    let mut child = Command::new("oxfmt")
         .arg("--stdin-filepath")
         .arg(file_path)
         .stdin(Stdio::piped())
