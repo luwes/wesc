@@ -16,37 +16,28 @@
 // references them — the <link> in <head> lets the browser fetch the CSS in
 // parallel while the body is still streaming.
 
+import { mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
-import { readFileSync, writeFileSync, mkdtempSync, cpSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+
 import { build, buildStream } from '../../index.cjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const srcDir = resolve(__dirname, '../../crates/wesc/tests/fixtures/todo-app');
+const entry = join(srcDir, 'index.html');
 
-// Work in a throwaway copy: we add the asset tags to a writable index.html,
-// and wesc keeps its .wesc/ working dir in the cwd.
-const workDir = mkdtempSync(join(tmpdir(), 'wesc-todo-'));
-cpSync(srcDir, workDir, { recursive: true });
-process.chdir(workDir);
-
-// Reference the bundles from the source so the tags flow through the HTML
-// stream at the right positions (CSS in <head>, JS before </body>).
-const indexPath = join(workDir, 'index.html');
-writeFileSync(
-  indexPath,
-  readFileSync(indexPath, 'utf8')
-    .replace('</head>', '  <link rel="stylesheet" href="/styles.css">\n  </head>')
-    .replace('</body>', '  <script type="module" src="/scripts.js"></script>\n  </body>')
-);
+// Build artifacts (.wesc/ working dir, scripts.js, styles.css) go in ./dist.
+// wesc always creates its .wesc/ mirror relative to the cwd, so we run from
+// dist; the entry point is an absolute path, so the source tree stays untouched.
+const distDir = resolve(__dirname, 'dist');
+mkdirSync(distDir, { recursive: true });
+process.chdir(distDir);
 
 // Build once up front purely to produce the JS/CSS bundles, then cache them.
-const bundleOpts = { entryPoints: ['index.html'], outjs: 'scripts.js', outcss: 'styles.css' };
-build(bundleOpts);
-const js = readFileSync(join(workDir, 'scripts.js'));
-const css = readFileSync(join(workDir, 'styles.css'));
+build({ entryPoints: [entry], outjs: 'scripts.js', outcss: 'styles.css' });
+const js = readFileSync(join(distDir, 'scripts.js'));
+const css = readFileSync(join(distDir, 'styles.css'));
 
 const server = createServer((req, res) => {
   if (req.url === '/scripts.js') {
@@ -62,7 +53,7 @@ const server = createServer((req, res) => {
   // Node uses chunked transfer encoding automatically when we write without a
   // Content-Length. Scales to arbitrarily large documents.
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  buildStream({ entryPoints: ['index.html'] }, (chunk) => {
+  buildStream({ entryPoints: [entry] }, (chunk) => {
     if (chunk === null) res.end();
     else if (!res.writableEnded) res.write(chunk);
   });
