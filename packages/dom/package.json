@@ -15,13 +15,23 @@
   },
   "files": [
     "src",
-    "dist"
+    "dist",
+    "types"
   ],
   "type": "module",
   "exports": {
-    "./unshim": "./dist/unshim.js",
-    "./server": "./dist/server.js",
-    "./react": "./dist/react/index.js",
+    "./unshim": {
+      "types": "./types/unshim.d.ts",
+      "default": "./dist/unshim.js"
+    },
+    "./server": {
+      "types": "./types/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./react": {
+      "types": "./types/react.d.ts",
+      "default": "./dist/react/index.js"
+    },
     "./astro": "./src/astro/index.js",
     "./astro/*": "./src/astro/*"
   },
