@@ -13,7 +13,7 @@ From the repo root:
 # 1. Install dependencies
 npm install
 
-# 2. Build the native addon (generates ../../index.cjs + the .node binary)
+# 2. Build the native addon (generates packages/wesc/index.cjs + the .node binary)
 npm run build:native
 
 # 3. Run the example
@@ -24,10 +24,11 @@ Then open <http://localhost:3000>. Stop the server with `Ctrl+C`.
 
 ## Notes
 
-- `npm run build:native` compiles the Rust core (the first build takes a while —
-  rolldown is heavy) via napi-rs and writes `index.cjs`, `index.d.ts`, and the
-  per-platform `wesc.<triple>.node` to the repo root, which `server.mjs` imports
-  with `../../index.cjs`.
+- `npm run build:native` (a root alias for `npm run build:native --workspace=wesc`)
+  compiles the Rust core (the first build takes a while — rolldown is heavy) via
+  napi-rs and writes `index.cjs`, `index.d.ts`, and the per-platform
+  `wesc.<triple>.node` into [`packages/wesc`](../../packages/wesc), which
+  `server.mjs` imports with `../../packages/wesc/index.cjs`.
 - After the first build, re-running `node examples/node-server/server.mjs` is
   instant. You only need `npm run build:native` again if you change the Rust
   binding code in [`crates/wesc-node`](../../crates/wesc-node).

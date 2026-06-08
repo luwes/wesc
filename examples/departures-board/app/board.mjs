@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Liquid, Drop } from 'liquidjs';
 
-import { build } from '../../../index.cjs';
+import { build } from '../../../packages/wesc/index.cjs';
 import { createDepartureCursor } from './flight-data.mjs';
 
 // board.mjs lives in app/, but entry points and build output are resolved

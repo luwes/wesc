@@ -1,6 +1,6 @@
 // Node server that STREAMS the rendered HTML with the native wesc bundler.
 //
-//   npm run build:native    # from the repo root, generates ../../index.cjs
+//   npm run build:native    # from the repo root, generates packages/wesc/index.cjs
 //   node examples/node-server/server.mjs
 //   open http://localhost:3000
 //
@@ -21,7 +21,7 @@ import { createServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { build, buildStream } from '../../index.cjs';
+import { build, buildStream } from '../../packages/wesc/index.cjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const srcDir = resolve(__dirname, '../../crates/wesc/tests/fixtures/todo-app');
