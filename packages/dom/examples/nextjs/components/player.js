@@ -13,8 +13,6 @@ import {
   MediaSeekBackwardButton,
   MediaSeekForwardButton,
   MediaMuteButton,
-  MediaCaptionsButton,
-  MediaAirplayButton,
   MediaPipButton,
   MediaFullscreenButton,
   MediaPosterImage,

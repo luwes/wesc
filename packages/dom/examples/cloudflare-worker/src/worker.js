@@ -10,7 +10,7 @@
 import { renderToStream } from '@wesc/dom/server';
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, _env, _ctx) {
     let out = '';
 
     const url = new URL(request.url);
