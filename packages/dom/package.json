@@ -39,11 +39,11 @@
     "linkedom": "github:luwes/linkedom#wesc"
   },
   "devDependencies": {
-    "esbuild": "^0.20.0",
-    "pta": "^1.2.0",
+    "esbuild": "^0.25.0",
+    "pta": "^1.3.0",
     "react": "^18",
     "react-dom": "^18",
-    "zora": "^5.2.0"
+    "zora": "^6.0.0"
   },
   "peerDependencies": {
     "react": "^17.0.2 || ^18",

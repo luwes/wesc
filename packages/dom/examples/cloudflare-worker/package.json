@@ -11,8 +11,8 @@
     "media-chrome": "^2.1.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240117.0",
-    "typescript": "^5.3.3",
-    "wrangler": "^3.25.0"
+    "@cloudflare/workers-types": "^4.20260608.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.98.0"
   }
 }

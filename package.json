@@ -25,7 +25,7 @@
   "devDependencies": {
     "oxfmt": "^0.53.0",
     "oxlint": "^1.68.0",
-    "wet-run": "^1.0.3"
+    "wet-run": "^1.2.5"
   },
   "engines": {
     "node": ">= 18"

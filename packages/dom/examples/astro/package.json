@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@wesc/dom": "file:../..",
-    "astro": "^4.2.6",
+    "astro": "^6.4.4",
     "media-chrome": "^2.1.0"
   }
 }
