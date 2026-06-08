@@ -3,17 +3,14 @@
 #
 # Netlify auto-installs this example's deps; the command then installs the
 # workspace tooling, builds @wesc/dom (esbuild) from the repo root so its
-# server export resolves in entry.server, then runs the Remix build.
+# server export resolves during SSR, then runs the React Router (Vite) build.
+# @netlify/vite-plugin-react-router generates the serverless SSR handler and
+# routing, so no manual redirects are needed here.
 [build]
   command = "npm install --prefix ../../../.. && npm run build --workspace=@wesc/dom --prefix ../../../.. && npm run build"
-  publish = "public"
-
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/server"
-  status = 200
+  publish = "build/client"
 
 [[headers]]
-  for = "/build/*"
+  for = "/assets/*"
   [headers.values]
     "Cache-Control" = "public, max-age=31536000, immutable"

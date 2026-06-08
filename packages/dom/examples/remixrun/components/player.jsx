@@ -17,9 +17,7 @@ import {
 
 export default function Player() {
   return (
-    <MediaController
-      defaultSubtitles
-    >
+    <MediaController defaultSubtitles>
       <video
         slot="media"
         src="https://stream.mux.com/A3VXy02VoUinw01pwyomEO3bHnG4P32xzV7u1j1FSzjNg/high.mp4"
@@ -57,5 +55,5 @@ export default function Player() {
         <MediaFullscreenButton></MediaFullscreenButton>
       </MediaControlBar>
     </MediaController>
-  )
+  );
 }

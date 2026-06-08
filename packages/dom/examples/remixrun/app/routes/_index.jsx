@@ -1,10 +1,11 @@
-import Player from '../../components/player.js';
+import Player from '../../components/player.jsx';
+
 import styles from '../page.module.css';
 
 export const meta = () => {
   return [
-    { title: "WeSC - Remix App example" },
-    { name: "description", content: "We are the Superlative Components!" },
+    { title: 'WeSC - React Router example' },
+    { name: 'description', content: 'We are the Superlative Components!' },
   ];
 };
 
@@ -12,7 +13,11 @@ export default function Index() {
   return (
     <main className={styles.main}>
       <h1 className={styles.title}>
-        Remix - <a href="https://github.com/muxinc/media-chrome" target="_blank" rel="noreferrer">Media Chrome</a> SSR example
+        React Router -{' '}
+        <a href="https://github.com/muxinc/media-chrome" target="_blank" rel="noreferrer">
+          Media Chrome
+        </a>{' '}
+        SSR example
       </h1>
       <div className={styles.player}>
         <Player />
