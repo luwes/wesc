@@ -1,0 +1,61 @@
+{
+  "name": "@wesc/dom",
+  "version": "0.5.0",
+  "description": "Server-render web components (DOM SSR) with Linkedom — part of WeSC.",
+  "homepage": "https://github.com/luwes/wesc/tree/main/packages/dom#readme",
+  "bugs": {
+    "url": "https://github.com/luwes/wesc/issues"
+  },
+  "license": "MIT",
+  "author": "Wesley Luyten <me@wesleyluyten.com> (https://wesleyluyten.com)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luwes/wesc.git",
+    "directory": "packages/dom"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./unshim": "./dist/unshim.js",
+    "./server": "./dist/server.js",
+    "./react": "./dist/react/index.js",
+    "./astro": "./src/astro/index.js",
+    "./astro/*": "./src/astro/*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "oxlint src",
+    "test": "pta 'test/**/*.spec.js' --reporter tap",
+    "dev": "esbuild src/server.js src/unshim.js src/react/index.js src/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist --bundle --watch",
+    "build": "esbuild src/server.js src/unshim.js src/react/index.js src/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist --bundle --minify --tree-shaking=true",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "linkedom": "github:luwes/linkedom#wesc"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "pta": "^1.2.0",
+    "zora": "^5.2.0"
+  },
+  "peerDependencies": {
+    "react": "^17.0.2 || ^18",
+    "react-dom": "^17.0.2 || ^18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">= 18"
+  }
+}
