@@ -41,6 +41,8 @@
   "devDependencies": {
     "esbuild": "^0.20.0",
     "pta": "^1.2.0",
+    "react": "^18",
+    "react-dom": "^18",
     "zora": "^5.2.0"
   },
   "peerDependencies": {
