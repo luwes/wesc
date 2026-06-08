@@ -1,3 +1,13 @@
+# Netlify reads this from the site's base directory
+# (set it to packages/dom/examples/remixrun in the Netlify UI).
+#
+# Netlify auto-installs this example's deps; the command then installs the
+# workspace tooling, builds @wesc/dom (esbuild) from the repo root so its
+# server export resolves in entry.server, then runs the Remix build.
+[build]
+  command = "npm install --prefix ../../../.. && npm run build --workspace=@wesc/dom --prefix ../../../.. && npm run build"
+  publish = "public"
+
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/server"

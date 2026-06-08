@@ -8,7 +8,6 @@ _site/
 packages/dom/dist/
 packages/*/examples/*/dist/
 examples/*/dist/
-packages/dom/examples/node/index.html
 packages/dom/examples/cloudflare-worker/.wrangler/
 
 # Python / maturin build artifacts

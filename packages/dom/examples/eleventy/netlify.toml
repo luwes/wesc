@@ -1,0 +1,9 @@
+# Netlify reads this from the site's base directory
+# (set it to packages/dom/examples/eleventy in the Netlify UI).
+#
+# Netlify auto-installs this example's deps; the command then installs the
+# workspace tooling, builds @wesc/dom (esbuild) from the repo root so its
+# server export resolves inside the Eleventy transform, then runs the build.
+[build]
+  command = "npm install --prefix ../../../.. && npm run build --workspace=@wesc/dom --prefix ../../../.. && npm run build"
+  publish = "_site"

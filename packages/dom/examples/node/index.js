@@ -31,4 +31,5 @@ while ((match = customElementsRegex.exec(html)) !== null) {
 out += html.slice(start);
 console.timeEnd('renderToString');
 
-await fs.writeFile('./index.html', out);
+await fs.mkdir('./dist', { recursive: true });
+await fs.writeFile('./dist/index.html', out);
