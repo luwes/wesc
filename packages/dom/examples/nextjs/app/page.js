@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <main className={styles.main}>
       <h1 className={styles.title}>
-        Next.js 14 -{' '}
+        Next.js 15 -{' '}
         <a href="https://github.com/muxinc/media-chrome" target="_blank">
           Media Chrome
         </a>{' '}
