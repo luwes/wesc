@@ -1,0 +1,17 @@
+{
+  "name": "astro",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@wesc/dom": "file:../..",
+    "astro": "^4.2.6",
+    "media-chrome": "^2.1.0"
+  }
+}
