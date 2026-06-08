@@ -69,9 +69,25 @@ export function shim() {
     localStorage,
     ResizeObserver,
     CSSStyleDeclaration,
-    getComputedStyle: function getComputedStyle() { return new CSSStyleDeclaration(); },
+    getComputedStyle: function getComputedStyle() {
+      return new CSSStyleDeclaration();
+    },
     requestAnimationFrame: function requestAnimationFrame() {},
     cancelAnimationFrame: function cancelAnimationFrame() {},
+    matchMedia: function matchMedia(media) {
+      return {
+        matches: false,
+        media,
+        onchange: null,
+        addEventListener() {},
+        removeEventListener() {},
+        addListener() {},
+        removeListener() {},
+        dispatchEvent() {
+          return false;
+        },
+      };
+    },
   };
 
   for (let shim in shims) {
@@ -95,10 +111,24 @@ export function unshim() {
   preshimGlobalThis = undefined;
 }
 
-
-const nonClosingElements = new Set(['area', 'base', 'br', 'col', 'command',
-'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source',
-'track', 'wbr']);
+const nonClosingElements = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'command',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'keygen',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
+]);
 
 const defaults = {
   getRenderComplete: () => new Promise((resolve) => setTimeout(resolve, 0)),
@@ -161,7 +191,8 @@ export function renderToStream(rs, opts) {
     async start(controller) {
       let html = '';
 
-      while (true) { // eslint-disable-line
+      while (true) {
+        // eslint-disable-line
         const { done, value } = await reader.read();
 
         // When no more data needs to be consumed, break the reading
@@ -174,7 +205,6 @@ export function renderToStream(rs, opts) {
         html += decoded;
 
         if (customElementOpenRegex.test(html)) {
-
           let out = '';
           let start = 0;
 
@@ -202,7 +232,7 @@ export function renderToStream(rs, opts) {
       // Close the stream
       controller.close();
       reader.releaseLock();
-    }
+    },
   });
 }
 
@@ -220,7 +250,6 @@ export function stringify(node, opts) {
   }
 
   if (!skipNode) {
-
     if (node.nodeName === '#text') {
       let text = node.textContent.replace(/\xA0/g, '&nbsp;');
 
@@ -235,7 +264,7 @@ export function stringify(node, opts) {
     }
 
     str += `<${node.localName}${(node.attributes || [])
-      .map(a => ` ${a.name}${a.value === '' ? '' : `="${a.value}"`}`)
+      .map((a) => ` ${a.name}${a.value === '' ? '' : `="${a.value}"`}`)
       .join('')}>`;
   }
 
@@ -249,7 +278,7 @@ export function stringify(node, opts) {
     str += node.childNodes.map((n) => stringify(n, opts)).join('');
   }
 
-  if(!skipNode && !nonClosingElements.has(node.localName)) {
+  if (!skipNode && !nonClosingElements.has(node.localName)) {
     str += `</${node.localName}>`;
   }
 
