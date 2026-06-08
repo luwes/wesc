@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "plugins": [
+    {
+      "type": "node-workspace",
+      "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "wesc",
+      "components": ["wesc", "dom"]
+    }
+  ],
+  "packages": {
+    "packages/wesc": {
+      "release-type": "node",
+      "component": "wesc"
+    },
+    "packages/dom": {
+      "release-type": "node",
+      "component": "dom",
+      "package-name": "@wesc/dom"
+    }
+  }
+}

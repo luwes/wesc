@@ -3,41 +3,41 @@ name: CD
 concurrency: production
 
 on:
-  # Allows you to run this workflow manually from the Actions tab
+  push:
+    branches:
+      - main
+  # Allows you to re-run release-please manually from the Actions tab.
   workflow_dispatch:
-    inputs:
-      version:
-        type: choice
-        required: true
-        description: Version
-        options:
-        - conventional
-        - patch
-        - minor
-        - major
-        - prerelease
-        - from-package
-        - from-git
-      prerelease:
-        type: choice
-        description: Pre-release
-        options:
-        -
-        - canary
-        - beta
-      dryrun:
-        description: 'Dry-run'
-        type: boolean
-
-run-name: Deploy ${{ inputs.version }} ${{ inputs.dryrun && '--dry-run' || '' }} ${{ inputs.prerelease && format('--prerelease {0}', inputs.prerelease) || '' }}
 
 permissions:
   contents: write
+  pull-requests: write
   id-token: write
 
 jobs:
-  # Build the native addon once per platform and upload each `*.node` binary.
+  # On every push to main, release-please maintains a "release PR" that bumps
+  # versions and changelogs from conventional commits. Merging that PR tags the
+  # release(s) and flips the `*_release` outputs to 'true', which gates the
+  # publish jobs below. Tags are namespaced per package (wesc-v*, dom-v*).
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    outputs:
+      wesc_release: ${{ steps.release.outputs['packages/wesc--release_created'] }}
+      dom_release: ${{ steps.release.outputs['packages/dom--release_created'] }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .github/release-please/config.json
+          manifest-file: .github/release-please/manifest.json
+
+  # Build the native addon once per platform — only when a `wesc` release is cut.
   build:
+    name: build - ${{ matrix.settings.target }}
+    needs: release-please
+    if: ${{ needs.release-please.outputs.wesc_release == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +59,6 @@ jobs:
           # Build arm64 Linux natively on a GitHub arm64 runner (no cross-compile).
           - host: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-    name: build - ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +79,7 @@ jobs:
         run: npm ci
       - name: Build
         if: ${{ !matrix.settings.docker }}
-        run: npm run build:native -- --target ${{ matrix.settings.target }}
+        run: npm run build:native --workspace=wesc -- --target ${{ matrix.settings.target }}
         shell: bash
 
       # --- Linux runners: build inside the napi-rs toolchain image (rust + zig + node).
@@ -90,63 +89,79 @@ jobs:
         with:
           image: ${{ matrix.settings.docker }}
           options: '--user 0:0 -v ${{ github.workspace }}:/build -w /build'
-          run: npm ci && npm run build:native -- --target ${{ matrix.settings.target }}
+          run: npm ci && npm run build:native --workspace=wesc -- --target ${{ matrix.settings.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: '*.node'
+          path: 'packages/wesc/*.node'
           if-no-files-found: error
 
-  # Publish the platform packages + the main `wesc` package.
-  publish:
-    name: publish
+  # Publish the platform packages + the main `wesc` package to npm.
+  publish-wesc:
+    name: publish wesc
     runs-on: ubuntu-latest
-    needs: build
+    needs: [release-please, build]
+    if: ${{ needs.release-please.outputs.wesc_release == 'true' }}
     environment: production
     env:
       # Token with rights to create new packages — needed to bootstrap the
-      # wesc-<triple> packages on first publish (OIDC trusted publishing can't
-      # create packages that don't exist yet). Once they exist, this can be
+      # @wesc/binding-<triple> packages on first publish (OIDC trusted publishing
+      # can't create packages that don't exist yet). Once they exist, this can be
       # dropped in favour of trusted publishing. Provenance still works via the
       # job's id-token permission + --provenance.
       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # wet-run's --github-release uses conventional-github-releaser, which reads this
-      CONVENTIONAL_GITHUB_RELEASER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # passed through to `napi prepublish` inside prepublishOnly so a dry-run
-      # never actually publishes the platform packages
-      NAPI_PREPUBLISH_FLAGS: ${{ inputs.dryrun && '--dry-run' || '' }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # full history for tags + conventional changelog
       # Node 24 (latest stable) ships npm 11, required for Trusted Publishing
       # (OIDC); npm generates provenance automatically when publishing via OIDC.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
-      - uses: fregante/setup-git-user@v1
       - run: npm ci
-      - run: npm test
 
       # Collect every platform binary into npm/<triple>/ for prepublish.
+      # The napi commands read the `napi` config from packages/wesc/package.json,
+      # so they run from there.
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: packages/wesc/artifacts
       - run: npx napi create-npm-dir -t .
+        working-directory: packages/wesc
       - run: npx napi artifacts --dir artifacts --dist npm
+        working-directory: packages/wesc
       - run: ls -R npm
+        working-directory: packages/wesc
 
-      # wet-run bumps the version, writes the changelog, tags, pushes, and runs
-      # `npm publish` — which triggers prepublishOnly -> `napi prepublish`,
-      # publishing each wesc-<triple> package and wiring optionalDependencies.
-      - name: Release
-        run: >-
-          npx --yes wet-run@1.0.3 release ${{ inputs.version }}
-          ${{ inputs.dryrun && '--dry-run' || '' }}
-          ${{ inputs.prerelease && format('--prerelease {0}', inputs.prerelease) || '' }}
-          --provenance --changelog --github-release --verbose
+      # `npm publish` triggers prepublishOnly -> `napi prepublish`, which
+      # publishes each @wesc/binding-<triple> package and wires up the main
+      # package's optionalDependencies, then publishes `wesc` with provenance.
+      - name: Publish
+        working-directory: packages/wesc
+        run: npm publish --provenance --access public
+
+  # Publish the pure-JS `@wesc/dom` package to npm.
+  publish-dom:
+    name: publish @wesc/dom
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: ${{ needs.release-please.outputs.dom_release == 'true' }}
+    environment: production
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm test --workspace=@wesc/dom
+
+      # prepublishOnly bundles src/ -> dist/ with esbuild before the tarball is
+      # created.
+      - name: Publish
+        run: npm publish --workspace=@wesc/dom --provenance --access public
