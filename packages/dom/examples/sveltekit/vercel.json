@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install --prefix ../../../.. && npm run build --workspace=@wesc/dom --prefix ../../../.. && npm install"
+}
