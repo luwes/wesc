@@ -14,7 +14,6 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^7.0.1",
-    "@sveltejs/adapter-cloudflare": "^7.2.8",
     "@sveltejs/kit": "^2.63.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "svelte": "^5.56.3",
