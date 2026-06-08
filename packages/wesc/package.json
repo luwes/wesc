@@ -1,0 +1,64 @@
+{
+  "name": "wesc",
+  "version": "0.5.0",
+  "description": "We are the Superlative Components!",
+  "homepage": "https://github.com/luwes/wesc/tree/main/packages/wesc#readme",
+  "bugs": {
+    "url": "https://github.com/luwes/wesc/issues"
+  },
+  "license": "MIT",
+  "author": "Wesley Luyten <me@wesleyluyten.com> (https://wesleyluyten.com)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luwes/wesc.git",
+    "directory": "packages/wesc"
+  },
+  "bin": {
+    "wesc": "bin/cli.js"
+  },
+  "files": [
+    "index.cjs",
+    "index.d.ts",
+    "bin",
+    "src"
+  ],
+  "type": "module",
+  "main": "index.cjs",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.cjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "oxlint src bin",
+    "build:native": "napi build --platform --release --cargo-cwd ../../crates/wesc-node --js index.cjs --dts index.d.ts",
+    "build:native:debug": "napi build --platform --cargo-cwd ../../crates/wesc-node --js index.cjs --dts index.d.ts",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm --skip-gh-release"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  },
+  "napi": {
+    "name": "wesc",
+    "package": {
+      "name": "@wesc/binding"
+    },
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">= 18"
+  }
+}

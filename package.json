@@ -1,7 +1,8 @@
 {
-  "name": "wesc",
+  "name": "wesc-monorepo",
   "version": "0.5.0",
-  "description": "We are the Superlative Components!",
+  "private": true,
+  "description": "We are the Superlative Components! — monorepo root",
   "homepage": "https://github.com/luwes/wesc#readme",
   "bugs": {
     "url": "https://github.com/luwes/wesc/issues"
@@ -9,73 +10,22 @@
   "license": "MIT",
   "author": "Wesley Luyten <me@wesleyluyten.com> (https://wesleyluyten.com)",
   "repository": "luwes/wesc",
-  "bin": {
-    "wesc": "bin/cli.js"
-  },
-  "files": [
-    "index.cjs",
-    "index.d.ts",
-    "bin",
-    "src",
-    "dist"
+  "workspaces": [
+    "packages/*"
   ],
   "type": "module",
-  "main": "index.cjs",
-  "types": "index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./index.d.ts",
-      "default": "./index.cjs"
-    },
-    "./dom/unshim": "./dist/dom/unshim.js",
-    "./dom/server": "./dist/dom/server.js",
-    "./dom/react": "./dist/dom/react/index.js",
-    "./dom/astro": "./src/dom/astro/index.js",
-    "./dom/astro/*": "./src/dom/astro/*"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
-    "lint": "oxlint src",
-    "test": "pta 'test/**/*.spec.js' --reporter tap",
-    "dev": "wet serve --cors --redirect :examples/ & esbuild src/dom/server.js src/dom/unshim.js src/dom/react/index.js src/dom/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist/dom --bundle --watch",
-    "build:js": "esbuild src/dom/server.js src/dom/unshim.js src/dom/react/index.js src/dom/react/render.js --format=esm --external:react --external:react-dom --external:./server.js --external:./render.js --outdir=dist/dom --bundle --minify --tree-shaking=true",
-    "build:native": "napi build --platform --release --cargo-cwd crates/wesc-node --js index.cjs --dts index.d.ts",
-    "build:native:debug": "napi build --platform --cargo-cwd crates/wesc-node --js index.cjs --dts index.d.ts",
-    "build": "npm run build:js",
-    "artifacts": "napi artifacts",
-    "prepublishOnly": "npm run build:js && napi prepublish -t npm --skip-gh-release ${NAPI_PREPUBLISH_FLAGS:-}"
-  },
-  "dependencies": {
-    "linkedom": "github:luwes/linkedom#wesc"
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "build:native": "npm run build:native --workspace=wesc",
+    "build:native:debug": "npm run build:native:debug --workspace=wesc",
+    "dev": "wet serve --cors --redirect :packages/dom/examples/"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.4",
-    "esbuild": "^0.20.0",
     "oxfmt": "^0.53.0",
     "oxlint": "^1.68.0",
-    "pta": "^1.2.0",
-    "wet-run": "^1.0.3",
-    "zora": "^5.2.0"
-  },
-  "peerDependencies": {
-    "react": "^17.0.2 || ^18",
-    "react-dom": "^17.0.2 || ^18"
-  },
-  "napi": {
-    "name": "wesc",
-    "package": {
-      "name": "@wesc/binding"
-    },
-    "triples": {
-      "defaults": true,
-      "additional": [
-        "aarch64-apple-darwin",
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-musl"
-      ]
-    }
+    "wet-run": "^1.0.3"
   },
   "engines": {
     "node": ">= 18"

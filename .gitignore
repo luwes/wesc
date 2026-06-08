@@ -1,12 +1,15 @@
 .DS_Store
-/dist/
-examples/*/dist/
 node_modules/
-/examples/node/index.html
-_site/
-examples/cloudflare-worker/.wrangler/
 target/
 .wesc/
+_site/
+
+# Build output
+packages/dom/dist/
+packages/*/examples/*/dist/
+examples/*/dist/
+packages/dom/examples/node/index.html
+packages/dom/examples/cloudflare-worker/.wrangler/
 
 # Python / maturin build artifacts
 __pycache__/
@@ -20,4 +23,4 @@ __pycache__/
 # index.cjs / index.d.ts are committed so the published main package always has
 # its loader (the CI publish job doesn't regenerate them).
 *.node
-/npm/
+packages/wesc/npm/
