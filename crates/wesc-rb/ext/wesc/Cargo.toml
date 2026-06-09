@@ -1,6 +1,6 @@
 [package]
 name = "wesc-rb"
-version = "0.5.0" # x-release-please-version
+version = "0.6.0" # x-release-please-version
 authors = ["Wesley Luyten <me@wesleyluyten.com>"]
 edition = "2021"
 license = "MIT"
