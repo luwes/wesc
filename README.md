@@ -3,21 +3,21 @@
 Build web components from any backend.
 
 WeSC is a streaming HTML/web-component bundler written in Rust (via
-[lol-html](https://github.com/cloudflare/lol-html)). It compiles
-single-file `.html` components into Declarative-Shadow-DOM-ready
-output: a standalone CLI, plus sync / async / streaming Node bindings
-(via [napi-rs](https://napi.rs)), Python bindings (via
-[PyO3](https://pyo3.rs)), PHP bindings (via
-[ext-php-rs](https://ext-php.rs)), Go bindings (via
-[cgo](https://pkg.go.dev/cmd/cgo)), and Ruby bindings (via
-[Magnus](https://github.com/matsadler/magnus)).
+[lol-html](https://github.com/cloudflare/lol-html) for HTML and
+[rolldown](https://rolldown.rs) for the JS bundle). It compiles single-file
+`.html` components into Declarative-Shadow-DOM-ready output.
 
 ## Goals
 
-- HTML first ([The Rule of Least Power](https://www.w3.org/2001/tag/doc/leastPower.html))
-- Stay close to web standards (DSD, slots, `<template>`)
-- A first-class authoring experience for single-file components
-- Usable from any backend (standalone CLI; Node, Python, PHP, Go and Ruby bindings today, more welcome)
+- **HTML first** — lean on the platform ([The Rule of Least Power](https://www.w3.org/2001/tag/doc/leastPower.html)).
+- **Standards-aligned** — Declarative Shadow DOM, slots, and `<template>`, not a custom dialect.
+- **Single-file components** — author markup, styles, and script in one `.html` file.
+- **Backend-agnostic** — a standalone CLI, plus native bindings (more welcome):
+  - **Node** via [napi-rs](https://napi.rs)
+  - **Python** via [PyO3](https://pyo3.rs)
+  - **PHP** via [ext-php-rs](https://ext-php.rs)
+  - **Go** via [cgo](https://pkg.go.dev/cmd/cgo)
+  - **Ruby** via [Magnus](https://github.com/matsadler/magnus)
 
 ## What WeSC is
 
@@ -27,8 +27,12 @@ components into final HTML plus optional CSS and JS bundles.
 
 WeSC is not meant to replace full-featured template engines. It does
 not try to own variables, conditionals, loops, layouts, partials, or
-application data flow. Use Handlebars, Nunjucks, Twig, React, your
-backend framework, or plain string output for that layer. WeSC sits
+application data flow. Use [Liquid](https://shopify.github.io/liquid/),
+[Handlebars](https://handlebarsjs.com), [Nunjucks](https://mozilla.github.io/nunjucks/),
+[Jinja](https://jinja.palletsprojects.com), [Twig](https://twig.symfony.com),
+[ERB](https://docs.ruby-lang.org/en/master/ERB.html),
+[Mustache](https://mustache.github.io), your backend framework, or plain string
+output for that layer. WeSC sits
 beside them: it turns component definitions into reusable HTML
 building blocks that can be stamped by whatever renders your data.
 
@@ -69,6 +73,7 @@ crate's README.
 
 - [lol-html](https://github.com/cloudflare/lol-html) — streaming HTML
   rewriter powering the bundler.
+- [rolldown](https://rolldown.rs) — Rust bundler for the component JavaScript.
 - [napi-rs](https://napi.rs) — Rust ↔ Node bindings.
 - [PyO3](https://pyo3.rs) — Rust ↔ Python bindings.
 - [ext-php-rs](https://ext-php.rs) — Rust ↔ PHP bindings.
