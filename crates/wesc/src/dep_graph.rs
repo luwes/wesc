@@ -1,8 +1,8 @@
 use indextree::{Arena, NodeId};
 
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
-use crate::component_definitions::find_component_definitions;
+use crate::component_definitions::{find_component_definitions, resolve_href};
 
 #[derive(Debug, Clone)]
 pub struct Module {
@@ -59,15 +59,11 @@ pub fn resolve_component_dependencies(
     let module = Module::new(name.to_owned(), file_path.to_owned());
     let dependency = dep_graph.new_node(module);
     let host_definitions = find_component_definitions(&file_path).unwrap();
-    let dir = Path::new(&file_path).parent().unwrap();
 
     for (component_name, component_href) in host_definitions {
-        let component_href = Path::new(&component_href);
-        let component_file_path = dir.join(&component_href);
-        let component_file_path_string = component_file_path.to_string_lossy().to_string();
-
+        let component_file_path = resolve_href(file_path, &component_href);
         let component_dependency =
-            resolve_component_dependencies(&component_name, &component_file_path_string, dep_graph);
+            resolve_component_dependencies(&component_name, &component_file_path, dep_graph);
         dependency.append(component_dependency, &mut dep_graph.arena);
     }
 

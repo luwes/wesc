@@ -32,34 +32,36 @@ pub(crate) fn extract_css(dep_graph: Arc<Mutex<DepGraph>>, outcss: Option<String
             .filter(|node| node.parent().is_some())
             .collect::<Vec<&Node<Module>>>();
 
-        // A component declared in multiple files appears as multiple nodes;
-        // only bundle each unique file's styles once.
         let mut seen_paths: HashSet<String> = HashSet::new();
 
         for dependency in dependencies.iter() {
             let dep_file_path = &dependency.get().file_path;
 
-            if !seen_paths.insert(dep_file_path.clone()) {
-                continue;
-            }
-
-            if let Ok(style_tag) =
-                read_until_start_tag(&dep_file_path, 0, &vec!["root > style"], "")
-            {
-                let _style_tag = write_until_end_tag(
-                    &dep_file_path,
-                    style_tag.position.end,
-                    &vec!["style"],
-                    "<style>",
-                    false,
-                    &mut |chunk: &[u8]| {
-                        append_data_to_file(Path::new(&outcss), chunk).unwrap();
-                    },
-                )
-                .unwrap();
+            // A component declared in multiple files appears as multiple nodes;
+            // only bundle each unique file's styles once.
+            if seen_paths.insert(dep_file_path.clone()) {
+                append_top_level_element(dep_file_path, "style", Path::new(&outcss));
             }
         }
     }
+}
+
+/// Append the body of `file_path`'s top-level `<tag>` element to `out_path`,
+/// returning whether such an element was present.
+fn append_top_level_element(file_path: &str, tag: &str, out_path: &Path) -> bool {
+    let Ok(start) = read_until_start_tag(file_path, 0, &[format!("root > {tag}")], "") else {
+        return false;
+    };
+    write_until_end_tag(
+        file_path,
+        start.position.end,
+        &[tag],
+        &format!("<{tag}>"),
+        false,
+        &mut |chunk: &[u8]| append_data_to_file(out_path, chunk).unwrap(),
+    )
+    .unwrap();
+    true
 }
 
 /// Extract each component's top-level `<script>` into its mirror `.js`, then
@@ -84,31 +86,17 @@ pub(crate) fn extract_and_bundle_js(
     let mut scripted_deps: HashSet<String> = HashSet::new();
 
     for dependency in dependencies.iter() {
-        let dep_file_path_string = &dependency.get().file_path;
-        let binding = dep_file_path_string.clone();
-        let dep_file_path = Path::new(&binding);
-        let outjs = mirror_js_path(dep_file_path);
+        let dep_file_path = dependency.get().file_path.clone();
+        let outjs = mirror_js_path(Path::new(&dep_file_path));
 
         if outjs.exists() {
             remove_file(&outjs).unwrap();
         }
 
-        if let Ok(script_tag) =
-            read_until_start_tag(&dep_file_path_string, 0, &vec!["root > script"], "")
-        {
-            let _script_tag = write_until_end_tag(
-                &dep_file_path_string,
-                script_tag.position.end,
-                &vec!["script"],
-                "<script>",
-                false,
-                &mut |chunk: &[u8]| {
-                    append_data_to_file(&outjs, chunk).unwrap();
-                },
-            )
-            .unwrap();
-
-            scripted_deps.insert(dep_file_path_string.clone());
+        // Only components with a top-level <script> produce a mirror .js, and
+        // so only those should be imported by the generated entry below.
+        if append_top_level_element(&dep_file_path, "script", &outjs) {
+            scripted_deps.insert(dep_file_path);
         }
     }
 

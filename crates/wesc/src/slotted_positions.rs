@@ -7,6 +7,8 @@ use std::rc::Rc;
 use std::sync::{LazyLock, Mutex};
 
 use crate::chunk_reader::{read_file_cached, ChunkReader};
+use crate::pos_key;
+use crate::scan::{find_next_byte, find_tag_end, get_attribute_value, is_self_closing_start_tag};
 use crate::CHUNK_SIZE;
 use crate::DEFAULT_SLOT_NAME;
 
@@ -14,10 +16,6 @@ use crate::DEFAULT_SLOT_NAME;
 // There is a default slot and named slots that can have multiple ranges that are out-of-order.
 static SLOTTED_POSITIONS: LazyLock<Mutex<HashMap<String, HashMap<String, Vec<Range<usize>>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
-
-fn pos_key(file_index: usize, file_path: &str) -> String {
-    format!("{}:{}", file_index, file_path)
-}
 
 pub fn find_slotted_positions(
     read_position: usize,
@@ -286,7 +284,7 @@ fn find_slotted_positions_fast(
             return Ok(None);
         };
 
-        if let Some(slot_name) = get_slot_attribute(start_tag) {
+        if let Some(slot_name) = get_attribute_value(start_tag, b"slot") {
             push_non_empty_range(&mut positions, DEFAULT_SLOT_NAME, default_start..tag_start);
             push_non_empty_range(&mut positions, &slot_name, tag_start..element_end);
             default_start = element_end;
@@ -326,22 +324,6 @@ fn read_tag_name(bytes: &[u8], start: usize) -> Option<Vec<u8>> {
     }
 }
 
-fn find_tag_end(bytes: &[u8], start: usize) -> Option<usize> {
-    let mut quote = None;
-    let mut pos = start;
-    while pos < bytes.len() {
-        match (quote, bytes[pos]) {
-            (Some(q), c) if c == q => quote = None,
-            (None, b'"' | b'\'') => quote = Some(bytes[pos]),
-            (None, b'>') => return Some(pos + 1),
-            _ => {}
-        }
-        pos += 1;
-    }
-
-    None
-}
-
 fn starts_with_end_tag(bytes: &[u8], pos: usize, tag_name: &[u8]) -> bool {
     let name_start = pos + 2;
     let name_end = name_start + tag_name.len();
@@ -355,14 +337,6 @@ fn starts_with_end_tag(bytes: &[u8], pos: usize, tag_name: &[u8]) -> bool {
             || bytes[name_end] == b'>')
 }
 
-fn find_next_byte(bytes: &[u8], start: usize, needle: u8) -> Option<usize> {
-    bytes
-        .get(start..)?
-        .iter()
-        .position(|byte| *byte == needle)
-        .map(|offset| start + offset)
-}
-
 fn is_comment_or_declaration(bytes: &[u8], pos: usize) -> bool {
     bytes.get(pos) == Some(&b'<') && matches!(bytes.get(pos + 1), Some(b'!') | Some(b'?'))
 }
@@ -371,14 +345,6 @@ fn is_fallback_to_parser_tag(tag_name: &[u8]) -> bool {
     tag_name.eq_ignore_ascii_case(b"script")
         || tag_name.eq_ignore_ascii_case(b"style")
         || tag_name.eq_ignore_ascii_case(b"template")
-}
-
-fn is_self_closing_start_tag(start_tag: &[u8]) -> bool {
-    let mut pos = start_tag.len().saturating_sub(1);
-    while pos > 0 && start_tag[pos].is_ascii_whitespace() {
-        pos -= 1;
-    }
-    pos > 0 && start_tag[pos] == b'>' && start_tag[pos - 1] == b'/'
 }
 
 fn find_element_end(
@@ -450,81 +416,4 @@ fn is_void_tag(tag_name: &[u8]) -> bool {
             | b"track"
             | b"wbr"
     )
-}
-
-fn get_slot_attribute(start_tag: &[u8]) -> Option<String> {
-    let mut pos = 1;
-    let _tag_name = read_tag_name(start_tag, pos)?;
-    while pos < start_tag.len()
-        && !start_tag[pos].is_ascii_whitespace()
-        && start_tag[pos] != b'>'
-        && start_tag[pos] != b'/'
-    {
-        pos += 1;
-    }
-
-    while pos < start_tag.len() {
-        while pos < start_tag.len() && start_tag[pos].is_ascii_whitespace() {
-            pos += 1;
-        }
-
-        if pos >= start_tag.len() || start_tag[pos] == b'>' || start_tag[pos] == b'/' {
-            return None;
-        }
-
-        let name_start = pos;
-        while pos < start_tag.len()
-            && !start_tag[pos].is_ascii_whitespace()
-            && start_tag[pos] != b'='
-            && start_tag[pos] != b'>'
-            && start_tag[pos] != b'/'
-        {
-            pos += 1;
-        }
-        let name_end = pos;
-
-        while pos < start_tag.len() && start_tag[pos].is_ascii_whitespace() {
-            pos += 1;
-        }
-
-        let mut value = "";
-        if pos < start_tag.len() && start_tag[pos] == b'=' {
-            pos += 1;
-            while pos < start_tag.len() && start_tag[pos].is_ascii_whitespace() {
-                pos += 1;
-            }
-
-            let value_start;
-            let value_end;
-            if pos < start_tag.len() && (start_tag[pos] == b'"' || start_tag[pos] == b'\'') {
-                let quote = start_tag[pos];
-                pos += 1;
-                value_start = pos;
-                while pos < start_tag.len() && start_tag[pos] != quote {
-                    pos += 1;
-                }
-                value_end = pos;
-                if pos < start_tag.len() {
-                    pos += 1;
-                }
-            } else {
-                value_start = pos;
-                while pos < start_tag.len()
-                    && !start_tag[pos].is_ascii_whitespace()
-                    && start_tag[pos] != b'>'
-                {
-                    pos += 1;
-                }
-                value_end = pos;
-            }
-
-            value = std::str::from_utf8(&start_tag[value_start..value_end]).ok()?;
-        }
-
-        if start_tag[name_start..name_end].eq_ignore_ascii_case(b"slot") {
-            return Some(value.to_string());
-        }
-    }
-
-    None
 }

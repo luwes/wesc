@@ -270,7 +270,7 @@ pub fn write_until_start_tag<T: AsRef<str>>(
         file_path,
         position,
         tag_names,
-        &vec![] as &[&str],
+        NO_TAGS,
         prefix,
         include_tag,
         output_handler,
@@ -289,13 +289,16 @@ pub fn write_until_end_tag<T: AsRef<str>>(
     write_until_tag(
         file_path,
         position,
-        &vec![] as &[&str],
+        NO_TAGS,
         tag_names,
         prefix,
         include_tag,
         output_handler,
     )
 }
+
+/// Empty tag-name list, for the start- or end-tag side a caller doesn't use.
+const NO_TAGS: &[&str] = &[];
 
 pub fn read_until_tag<T: AsRef<str>, U: AsRef<str>>(
     file_path: &str,
@@ -321,15 +324,7 @@ pub fn read_until_start_tag<T: AsRef<str>>(
     tag_names: &[T],
     prefix: &str,
 ) -> io::Result<Tag> {
-    write_until_tag(
-        file_path,
-        position,
-        tag_names,
-        &vec![] as &[&str],
-        prefix,
-        false,
-        &mut |_chunk: &[u8]| {},
-    )
+    read_until_tag(file_path, position, tag_names, NO_TAGS, prefix)
 }
 
 pub fn read_until_end_tag<T: AsRef<str>>(
@@ -338,13 +333,5 @@ pub fn read_until_end_tag<T: AsRef<str>>(
     tag_names: &[T],
     prefix: &str,
 ) -> io::Result<Tag> {
-    write_until_tag(
-        file_path,
-        position,
-        &vec![] as &[&str],
-        tag_names,
-        prefix,
-        false,
-        &mut |_chunk: &[u8]| {},
-    )
+    read_until_tag(file_path, position, NO_TAGS, tag_names, prefix)
 }

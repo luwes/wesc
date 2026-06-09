@@ -15,13 +15,19 @@ use crate::CHUNK_SIZE;
 static DEFINITIONS: LazyLock<Mutex<HashMap<String, IndexMap<String, String>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Resolve a component's `href` against the file that declared it.
+pub fn resolve_href(declaring_file: &str, href: &str) -> String {
+    Path::new(declaring_file)
+        .parent()
+        .unwrap()
+        .join(href)
+        .to_string_lossy()
+        .into_owned()
+}
+
 pub fn get_component_file_path(current_file_path: &str, name: &str) -> Option<String> {
-    let dir = Path::new(&current_file_path).parent().unwrap();
     let defs = find_component_definitions(current_file_path).unwrap();
-    let component_href = defs[name].as_str();
-    let component_href = Path::new(component_href);
-    let component_file_path = dir.join(&component_href);
-    component_file_path.to_string_lossy().to_string().into()
+    Some(resolve_href(current_file_path, &defs[name]))
 }
 
 pub fn find_component_definition_names(file_path: &str) -> io::Result<Vec<String>> {
