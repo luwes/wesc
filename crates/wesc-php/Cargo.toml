@@ -5,7 +5,7 @@
 # the core crate, so this is `wesc_php`. The compiled artifact is still
 # `libwesc_php.{so,dylib}` (cargo normalises `-`/`_` the same way).
 name = "wesc_php"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Wesley Luyten <me@wesleyluyten.com>"]
 edition = "2021"
 license = "MIT"
