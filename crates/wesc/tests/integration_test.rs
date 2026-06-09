@@ -338,8 +338,26 @@ fn oxfmt(file_contents: &str) -> String {
     oxfmt_for(file_contents, "index.html")
 }
 
+/// Resolve the `oxfmt` formatter.
+///
+/// `oxfmt` is the oxc JS/TS formatter, installed via npm (see `package.json`).
+/// It has no Rust crate, so it can't be a Cargo dev-dependency. Prefer the
+/// copy installed in the workspace `node_modules/.bin` (so `cargo test` works
+/// after `npm install` without a global install), and fall back to `PATH`.
+/// Note: `oxfmt` is a Node CLI, so `node` must be available either way.
+fn oxfmt_command() -> Command {
+    let local = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../node_modules/.bin/oxfmt");
+
+    if local.exists() {
+        Command::new(local)
+    } else {
+        Command::new("oxfmt")
+    }
+}
+
 fn oxfmt_for(file_contents: &str, file_path: &str) -> String {
-    let mut child = Command::new("oxfmt")
+    let mut child = oxfmt_command()
         .arg("--stdin-filepath")
         .arg(file_path)
         .stdin(Stdio::piped())
