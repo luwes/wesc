@@ -5,6 +5,10 @@
 //! [`crate::slotted_positions`]) and stream the matching content into the
 //! output, recursing back into [`crate::component`] for nested components.
 
+// Mutually recursive with the expansion engine; the build state is threaded
+// explicitly rather than bundled into a context type (see `component.rs`).
+#![allow(clippy::too_many_arguments)]
+
 use std::collections::HashMap;
 use std::ops::Range;
 
@@ -15,6 +19,7 @@ use crate::dep_graph::DepGraph;
 use crate::scan::{
     contains_start_tag, write_file_range, write_start_tag_with_optional_slot_attribute,
 };
+use crate::slotted_positions::SlottedRanges;
 use crate::write_tags::{read_until_end_tag, write_until_tag};
 use crate::{pos_key, BuildOptions, Tag, CONTENT_IN_PROGRESS, DEFAULT_SLOT_NAME};
 
@@ -26,10 +31,10 @@ pub(crate) fn build_component_content(
     read_positions: &mut HashMap<String, usize>,
     tag_stacks: &mut HashMap<String, Vec<String>>,
     dep_graph: &DepGraph,
-    component_slotted_positions: &mut HashMap<String, Vec<Range<usize>>>,
+    component_slotted_positions: &mut SlottedRanges,
     output_handler: &mut impl FnMut(&[u8]),
 ) -> Option<Tag> {
-    let host_definition_names = find_component_definition_names(&host_file_path).unwrap();
+    let host_definition_names = find_component_definition_names(host_file_path).unwrap();
 
     // Get the component tag name from the stack.
     let tag_stack = tag_stacks
@@ -42,7 +47,7 @@ pub(crate) fn build_component_content(
     let names_slot_content_tag = format!("{} > *[slot]", current_tag);
     host_until_start_tags.push(names_slot_content_tag);
 
-    let host_pos_key = pos_key(file_indexes[host_file_path], &host_file_path);
+    let host_pos_key = pos_key(file_indexes[host_file_path], host_file_path);
 
     let slot_name = match slot_name_option {
         Some(name) => name,
@@ -52,10 +57,7 @@ pub(crate) fn build_component_content(
     // A named `<slot name="x">` whose host provides no matching `slot="x"`
     // content has no entry here. That's not an error: the component should emit
     // the slot's fallback, so report "no slotted content" by returning `None`.
-    let slotted_ranges = match component_slotted_positions.get_mut(slot_name) {
-        Some(ranges) => ranges,
-        None => return None,
-    };
+    let slotted_ranges = component_slotted_positions.get_mut(slot_name)?;
     let current_slotted_range = match slotted_ranges.first() {
         Some(range) => range.clone(),
         None => return None,
@@ -67,7 +69,7 @@ pub(crate) fn build_component_content(
     }
 
     if let Ok(light_tag) = write_until_tag(
-        &host_file_path,
+        host_file_path,
         read_positions[&host_pos_key],
         &host_until_start_tags,
         &host_definition_names,
@@ -79,38 +81,34 @@ pub(crate) fn build_component_content(
             }
         },
     ) {
-        if light_tag.tag_name == "slot" {
-            if let None = light_tag.attributes.get("name") {
-                read_positions.insert(host_pos_key.clone(), light_tag.position.end);
+        if light_tag.tag_name == "slot" && !light_tag.attributes.contains_key("name") {
+            read_positions.insert(host_pos_key.clone(), light_tag.position.end);
 
-                let parent_file_path = dep_graph.get_parent_file_path(host_file_path).unwrap();
+            let parent_file_path = dep_graph.get_parent_file_path(host_file_path).unwrap();
 
-                // slotted_ranges.remove(0);
+            let light_tag = build_component_content(
+                slot_name_option,
+                parent_file_path,
+                build_options,
+                file_indexes,
+                read_positions,
+                tag_stacks,
+                dep_graph,
+                component_slotted_positions,
+                output_handler,
+            );
 
-                let light_tag = build_component_content(
-                    slot_name_option,
-                    &parent_file_path,
-                    build_options,
-                    file_indexes,
-                    read_positions,
-                    tag_stacks,
-                    dep_graph,
-                    component_slotted_positions,
-                    output_handler,
-                );
-
-                // Output the fallback slot content if there is no slotted content.
-                if let Ok(end_slot_tag) = read_until_end_tag(
-                    &host_file_path,
-                    read_positions[&host_pos_key],
-                    &vec!["slot"],
-                    "<slot>",
-                ) {
-                    read_positions.insert(host_pos_key.clone(), end_slot_tag.position.end);
-                }
-
-                return light_tag;
+            // Output the fallback slot content if there is no slotted content.
+            if let Ok(end_slot_tag) = read_until_end_tag(
+                host_file_path,
+                read_positions[&host_pos_key],
+                &["slot"],
+                "<slot>",
+            ) {
+                read_positions.insert(host_pos_key.clone(), end_slot_tag.position.end);
             }
+
+            return light_tag;
         }
 
         if !light_tag.is_end_tag {
@@ -147,9 +145,9 @@ pub(crate) fn build_component_content(
                 read_positions.insert(host_pos_key.clone(), light_tag.position.end);
 
                 if let Ok(mut end_slot_tag) = read_until_end_tag(
-                    &host_file_path,
+                    host_file_path,
                     read_positions[&host_pos_key],
-                    &vec![light_tag.tag_name.as_str()],
+                    &[light_tag.tag_name.as_str()],
                     format!("<{}>", light_tag.tag_name).as_str(),
                 ) {
                     read_positions.insert(host_pos_key.clone(), end_slot_tag.position.end);
@@ -165,7 +163,7 @@ pub(crate) fn build_component_content(
                 read_positions.insert(host_pos_key.clone(), light_tag.position.start);
 
                 build_component(
-                    &host_file_path,
+                    host_file_path,
                     build_options,
                     file_indexes,
                     read_positions,
@@ -198,8 +196,8 @@ fn write_named_slotted_element_content(
     dep_graph: &DepGraph,
     output_handler: &mut impl FnMut(&[u8]),
 ) {
-    let host_definition_names = find_component_definition_names(&host_file_path).unwrap();
-    let host_pos_key = pos_key(file_indexes[host_file_path], &host_file_path);
+    let host_definition_names = find_component_definition_names(host_file_path).unwrap();
+    let host_pos_key = pos_key(file_indexes[host_file_path], host_file_path);
 
     if host_definition_names.contains(&light_tag.tag_name) {
         read_positions.insert(host_pos_key, light_tag.position.start);
@@ -233,7 +231,7 @@ fn write_named_slotted_element_content(
             host_file_path,
             read_positions[&host_pos_key],
             &host_definition_names,
-            &vec![light_tag.tag_name.as_str()],
+            &[light_tag.tag_name.as_str()],
             format!("<{}>", light_tag.tag_name).as_str(),
             false,
             output_handler,

@@ -5,6 +5,11 @@
 //! stream, resolve nested components and `<slot>`s, and emit the matching end
 //! tag. They are mutually recursive with the slot logic in [`crate::slots`].
 
+// The engine threads the build state (file indexes, read positions, tag stacks,
+// dep graph, output sink) explicitly through every mutually-recursive call;
+// bundling it into a context type obscures the data flow for little gain.
+#![allow(clippy::too_many_arguments)]
+
 use std::collections::HashMap;
 
 use crate::component_definitions::{find_component_definition_names, get_component_file_path};
@@ -51,14 +56,14 @@ pub(crate) fn build_component_with_start_options(
     output_handler: &mut impl FnMut(&[u8]),
 ) -> bool {
     // Find the component definitions in the host file.
-    let host_definition_names = find_component_definition_names(&host_file_path).unwrap();
+    let host_definition_names = find_component_definition_names(host_file_path).unwrap();
 
     let host_file_index = file_indexes[host_file_path];
-    let host_pos_key = pos_key(host_file_index, &host_file_path);
+    let host_pos_key = pos_key(host_file_index, host_file_path);
 
     // Write until after the start tag of a component.
     let component_tag = write_until_start_tag(
-        &host_file_path,
+        host_file_path,
         read_positions[&host_pos_key],
         &host_definition_names,
         "",
@@ -73,7 +78,7 @@ pub(crate) fn build_component_with_start_options(
 
     if !component_tag.attributes.contains_key("w-trim") {
         write_start_tag_with_optional_slot_attribute(
-            &host_file_path,
+            host_file_path,
             &component_tag.position,
             strip_component_slot_attribute,
             output_handler,
@@ -92,7 +97,7 @@ pub(crate) fn build_component_with_start_options(
     let component_name = &component_tag.tag_name;
 
     // Find the file path of the component.
-    let component_file_path = get_component_file_path(&host_file_path, component_name).unwrap();
+    let component_file_path = get_component_file_path(host_file_path, component_name).unwrap();
 
     // Get the file index and increase it by 1 or if it doesn't exist insert 0.
     let component_file_index = *file_indexes
@@ -104,8 +109,8 @@ pub(crate) fn build_component_with_start_options(
 
     let mut component_slotted_positions = find_slotted_positions(
         component_tag.position.start,
-        &host_file_path,
-        &component_name,
+        host_file_path,
+        component_name,
         &component_file_index,
         &component_file_path,
     )
@@ -141,7 +146,7 @@ pub(crate) fn build_component_with_start_options(
 
     // Read until after the start tag of the <template>.
     let root_tag =
-        read_until_start_tag(&component_file_path, 0, &vec!["root > template"], "").unwrap();
+        read_until_start_tag(&component_file_path, 0, &["root > template"], "").unwrap();
 
     let has_shadowrootmode =
         root_tag.tag_name == "template" && root_tag.attributes.contains_key("shadowrootmode");
@@ -157,7 +162,7 @@ pub(crate) fn build_component_with_start_options(
         write_until_start_tag(
             &component_file_path,
             0,
-            &vec!["root > template"],
+            &["root > template"],
             "",
             true,
             output_handler,
@@ -178,7 +183,7 @@ pub(crate) fn build_component_with_start_options(
             &component_file_path,
             read_positions[&component_pos_key],
             &component_until_start_tags,
-            &vec!["root > template"],
+            &["root > template"],
             "<template>",
             false,
             output_handler,
@@ -263,22 +268,18 @@ pub(crate) fn build_component_with_start_options(
             let host_start_pos = read_positions[&host_pos_key];
             let slot_name = tag.attributes.get("name");
 
-            loop {
-                if let Some(light_tag) = build_component_content(
-                    slot_name,
-                    &host_file_path,
-                    build_options,
-                    file_indexes,
-                    read_positions,
-                    tag_stacks,
-                    dep_graph,
-                    &mut component_slotted_positions,
-                    output_handler,
-                ) {
-                    if light_tag.is_end_tag && light_tag.tag_name == component_tag.tag_name {
-                        break;
-                    }
-                } else {
+            while let Some(light_tag) = build_component_content(
+                slot_name,
+                host_file_path,
+                build_options,
+                file_indexes,
+                read_positions,
+                tag_stacks,
+                dep_graph,
+                &mut component_slotted_positions,
+                output_handler,
+            ) {
+                if light_tag.is_end_tag && light_tag.tag_name == component_tag.tag_name {
                     break;
                 }
             }
@@ -287,7 +288,7 @@ pub(crate) fn build_component_with_start_options(
             if let Ok(end_slot_tag) = write_until_end_tag(
                 &component_file_path,
                 read_positions[&component_pos_key],
-                &vec!["slot"],
+                &["slot"],
                 "<slot>",
                 false,
                 &mut |chunk: &[u8]| {

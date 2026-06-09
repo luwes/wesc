@@ -6,6 +6,10 @@
 //! a list of static byte ranges and slots (cached in [`SIMPLE_TEMPLATES`]) and
 //! rendered without re-running the streaming scanner on every expansion.
 
+// `render_simple_template` threads the build state explicitly, like the rest of
+// the expansion engine (see `component.rs`).
+#![allow(clippy::too_many_arguments)]
+
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{LazyLock, Mutex};
@@ -17,6 +21,7 @@ use crate::scan::{
     is_self_closing_start_tag, write_file_range,
 };
 use crate::slots::build_component_content;
+use crate::slotted_positions::SlottedRanges;
 use crate::{pos_key, BuildOptions, DEFAULT_SLOT_NAME};
 
 static SIMPLE_TEMPLATES: LazyLock<Mutex<HashMap<String, Option<SimpleTemplate>>>> =
@@ -140,10 +145,10 @@ pub(crate) fn render_simple_template(
     read_positions: &mut HashMap<String, usize>,
     tag_stacks: &mut HashMap<String, Vec<String>>,
     dep_graph: &DepGraph,
-    component_slotted_positions: &mut HashMap<String, Vec<Range<usize>>>,
+    component_slotted_positions: &mut SlottedRanges,
     output_handler: &mut impl FnMut(&[u8]),
 ) {
-    let host_pos_key = pos_key(file_indexes[host_file_path], &host_file_path);
+    let host_pos_key = pos_key(file_indexes[host_file_path], host_file_path);
 
     for part in &template.parts {
         match part {
@@ -161,22 +166,18 @@ pub(crate) fn render_simple_template(
                 let host_start_pos = read_positions[&host_pos_key];
 
                 if has_slotted_content {
-                    loop {
-                        if let Some(light_tag) = build_component_content(
-                            slot_name,
-                            host_file_path,
-                            build_options,
-                            file_indexes,
-                            read_positions,
-                            tag_stacks,
-                            dep_graph,
-                            component_slotted_positions,
-                            output_handler,
-                        ) {
-                            if light_tag.is_end_tag && light_tag.tag_name == component_name {
-                                break;
-                            }
-                        } else {
+                    while let Some(light_tag) = build_component_content(
+                        slot_name,
+                        host_file_path,
+                        build_options,
+                        file_indexes,
+                        read_positions,
+                        tag_stacks,
+                        dep_graph,
+                        component_slotted_positions,
+                        output_handler,
+                    ) {
+                        if light_tag.is_end_tag && light_tag.tag_name == component_name {
                             break;
                         }
                     }

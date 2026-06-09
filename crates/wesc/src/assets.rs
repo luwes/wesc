@@ -181,9 +181,9 @@ pub(crate) fn append_data_to_file(
         let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&file_path)?;
+            .open(file_path)?;
 
-        file.write_all(&data)?;
+        file.write_all(data)?;
 
         return Ok(());
     }

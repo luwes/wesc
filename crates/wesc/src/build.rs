@@ -46,31 +46,31 @@ pub(crate) fn build_file(
     read_positions.insert(pos_key(0, host_file_path), 0);
 
     let html_or_component_tag = read_until_start_tag(
-        &host_file_path,
+        host_file_path,
         0,
-        &vec!["root > html", "root > template"],
+        &["root > html", "root > template"],
         "",
     )
     .unwrap();
 
     let entry_is_component = html_or_component_tag.tag_name != "html";
     let host_file_index = file_indexes[host_file_path];
-    let host_pos_key = pos_key(host_file_index, &host_file_path);
+    let host_pos_key = pos_key(host_file_index, host_file_path);
 
     if entry_is_component {
         read_positions.insert(host_pos_key.clone(), html_or_component_tag.position.end);
     }
 
     // Find the component definitions in the host file.
-    let host_definition_names = find_component_definition_names(&host_file_path).unwrap();
+    let host_definition_names = find_component_definition_names(host_file_path).unwrap();
 
     loop {
         if entry_is_component {
             let root_tag = read_until_tag(
-                &host_file_path,
+                host_file_path,
                 read_positions[&host_pos_key],
                 &host_definition_names,
-                &vec!["root > template"],
+                &["root > template"],
                 "<template>",
             )
             .unwrap();
@@ -81,7 +81,7 @@ pub(crate) fn build_file(
         }
 
         let ended = build_component(
-            &host_file_path,
+            host_file_path,
             build_options,
             file_indexes,
             read_positions,

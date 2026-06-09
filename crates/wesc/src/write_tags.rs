@@ -15,7 +15,7 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
     end_tag_names: &[U],
     prefix: &str,
     include_tag: bool,
-    output_handler: &mut impl FnMut(&[u8]) -> (),
+    output_handler: &mut impl FnMut(&[u8]),
 ) -> io::Result<Tag> {
     let will_pause = Rc::new(RefCell::new(false));
     let will_pause_clone = Rc::clone(&will_pause);
@@ -75,7 +75,7 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
         .collect::<Vec<_>>();
     let match_named_slotted_start = start_tag_names.iter().any(|name| name.contains("*[slot]"));
 
-    let ignore_prefix = Rc::new(RefCell::new(prefix != ""));
+    let ignore_prefix = Rc::new(RefCell::new(!prefix.is_empty()));
     let ignore_prefix_clone = Rc::clone(&ignore_prefix);
 
     let skip_next_definition_link = Rc::new(RefCell::new(false));
@@ -92,7 +92,7 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
                 if !exclude_start_tag {
                     *will_pause.borrow_mut() = true;
 
-                    if tag.tag_name == "" {
+                    if tag.tag_name.is_empty() {
                         tag.tag_name = el.tag_name();
                         tag.can_have_content = el.can_have_content();
                         tag.attributes = el
@@ -116,7 +116,7 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
                         let is_end_of_named_slotted =
                             element_name.contains("*[slot]") && end.name() == el_tag_name;
 
-                        if tag.tag_name == ""
+                        if tag.tag_name.is_empty()
                             && (clean_end_tag_names
                                 .iter()
                                 .any(|name| name.as_str() == end.name())
@@ -223,9 +223,8 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
 
     let tag = tag_clone.borrow();
 
-    if tag.tag_name == "" {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
+    if tag.tag_name.is_empty() {
+        return Err(io::Error::other(
             "tag not found".to_string(),
         ));
     }
@@ -233,7 +232,7 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
     Ok(tag.clone())
 }
 
-fn only_tag_names(selectors: &Vec<String>) -> Vec<&str> {
+fn only_tag_names(selectors: &[String]) -> Vec<&str> {
     selectors
         .iter()
         .map(|name| {
@@ -264,7 +263,7 @@ pub fn write_until_start_tag<T: AsRef<str>>(
     tag_names: &[T],
     prefix: &str,
     include_tag: bool,
-    output_handler: &mut impl FnMut(&[u8]) -> (),
+    output_handler: &mut impl FnMut(&[u8]),
 ) -> io::Result<Tag> {
     write_until_tag(
         file_path,
@@ -284,7 +283,7 @@ pub fn write_until_end_tag<T: AsRef<str>>(
     tag_names: &[T],
     prefix: &str,
     include_tag: bool,
-    output_handler: &mut impl FnMut(&[u8]) -> (),
+    output_handler: &mut impl FnMut(&[u8]),
 ) -> io::Result<Tag> {
     write_until_tag(
         file_path,

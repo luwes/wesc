@@ -12,9 +12,12 @@ use crate::scan::{find_next_byte, find_tag_end, get_attribute_value, is_self_clo
 use crate::CHUNK_SIZE;
 use crate::DEFAULT_SLOT_NAME;
 
+/// A component's slotted light-DOM ranges, keyed by slot name (the default slot
+/// and named slots, each of which can have multiple out-of-order ranges).
+pub type SlottedRanges = HashMap<String, Vec<Range<usize>>>;
+
 // Store the slotted positions of the light DOM content of the component.
-// There is a default slot and named slots that can have multiple ranges that are out-of-order.
-static SLOTTED_POSITIONS: LazyLock<Mutex<HashMap<String, HashMap<String, Vec<Range<usize>>>>>> =
+static SLOTTED_POSITIONS: LazyLock<Mutex<HashMap<String, SlottedRanges>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn find_slotted_positions(
@@ -23,10 +26,10 @@ pub fn find_slotted_positions(
     component_name: &str,
     component_file_index: &usize,
     component_file_path: &str,
-) -> io::Result<HashMap<String, Vec<Range<usize>>>> {
+) -> io::Result<SlottedRanges> {
     let mut slotted_positions = SLOTTED_POSITIONS.lock().unwrap();
 
-    let key = pos_key(*component_file_index, &component_file_path);
+    let key = pos_key(*component_file_index, component_file_path);
 
     // to cache this we still need to know the count of the element in the host file
     // because there can be multiple components with the same name
@@ -44,7 +47,7 @@ pub fn find_slotted_positions(
     let mut reader = ChunkReader::new(host_file_path, CHUNK_SIZE).unwrap();
     reader.seek(read_position as u64)?;
 
-    let mut component_slotted_positions: HashMap<String, Vec<Range<usize>>> = HashMap::new();
+    let mut component_slotted_positions: SlottedRanges = HashMap::new();
 
     let position = Rc::new(RefCell::new(read_position));
     let position_clone = Rc::clone(&position);
@@ -129,14 +132,14 @@ pub fn find_slotted_positions(
 
                 let mut start = *position;
                 // The first time add the length of the component start tag
-                if *last_slot_name.borrow() == "" {
+                if (*last_slot_name.borrow()).is_empty() {
                     start += chunk.len();
                 }
 
                 let range = start..0;
                 positions.push(range);
 
-                if *last_slot_name.borrow() != "" {
+                if !(*last_slot_name.borrow()).is_empty() {
                     component_slotted_positions
                         .get_mut(DEFAULT_SLOT_NAME)
                         .unwrap()
@@ -148,7 +151,7 @@ pub fn find_slotted_positions(
 
             *position += chunk.len();
 
-            if is_end_tag.borrow().clone() {
+            if *is_end_tag.borrow() {
                 *is_end_tag.borrow_mut() = false;
 
                 component_slotted_positions
@@ -198,7 +201,7 @@ fn find_slotted_positions_fast(
     read_position: usize,
     host_file_path: &str,
     component_name: &str,
-) -> io::Result<Option<HashMap<String, Vec<Range<usize>>>>> {
+) -> io::Result<Option<SlottedRanges>> {
     let bytes = read_file_cached(host_file_path)?;
     if read_position >= bytes.len() || bytes[read_position] != b'<' {
         return Ok(None);
@@ -227,7 +230,7 @@ fn find_slotted_positions_fast(
         return Ok(Some(positions));
     }
 
-    let mut positions: HashMap<String, Vec<Range<usize>>> = HashMap::new();
+    let mut positions: SlottedRanges = HashMap::new();
     positions.insert(DEFAULT_SLOT_NAME.to_string(), vec![]);
 
     let mut pos = component_start_end;
@@ -295,7 +298,7 @@ fn find_slotted_positions_fast(
 }
 
 fn push_non_empty_range(
-    positions: &mut HashMap<String, Vec<Range<usize>>>,
+    positions: &mut SlottedRanges,
     slot_name: &str,
     range: Range<usize>,
 ) {

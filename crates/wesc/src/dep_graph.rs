@@ -22,6 +22,12 @@ pub struct DepGraph {
     pub nodes_by_path: HashMap<String, NodeId>,
 }
 
+impl Default for DepGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DepGraph {
     pub fn new() -> Self {
         Self {
@@ -58,7 +64,7 @@ pub fn resolve_component_dependencies(
 ) -> NodeId {
     let module = Module::new(name.to_owned(), file_path.to_owned());
     let dependency = dep_graph.new_node(module);
-    let host_definitions = find_component_definitions(&file_path).unwrap();
+    let host_definitions = find_component_definitions(file_path).unwrap();
 
     for (component_name, component_href) in host_definitions {
         let component_file_path = resolve_href(file_path, &component_href);
