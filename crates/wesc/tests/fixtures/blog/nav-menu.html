@@ -1,0 +1,56 @@
+<link rel="definition" name="nav-item" href="./nav-item.html">
+<link rel="definition" name="icon-badge" href="./icon-badge.html">
+
+<template>
+  <nav class="nav" aria-label="Primary">
+    <button type="button" class="nav__burger" aria-expanded="false" aria-controls="nav-list">
+      <span class="visually-hidden">Menu</span>
+      <span class="nav__burger-bar" aria-hidden="true"></span>
+    </button>
+    <ul class="nav__list" id="nav-list">
+      <nav-item href="/" current>Home</nav-item>
+      <nav-item href="/articles">Articles<icon-badge tone="info">12</icon-badge></nav-item>
+      <nav-item href="/tags">Tags</nav-item>
+      <nav-item href="/about">About</nav-item>
+    </ul>
+  </nav>
+</template>
+
+<style>
+  .nav__list {
+    display: flex;
+    gap: 0.25rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .nav__burger {
+    display: none;
+  }
+
+  @media (max-width: 48rem) {
+    .nav__burger {
+      display: inline-flex;
+    }
+
+    .nav__list[hidden] {
+      display: none;
+    }
+  }
+</style>
+
+<script type="module">
+  class NavMenu extends HTMLElement {
+    connectedCallback() {
+      const burger = this.querySelector('.nav__burger');
+      const list = this.querySelector('.nav__list');
+      burger?.addEventListener('click', () => {
+        const open = burger.getAttribute('aria-expanded') === 'true';
+        burger.setAttribute('aria-expanded', String(!open));
+        if (list) list.hidden = open;
+      });
+    }
+  }
+  customElements.define('nav-menu', NavMenu);
+</script>

@@ -1,0 +1,22 @@
+<template shadowrootmode="open">
+  <span class="read-time" part="read-time">
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" />
+      <path d="M8 4v4l2.5 1.5" fill="none" stroke="currentColor" stroke-linecap="round" />
+    </svg>
+    <slot>1 min read</slot>
+  </span>
+  <style>
+    :host {
+      display: inline-flex;
+      color: var(--muted, #6b7280);
+      font-size: 0.85rem;
+    }
+
+    .read-time {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+  </style>
+</template>

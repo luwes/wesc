@@ -1,0 +1,43 @@
+<template>
+  <div class="post-list">
+    <header class="post-list__header">
+      <h1 class="post-list__title"><slot name="title">Latest articles</slot></h1>
+      <p class="post-list__lead"><slot name="lead">Everything new from the team.</slot></p>
+    </header>
+    <div class="post-list__items">
+      <slot>No posts yet.</slot>
+    </div>
+    <nav class="pagination" aria-label="Pagination">
+      <a class="pagination__prev" href="?page=1" rel="prev" aria-disabled="true">Newer</a>
+      <a class="pagination__next" href="?page=2" rel="next">Older</a>
+    </nav>
+  </div>
+</template>
+
+<style>
+  .post-list__header {
+    margin-bottom: 2rem;
+  }
+
+  .post-list__title {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    margin: 0;
+  }
+
+  .post-list__lead {
+    color: var(--muted);
+    margin: 0.25rem 0 0;
+  }
+
+  .post-list__items {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3rem;
+  }
+</style>

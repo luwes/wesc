@@ -1,0 +1,26 @@
+<template shadowrootmode="open">
+  <button type="button" part="button" aria-label="Toggle color theme">
+    <span aria-hidden="true">◐</span>
+  </button>
+  <style>
+    :host {
+      display: inline-flex;
+      margin-left: auto;
+    }
+
+    button {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 999px;
+      border: 1px solid currentColor;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    button:hover {
+      background: color-mix(in srgb, currentColor 12%, transparent);
+    }
+  </style>
+</template>

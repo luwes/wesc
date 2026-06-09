@@ -1,0 +1,41 @@
+<link rel="definition" name="tag-cloud" href="./tag-cloud.html">
+<link rel="definition" name="recent-posts" href="./recent-posts.html">
+<link rel="definition" name="newsletter-box" href="./newsletter-box.html">
+
+<template>
+  <aside class="sidebar" aria-label="Secondary">
+    <section class="widget widget--about">
+      <h2 class="widget__title">About</h2>
+      <p>Field notes on building component-driven sites with WeSC — streaming HTML, Declarative Shadow DOM, and as little JavaScript as we can get away with.</p>
+    </section>
+    <recent-posts></recent-posts>
+    <tag-cloud></tag-cloud>
+    <newsletter-box></newsletter-box>
+  </aside>
+</template>
+
+<style>
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .widget {
+    border: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .widget__title {
+    font-size: 0.95rem;
+    margin: 0 0 0.5rem;
+  }
+</style>
+
+<script type="module">
+  import './newsletter-box.js';
+
+  class SideBar extends HTMLElement {}
+  customElements.define('side-bar', SideBar);
+</script>

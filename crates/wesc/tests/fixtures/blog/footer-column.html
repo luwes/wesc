@@ -1,0 +1,33 @@
+<template>
+  <section class="footer-col">
+    <h2 class="footer-col__heading"><slot name="heading">Links</slot></h2>
+    <nav class="footer-col__links">
+      <slot></slot>
+    </nav>
+  </section>
+</template>
+
+<style>
+  .footer-col__heading {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 0.75rem;
+  }
+
+  .footer-col__links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .footer-col__links a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .footer-col__links a:hover {
+    text-decoration: underline;
+  }
+</style>

@@ -1,0 +1,51 @@
+<link rel="definition" name="social-links" href="./social-links.html">
+
+<template>
+  <div class="author" itemprop="author" itemscope itemtype="https://schema.org/Person">
+    <span class="author__avatar"><slot name="avatar"></slot></span>
+    <div class="author__info">
+      <span class="author__name" itemprop="name"><slot name="name">Anonymous</slot></span>
+      <span class="author__role"><slot name="role">Contributor</slot></span>
+      <social-links></social-links>
+    </div>
+  </div>
+</template>
+
+<style>
+  author-card .author {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  author-card .author__avatar {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    overflow: hidden;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+  }
+
+  author-card .author__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  author-card .author__info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  author-card .author__name {
+    font-weight: 600;
+  }
+
+  author-card .author__role {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>

@@ -1,0 +1,122 @@
+<link rel="definition" name="site-header" href="./site-header.html">
+<link rel="definition" name="site-footer" href="./site-footer.html">
+
+<template>
+  <!doctype html>
+  <html lang="en" data-theme="light">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="generator" content="WeSC">
+      <meta name="color-scheme" content="light dark">
+      <title>The Superlative Blog</title>
+      <meta name="description" content="Notes on web components, streaming bundlers, and the platform.">
+      <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+      <link rel="canonical" href="https://blog.example.com/">
+      <link rel="alternate" type="application/rss+xml" title="RSS" href="/feed.xml">
+      <link rel="preconnect" href="https://fonts.example.com" crossorigin>
+      <link rel="stylesheet" href="/styles.css">
+      <slot name="head"></slot>
+    </head>
+    <body>
+      <a class="skip-link" href="#main">Skip to main content</a>
+      <site-header></site-header>
+      <div class="layout" id="top">
+        <main id="main" class="layout__main" tabindex="-1">
+          <slot>No posts yet.</slot>
+        </main>
+        <slot name="sidebar"></slot>
+      </div>
+      <site-footer></site-footer>
+      <script type="module" src="/scripts.js"></script>
+    </body>
+  </html>
+</template>
+
+<style>
+  :root {
+    --bg: #fdfdfd;
+    --fg: #1d1d1f;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+    --maxw: 72rem;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+
+  html[data-theme="dark"] {
+    --bg: #0b0b0f;
+    --fg: #f5f5f7;
+    --muted: #9ca3af;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: -999px;
+    top: 0;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.5rem 1rem;
+  }
+
+  .skip-link:focus {
+    left: 0;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    gap: 2rem;
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  @media (max-width: 60rem) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script type="module">
+  import './site-header.js';
+
+  class WLayout extends HTMLElement {
+    connectedCallback() {
+      this.dataset.enhanced = 'true';
+    }
+  }
+  customElements.define('w-layout', WLayout);
+
+  const root = document.documentElement;
+  const stored = localStorage.getItem('theme');
+  if (stored) {
+    root.dataset.theme = stored;
+  }
+
+  document.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-theme-toggle]');
+    if (!toggle) return;
+    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = next;
+    localStorage.setItem('theme', next);
+  });
+</script>

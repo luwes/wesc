@@ -1,0 +1,29 @@
+<template>
+  <li class="social__item">
+    <a class="social__link" rel="me noopener" target="_blank">
+      <span class="visually-hidden"><slot>Link</slot></span>
+      <svg class="social__glyph" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5" />
+      </svg>
+    </a>
+  </li>
+</template>
+
+<style>
+  .social__item {
+    margin: 0;
+  }
+
+  .social__link {
+    display: inline-grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    color: var(--muted);
+  }
+
+  .social__link:hover {
+    color: var(--accent);
+  }
+</style>

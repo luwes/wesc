@@ -1,0 +1,89 @@
+<template shadowrootmode="open">
+  <article class="post" part="post">
+    <header class="post__header">
+      <slot name="title"><h2>Untitled post</h2></slot>
+      <div class="post__meta">
+        <slot name="meta"></slot>
+      </div>
+    </header>
+    <div class="post__body">
+      <slot>No content.</slot>
+    </div>
+    <footer class="post__footer">
+      <div class="post__tags">
+        <slot name="tags"></slot>
+      </div>
+      <div class="post__actions">
+        <slot name="actions">
+          <button type="button" class="post__share" part="share">Share</button>
+        </slot>
+      </div>
+    </footer>
+  </article>
+  <style>
+    :host {
+      display: block;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+    }
+
+    .post__header {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .post__meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .post__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1rem;
+    }
+
+    ::slotted(h2) {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+  </style>
+</template>
+
+<style>
+  blog-post {
+    display: block;
+  }
+
+  blog-post[featured] {
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    border-radius: 1rem;
+    padding: 1.5rem;
+  }
+</style>
+
+<script type="module">
+  class BlogPost extends HTMLElement {
+    static get observedAttributes() {
+      return ['featured'];
+    }
+
+    connectedCallback() {
+      const share = this.shadowRoot?.querySelector('.post__share');
+      share?.addEventListener('click', async () => {
+        const href = this.querySelector('a')?.getAttribute('href') ?? '/';
+        const url = new URL(href, location.origin);
+        if (navigator.share) {
+          await navigator.share({ url: url.href, title: this.dataset.title });
+        } else {
+          await navigator.clipboard?.writeText(url.href);
+        }
+      });
+    }
+  }
+  customElements.define('blog-post', BlogPost);
+</script>

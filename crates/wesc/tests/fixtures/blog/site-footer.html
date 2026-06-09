@@ -1,0 +1,50 @@
+<link rel="definition" name="footer-column" href="./footer-column.html">
+
+<template>
+  <footer class="site-footer" role="contentinfo">
+    <div class="site-footer__inner">
+      <footer-column>
+        <span slot="heading">Explore</span>
+        <a href="/articles">Articles</a>
+        <a href="/tags">Tags</a>
+        <a href="/archive">Archive</a>
+      </footer-column>
+      <footer-column>
+        <span slot="heading">Project</span>
+        <a href="https://github.com/luwes/wesc" rel="external noopener">GitHub</a>
+        <a href="/changelog">Changelog</a>
+        <a href="/license">License</a>
+      </footer-column>
+      <footer-column>
+        <span slot="heading">Follow</span>
+        <a href="/feed.xml">RSS</a>
+        <a href="https://example.com/@wesc" rel="me">Mastodon</a>
+      </footer-column>
+    </div>
+    <p class="site-footer__legal">
+      <small>&copy; 2024 The Superlative Blog. Built with <a href="https://github.com/luwes/wesc">WeSC</a>.</small>
+    </p>
+  </footer>
+</template>
+
+<style>
+  .site-footer {
+    border-top: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+    margin-top: 3rem;
+  }
+
+  .site-footer__inner {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 1.5rem;
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  .site-footer__legal {
+    text-align: center;
+    color: var(--muted);
+    padding-bottom: 2rem;
+  }
+</style>

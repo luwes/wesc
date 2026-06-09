@@ -1,0 +1,31 @@
+<template>
+  <li class="nav__item">
+    <a class="nav__link"><slot>Untitled</slot></a>
+  </li>
+</template>
+
+<style>
+  .nav__item {
+    margin: 0;
+  }
+
+  .nav__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.7rem;
+    border-radius: 0.5rem;
+    color: var(--muted);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .nav__link:hover {
+    color: var(--fg);
+    background: color-mix(in srgb, var(--fg) 6%, transparent);
+  }
+
+  nav-item[current] .nav__link {
+    color: var(--accent);
+  }
+</style>

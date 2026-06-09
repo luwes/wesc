@@ -1,0 +1,30 @@
+<template>
+  <section class="widget widget--recent">
+    <h2 class="widget__title">Recent posts</h2>
+    <ol class="recent" role="list">
+      <li><a href="/posts/streaming-html-with-lol-html">Streaming HTML with lol-html</a></li>
+      <li><a href="/posts/declarative-shadow-dom-in-practice">Declarative Shadow DOM in practice</a></li>
+      <li><a href="/posts/single-file-components-on-the-platform">Single-file components on the platform</a></li>
+      <li><a href="/posts/bundling-without-a-virtual-dom">Bundling without a virtual DOM</a></li>
+    </ol>
+  </section>
+</template>
+
+<style>
+  .recent {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .recent a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .recent a:hover {
+    color: var(--accent);
+  }
+</style>

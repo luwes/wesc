@@ -1,0 +1,21 @@
+<template>
+  <li class="tag-pill">
+    <a class="tag-pill__link"><slot></slot></a>
+  </li>
+</template>
+
+<style>
+  .tag-pill {
+    margin: 0;
+  }
+
+  .tag-pill__link {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    font-size: 0.8rem;
+    text-decoration: none;
+  }
+</style>

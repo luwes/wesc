@@ -1,0 +1,26 @@
+<link rel="definition" name="tag-pill" href="./tag-pill.html">
+
+<template>
+  <section class="widget widget--tags">
+    <h2 class="widget__title">Popular tags</h2>
+    <ul class="tag-cloud" role="list">
+      <tag-pill href="/tags/web-components" count="42">web-components</tag-pill>
+      <tag-pill href="/tags/css" count="31">css</tag-pill>
+      <tag-pill href="/tags/rust" count="27">rust</tag-pill>
+      <tag-pill href="/tags/performance" count="19">performance</tag-pill>
+      <tag-pill href="/tags/html" count="15">html</tag-pill>
+      <tag-pill href="/tags/streaming" count="9">streaming</tag-pill>
+    </ul>
+  </section>
+</template>
+
+<style>
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+</style>

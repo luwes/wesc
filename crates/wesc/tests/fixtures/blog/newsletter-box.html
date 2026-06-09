@@ -1,0 +1,71 @@
+<template>
+  <section class="widget widget--newsletter">
+    <h2 class="widget__title">Newsletter</h2>
+    <p class="newsletter__pitch">Get new posts in your inbox. No spam.</p>
+    <form class="newsletter__form" method="post" action="/subscribe" novalidate>
+      <label class="visually-hidden" for="newsletter-email">Email address</label>
+      <input
+        id="newsletter-email"
+        class="newsletter__input"
+        type="email"
+        name="email"
+        placeholder="you@example.com"
+        autocomplete="email"
+        required
+      >
+      <button type="submit" class="newsletter__submit">Subscribe</button>
+    </form>
+    <p class="newsletter__status" role="status" aria-live="polite" hidden></p>
+    <template id="newsletter-success">
+      <p class="newsletter__success">Thanks for subscribing! Check your inbox to confirm.</p>
+    </template>
+  </section>
+</template>
+
+<style>
+  .newsletter__form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .newsletter__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+    border-radius: 0.5rem;
+  }
+
+  .newsletter__submit {
+    padding: 0.5rem 0.9rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+</style>
+
+<script type="module">
+  class NewsletterBox extends HTMLElement {
+    connectedCallback() {
+      const form = this.querySelector('form');
+      const status = this.querySelector('.newsletter__status');
+      const success = this.querySelector('#newsletter-success');
+
+      form?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const email = new FormData(form).get('email');
+        if (!email) return;
+
+        if (success && status) {
+          status.hidden = false;
+          status.replaceChildren(success.content.cloneNode(true));
+        }
+        form.reset();
+      });
+    }
+  }
+  customElements.define('newsletter-box', NewsletterBox);
+</script>
