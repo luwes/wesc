@@ -1,10 +1,10 @@
 {
-  "packages/wesc": "0.6.0",
-  "packages/dom": "0.6.0",
-  "crates/wesc": "0.6.0",
-  "crates/wesc-node": "0.6.0",
-  "crates/wesc-py": "0.6.0",
-  "crates/wesc-php": "0.6.0",
-  "crates/wesc-go": "0.6.0",
-  "crates/wesc-rb": "0.6.0"
+  "packages/wesc": "0.6.1",
+  "packages/dom": "0.6.1",
+  "crates/wesc": "0.6.1",
+  "crates/wesc-node": "0.6.1",
+  "crates/wesc-py": "0.6.1",
+  "crates/wesc-php": "0.6.1",
+  "crates/wesc-go": "0.6.1",
+  "crates/wesc-rb": "0.6.1"
 }
