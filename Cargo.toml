@@ -4,6 +4,30 @@ resolver = "2"
 members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py"]
 
 # Optimize the native Node addon for size/speed when built with --release.
+#
+# `lto = "thin"` instead of fat `lto = true`: ThinLTO links the rolldown-heavy
+# dependency graph dramatically faster (≈16s vs ≈90s to relink the Node addon
+# after a one-line change) while keeping runtime within a hair of fat LTO. The
+# perf_guard release test still passes with generous headroom. If a publish
+# build ever needs the last fraction of a percent, build it with
+# `--config 'profile.release.lto=true'`.
 [profile.release]
-lto = true
+lto = "thin"
 strip = true
+
+# Release-grade optimization but with debug symbols retained, for profiling.
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = true
+
+# Dependencies (the 400+ crate rolldown/oxc graph) are compiled once and then
+# cached, but full debug info for them is the bulk of a clean debug build's time
+# and disk usage. We almost never step into third-party code, so drop their
+# debug info. `line-tables-only` keeps just enough to retain file/line numbers in
+# panic backtraces through dependency code while dropping the heavy type/variable
+# info that dominates compile time and disk. This glob applies to dependencies
+# only, not the workspace crates, so `wesc`/`wesc-node`/`wesc-py` keep full debug
+# info for stepping through.
+[profile.dev.package."*"]
+debug = "line-tables-only"
