@@ -12,14 +12,14 @@
 
 use crate::build::BuildCtx;
 use crate::component_definitions::{find_component_definition_names, get_component_file_path};
-use crate::scan::{write_file_range, write_start_tag_with_optional_slot_attribute};
+use crate::scan::{
+    read_first_start_tag, read_next_tag_named, write_file_range,
+    write_start_tag_with_optional_slot_attribute,
+};
 use crate::simple_template::{get_simple_template, render_simple_template};
 use crate::slots::build_component_content;
 use crate::slotted_positions::find_slotted_positions;
-use crate::write_tags::{
-    read_until_end_tag, read_until_start_tag, write_until_end_tag, write_until_start_tag,
-    write_until_tag,
-};
+use crate::write_tags::{write_until_end_tag, write_until_start_tag, write_until_tag};
 use crate::{pos_key, Tag};
 
 pub(crate) fn build_component(
@@ -116,7 +116,7 @@ pub(crate) fn build_component_with_start_options(
     }
 
     // Read until after the start tag of the <template>.
-    let root_tag = read_until_start_tag(&component_file_path, 0, &["root > template"], "").unwrap();
+    let root_tag = read_first_start_tag(&component_file_path, b"template").unwrap();
 
     let has_shadowrootmode =
         root_tag.tag_name == "template" && root_tag.attributes.contains_key("shadowrootmode");
@@ -324,18 +324,17 @@ pub(crate) fn finish_component(
     let host_pos_key = pos_key(ctx.file_indexes[host_file_path], host_file_path);
 
     // Advance the host past this component's own end tag. Match specifically on
-    // the component's tag name (not every known definition): the injected
-    // `<tag>` prefix gives the scanner the nesting context to skip over any
-    // nested components' end tags. Matching any definition's end tag would stop
-    // early at a nested `</child>` when slot resolution left the read position
-    // rewound inside the light DOM (e.g. a named slot ordered after the default
-    // slot), which would then re-emit the trailing light DOM as top-level
-    // components.
-    if let Ok(component_end_tag) = read_until_end_tag(
+    // the component's tag name (not every known definition): by the time we get
+    // here any nested components in the light DOM have already been expanded and
+    // consumed, so the next tag with this name is the component's own close.
+    // Matching any definition's end tag would instead stop early at a nested
+    // `</child>` when slot resolution left the read position rewound inside the
+    // light DOM (e.g. a named slot ordered after the default slot), which would
+    // then re-emit the trailing light DOM as top-level components.
+    if let Ok(component_end_tag) = read_next_tag_named(
         host_file_path,
         ctx.read_positions[&host_pos_key],
-        std::slice::from_ref(&component_tag.tag_name),
-        format!("<{}>", component_tag.tag_name).as_str(),
+        component_tag.tag_name.as_bytes(),
     ) {
         // Pop the component tag name off the stack.
         ctx.tag_stacks

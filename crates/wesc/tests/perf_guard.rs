@@ -41,8 +41,10 @@ struct Scenario {
     /// the `WESC_PERF_SCALE` multiplier is applied.
     ///
     /// Reference dev-machine medians at the time of writing:
-    ///   no-components ≈ 0.06 ms, todo-app ≈ 1.4 ms, real-world ≈ 1.4 ms,
-    ///   blog ≈ 30 ms (100 posts across ~18 deeply nested components).
+    ///   no-components ≈ 0.06 ms, todo-app ≈ 1.3 ms, real-world ≈ 1.5 ms,
+    ///   blog ≈ 26 ms (100 posts across ~18 deeply nested components; down from
+    ///   ~30 ms once the per-tag template/end-tag lookups moved off the
+    ///   `lol_html` rewriter onto the raw byte scanner in `scan`).
     /// Budgets sit well above those to absorb slower CI hardware while still
     /// catching a regression that multiplies the work.
     budget: Duration,
