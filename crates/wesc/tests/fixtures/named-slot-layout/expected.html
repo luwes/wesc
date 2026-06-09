@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Named slot layout</title>
+  </head>
+  <body>
+    <header>
+      <x-brand>
+        <strong class="brand">BRAND</strong>
+      </x-brand>
+      <h1>My Page</h1>
+    </header>
+    <main>
+      <x-list>
+        <ul class="list">
+          <x-item id="a">
+            <li class="item">
+              <b><span>One</span></b
+              >: first body
+            </li>
+          </x-item>
+          <x-item id="b">
+            <li class="item"><b>Item</b>: second body (no label)</li>
+          </x-item>
+          <x-item id="c">
+            <li class="item">
+              <b><span>Three</span></b
+              >: third body
+            </li>
+          </x-item>
+        </ul>
+      </x-list>
+    </main>
+    <aside><p>A side note.</p></aside>
+  </body>
+</html>

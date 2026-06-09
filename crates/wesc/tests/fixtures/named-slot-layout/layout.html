@@ -1,0 +1,18 @@
+<link rel="definition" name="x-brand" href="./brand.html">
+
+<template>
+  <!doctype html>
+  <html lang="en">
+    <head>
+      <title>Named slot layout</title>
+    </head>
+    <body>
+      <header>
+        <x-brand></x-brand>
+        <slot name="heading">Default heading</slot>
+      </header>
+      <main><slot>No content.</slot></main>
+      <aside><slot name="sidebar">No sidebar.</slot></aside>
+    </body>
+  </html>
+</template>

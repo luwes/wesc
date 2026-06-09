@@ -1,17 +1,17 @@
 <!doctype html>
 <html>
-<head>
-  
-</head>
-<body>
-  <w-card class="card">
-    <template shadowrootmode="open">
-      Text before div
-      <div>
-        <slot>card default slot content</slot>
-      </div>
-      Text after div
-    </template>
-  </w-card>
-</body>
+  <head> </head>
+  <body>
+    <w-card class="card">
+      <template shadowrootmode="open">
+        Text before div
+        <div>
+          <slot>card default slot content</slot>
+        </div>
+        Text after div
+      </template>
+
+      <p>Slotted &lt;p&gt; tag</p>
+    </w-card>
+  </body>
 </html>

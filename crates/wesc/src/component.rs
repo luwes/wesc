@@ -130,7 +130,6 @@ pub(crate) fn build_component_with_start_options(
         finish_component(
             host_file_path,
             &component_file_path,
-            &host_definition_names,
             &component_tag,
             file_indexes,
             read_positions,
@@ -212,12 +211,28 @@ pub(crate) fn build_component_with_start_options(
         if tag.tag_name == "template" && tag.is_end_tag {
             if has_shadowrootmode {
                 output_handler(b"</template>\n");
+
+                // Declarative Shadow DOM: the `<template shadowrootmode>` becomes
+                // the shadow root, and the host's light-DOM children stay put as
+                // direct children of the element (the browser assigns them to the
+                // shadow `<slot>`s at runtime). Emit that light DOM verbatim,
+                // expanding any nested custom elements it contains.
+                write_shadow_light_dom(
+                    host_file_path,
+                    build_options,
+                    file_indexes,
+                    read_positions,
+                    tag_stacks,
+                    dep_graph,
+                    &host_definition_names,
+                    &component_tag,
+                    output_handler,
+                );
             }
 
             finish_component(
                 host_file_path,
                 &component_file_path,
-                &host_definition_names,
                 &component_tag,
                 file_indexes,
                 read_positions,
@@ -287,10 +302,78 @@ pub(crate) fn build_component_with_start_options(
     }
 }
 
+/// Stream a Declarative-Shadow-DOM component's light-DOM children to the output.
+///
+/// Unlike a light-DOM component (whose `<slot>`s pull host content in and whose
+/// unmatched light DOM is dropped), a shadow component keeps its light DOM as
+/// host children so the browser can slot them at runtime. This walks the host
+/// from just after the component's start tag to its matching end tag, writing
+/// everything verbatim while expanding any nested custom elements in place. It
+/// stops just before the end tag, leaving it for [`finish_component`].
+fn write_shadow_light_dom(
+    host_file_path: &str,
+    build_options: &BuildOptions,
+    file_indexes: &mut HashMap<String, usize>,
+    read_positions: &mut HashMap<String, usize>,
+    tag_stacks: &mut HashMap<String, Vec<String>>,
+    dep_graph: &DepGraph,
+    host_definition_names: &[String],
+    component_tag: &Tag,
+    output_handler: &mut impl FnMut(&[u8]),
+) {
+    let host_pos_key = pos_key(file_indexes[host_file_path], host_file_path);
+    let end_tag_names = vec![component_tag.tag_name.clone()];
+    // Injected so the streaming scanner has an open element to match the
+    // component's own end tag against (without it, the leading `</component>`
+    // of an empty element looks like a stray close tag and is skipped, making
+    // the scan overrun into the rest of the file).
+    let prefix = format!("<{}>", component_tag.tag_name);
+
+    loop {
+        let tag = write_until_tag(
+            host_file_path,
+            read_positions[&host_pos_key],
+            host_definition_names,
+            &end_tag_names,
+            &prefix,
+            false,
+            output_handler,
+        );
+
+        let tag = match tag {
+            Ok(tag) => tag,
+            Err(_error) => break,
+        };
+
+        // The component's own end tag: stop, leaving it for `finish_component`.
+        if tag.is_end_tag && tag.tag_name == component_tag.tag_name {
+            read_positions.insert(host_pos_key.clone(), tag.position.start);
+            break;
+        }
+
+        // A nested custom element in the light DOM: expand it in place. Its own
+        // expansion advances the host read position past its end tag.
+        if !tag.is_end_tag && host_definition_names.contains(&tag.tag_name) {
+            read_positions.insert(host_pos_key.clone(), tag.position.start);
+            build_component(
+                host_file_path,
+                build_options,
+                file_indexes,
+                read_positions,
+                tag_stacks,
+                dep_graph,
+                output_handler,
+            );
+            continue;
+        }
+
+        read_positions.insert(host_pos_key.clone(), tag.position.end);
+    }
+}
+
 pub(crate) fn finish_component(
     host_file_path: &str,
     component_file_path: &str,
-    host_definition_names: &[String],
     component_tag: &Tag,
     file_indexes: &mut HashMap<String, usize>,
     read_positions: &mut HashMap<String, usize>,
@@ -299,11 +382,18 @@ pub(crate) fn finish_component(
 ) {
     let host_pos_key = pos_key(file_indexes[host_file_path], host_file_path);
 
-    // If there is no default slot, skip slotted content.
+    // Advance the host past this component's own end tag. Match specifically on
+    // the component's tag name (not every known definition): the injected
+    // `<tag>` prefix gives the scanner the nesting context to skip over any
+    // nested components' end tags. Matching any definition's end tag would stop
+    // early at a nested `</child>` when slot resolution left the read position
+    // rewound inside the light DOM (e.g. a named slot ordered after the default
+    // slot), which would then re-emit the trailing light DOM as top-level
+    // components.
     if let Ok(component_end_tag) = read_until_end_tag(
         host_file_path,
         read_positions[&host_pos_key],
-        host_definition_names,
+        std::slice::from_ref(&component_tag.tag_name),
         format!("<{}>", component_tag.tag_name).as_str(),
     ) {
         // Pop the component tag name off the stack.

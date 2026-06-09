@@ -1,0 +1,15 @@
+<link rel="definition" name="x-layout" href="./layout.html">
+<link rel="definition" name="x-list" href="./list.html">
+<link rel="definition" name="x-item" href="./item.html">
+
+<template>
+  <x-layout w-trim>
+    <h1 slot="heading">My Page</h1>
+    <p slot="sidebar">A side note.</p>
+    <x-list>
+      <x-item id="a"><span slot="label">One</span>first body</x-item>
+      <x-item id="b">second body (no label)</x-item>
+      <x-item id="c"><span slot="label">Three</span>third body</x-item>
+    </x-list>
+  </x-layout>
+</template>

@@ -49,7 +49,13 @@ pub(crate) fn build_component_content(
         None => DEFAULT_SLOT_NAME,
     };
 
-    let slotted_ranges = component_slotted_positions.get_mut(slot_name).unwrap();
+    // A named `<slot name="x">` whose host provides no matching `slot="x"`
+    // content has no entry here. That's not an error: the component should emit
+    // the slot's fallback, so report "no slotted content" by returning `None`.
+    let slotted_ranges = match component_slotted_positions.get_mut(slot_name) {
+        Some(ranges) => ranges,
+        None => return None,
+    };
     let current_slotted_range = match slotted_ranges.first() {
         Some(range) => range.clone(),
         None => return None,
