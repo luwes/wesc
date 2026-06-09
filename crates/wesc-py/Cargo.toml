@@ -17,5 +17,5 @@ crate-type = ["cdylib"]
 # `abi3-py38` builds a single wheel that works on CPython 3.8+. The
 # `extension-module` feature is enabled by maturin (see pyproject.toml) so plain
 # `cargo check`/`cargo test` still link against libpython locally.
-pyo3 = { version = "0.23", features = ["abi3-py38"] }
+pyo3 = { version = "0.24", features = ["abi3-py38"] }
 wesc = { path = "../wesc" }
