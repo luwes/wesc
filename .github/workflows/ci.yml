@@ -33,6 +33,21 @@ jobs:
       - uses: actions/checkout@v4
       - run: cargo build --release
 
+  lint-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The PHP extension crate (wesc-php) needs PHP dev headers (php-config) and
+      # libclang to compile, so install them to lint the whole workspace.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
   perf-rust:
     runs-on: ubuntu-latest
     steps:

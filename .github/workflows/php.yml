@@ -1,0 +1,79 @@
+name: PHP
+
+# Build (and smoke-test) the native `wesc` PHP extension with ext-php-rs.
+#
+# A PHP extension is a platform-specific shared object that must match the PHP
+# build that loads it, so there's no universal wheel-style artifact like the
+# Python job produces. This builds the extension on each platform, loads it into
+# PHP, and runs a small smoke test. The built shared objects are uploaded as
+# workflow artifacts for convenience.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'crates/wesc-php/**'
+      - 'crates/wesc/**'
+      - 'examples/php-server/**'
+      - '.github/workflows/php.yml'
+  pull_request:
+    paths:
+      - 'crates/wesc-php/**'
+      - 'crates/wesc/**'
+      - 'examples/php-server/**'
+      - '.github/workflows/php.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build - ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: libwesc_php.so
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            ext: libwesc_php.dylib
+    steps:
+      - uses: actions/checkout@v4
+
+      # ext-php-rs needs PHP 8.1+ dev headers (php-config) to build against.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      # libclang for bindgen. macOS ships it with the Xcode CLT; Linux needs it.
+      - name: Install libclang (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+
+      # The repo pins nightly via rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Build extension
+        run: cargo build -p wesc-php --release
+
+      - name: Smoke test
+        run: |
+          php -d extension="$PWD/target/release/${{ matrix.platform.ext }}" \
+            -r 'if (!function_exists("wesc_build")) { fwrite(STDERR, "wesc_build missing\n"); exit(1); }
+                chdir("crates/wesc");
+                $html = wesc_build(["./tests/fixtures/default-slot/index.html"]);
+                if (!is_string($html) || strlen($html) === 0) { fwrite(STDERR, "empty build\n"); exit(1); }
+                $buf = "";
+                wesc_build_stream(["./tests/fixtures/default-slot/index.html"], function ($c) use (&$buf) { if ($c !== null) $buf .= $c; });
+                if ($buf !== $html) { fwrite(STDERR, "stream != one-shot\n"); exit(1); }
+                echo "ok\n";'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wesc-php-${{ matrix.platform.target }}
+          path: target/release/${{ matrix.platform.ext }}

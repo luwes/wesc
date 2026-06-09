@@ -1,7 +1,14 @@
 [workspace]
 resolver = "2"
 
-members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py"]
+members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php"]
+
+# `wesc-php` is excluded from the default set so a bare `cargo build` / `cargo
+# test` at the root doesn't try to compile the PHP extension, which needs PHP
+# dev headers (php-config) and libclang. Build it explicitly with
+# `cargo build -p wesc-php` (the dedicated `.github/workflows/php.yml` installs
+# those deps); the other crates build with the toolchains CI already provides.
+default-members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py"]
 
 # Optimize the native Node addon for size/speed when built with --release.
 #
@@ -27,7 +34,7 @@ debug = true
 # debug info. `line-tables-only` keeps just enough to retain file/line numbers in
 # panic backtraces through dependency code while dropping the heavy type/variable
 # info that dominates compile time and disk. This glob applies to dependencies
-# only, not the workspace crates, so `wesc`/`wesc-node`/`wesc-py` keep full debug
-# info for stepping through.
+# only, not the workspace crates, so `wesc`/`wesc-node`/`wesc-py`/`wesc-php` keep
+# full debug info for stepping through.
 [profile.dev.package."*"]
 debug = "line-tables-only"

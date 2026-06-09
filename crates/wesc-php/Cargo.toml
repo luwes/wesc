@@ -1,0 +1,21 @@
+[package]
+name = "wesc-php"
+version = "0.1.0"
+authors = ["Wesley Luyten <me@wesleyluyten.com>"]
+edition = "2021"
+license = "MIT"
+description = "PHP extension bindings for the wesc web component bundler"
+repository = "https://github.com/luwes/wesc"
+publish = false
+
+[lib]
+# Builds the PHP extension shared object (e.g. `libwesc_php.so`). PHP loads it
+# via an `extension=...` line in php.ini; the registered module name and its
+# exported functions come from the `#[php_module]` in src/lib.rs.
+crate-type = ["cdylib"]
+
+[dependencies]
+# Native PHP extensions via the Zend API. Building requires PHP 8.1+ dev headers
+# (php-config on PATH) and libclang (for bindgen). See README.md.
+ext-php-rs = "0.15"
+wesc = { path = "../wesc" }
