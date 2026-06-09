@@ -161,11 +161,7 @@ pub(crate) fn find_end_tag(bytes: &[u8], start: usize, tag_name: &[u8]) -> Optio
 }
 
 pub(crate) fn find_next_byte(bytes: &[u8], start: usize, needle: u8) -> Option<usize> {
-    bytes
-        .get(start..)?
-        .iter()
-        .position(|byte| *byte == needle)
-        .map(|offset| start + offset)
+    memchr::memchr(needle, bytes.get(start..)?).map(|offset| start + offset)
 }
 
 pub(crate) fn find_tag_end(bytes: &[u8], start: usize) -> Option<usize> {

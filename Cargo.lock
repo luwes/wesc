@@ -3822,6 +3822,7 @@ dependencies = [
  "indexmap",
  "indextree",
  "lol_html",
+ "memchr",
  "pretty_assertions",
  "rolldown",
  "tokio",
