@@ -1,19 +1,12 @@
 name: Python
 
-# Build (and optionally publish) the `wesc` Python wheels with maturin.
-#
-# - On a manual run with `publish = true`, the built wheels + sdist are uploaded
-#   to PyPI via Trusted Publishing (OIDC) — no API token needed.
-# - Otherwise it just builds the wheels and uploads them as workflow artifacts,
-#   which is handy to smoke-test the matrix on a PR or push.
+# Build the `wesc` Python wheels + sdist with maturin and upload them as
+# workflow artifacts, to smoke-test the build matrix on a PR or push. Publishing
+# to PyPI happens on a release in .github/workflows/cd.yml (release-please), so
+# every package/crate ships at the same version — this workflow never publishes.
 
 on:
   workflow_dispatch:
-    inputs:
-      publish:
-        description: 'Publish wheels to PyPI'
-        type: boolean
-        default: false
   push:
     paths:
       - 'crates/wesc-py/**'
@@ -90,25 +83,3 @@ jobs:
         with:
           name: wheels-sdist
           path: crates/wesc-py/dist
-
-  publish:
-    name: publish to PyPI
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
-    runs-on: ubuntu-latest
-    needs: [wheels, sdist]
-    environment: production
-    permissions:
-      # Trusted Publishing (OIDC) — no token stored in the repo.
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: wheels-*
-          merge-multiple: true
-          path: dist
-      # The PyPA action performs the PyPI OIDC token exchange automatically when
-      # `id-token: write` is set and a trusted publisher is configured.
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          skip-existing: true
