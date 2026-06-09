@@ -258,7 +258,10 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Ruby: build precompiled native gems (per platform, via rb-sys-dock) plus a
-  # source gem, then push them to RubyGems. Needs the RUBYGEMS_API_KEY secret.
+  # source gem, then push them to RubyGems. Auth is OIDC Trusted Publishing (no
+  # stored key) — configure a trusted publisher for the `wesc` gem on
+  # rubygems.org pointing at this workflow (a pending publisher works for the
+  # first, not-yet-existing release).
   # ---------------------------------------------------------------------------
   publish-gem:
     name: publish gem - ${{ matrix.platform }}
@@ -269,6 +272,10 @@ jobs:
     if: ${{ needs.release-please.outputs.gem_release == 'true' }}
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      # OIDC token for RubyGems Trusted Publishing.
+      id-token: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -292,10 +299,10 @@ jobs:
           platform: ${{ matrix.platform }}
           ruby-versions: '3.0,3.1,3.2,3.3'
           working-directory: crates/wesc-rb
+      # Exchange the workflow's OIDC token for short-lived RubyGems credentials.
+      - uses: rubygems/configure-rubygems-credentials@v1.0.0
       - name: Push native gem
         working-directory: crates/wesc-rb
-        env:
-          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
           for gem in pkg/*.gem; do
             gem push "$gem"
@@ -309,16 +316,18 @@ jobs:
     if: ${{ needs.release-please.outputs.gem_release == 'true' }}
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
           bundler-cache: true
+      - uses: rubygems/configure-rubygems-credentials@v1.0.0
       - name: Build and push source gem
         working-directory: crates/wesc-rb
-        env:
-          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
           gem build wesc.gemspec -o pkg/wesc.gem
           gem push pkg/wesc.gem
