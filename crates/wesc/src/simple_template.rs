@@ -6,23 +6,19 @@
 //! a list of static byte ranges and slots (cached in [`SIMPLE_TEMPLATES`]) and
 //! rendered without re-running the streaming scanner on every expansion.
 
-// `render_simple_template` threads the build state explicitly, like the rest of
-// the expansion engine (see `component.rs`).
-#![allow(clippy::too_many_arguments)]
-
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{LazyLock, Mutex};
 
+use crate::build::BuildCtx;
 use crate::chunk_reader::read_file_cached;
-use crate::dep_graph::DepGraph;
 use crate::scan::{
     contains_start_tag, find_end_tag, find_start_tag, find_tag_end, get_attribute_value,
     is_self_closing_start_tag, write_file_range,
 };
 use crate::slots::build_component_content;
 use crate::slotted_positions::SlottedRanges;
-use crate::{pos_key, BuildOptions, DEFAULT_SLOT_NAME};
+use crate::{pos_key, DEFAULT_SLOT_NAME};
 
 static SIMPLE_TEMPLATES: LazyLock<Mutex<HashMap<String, Option<SimpleTemplate>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -140,15 +136,11 @@ pub(crate) fn render_simple_template(
     component_file_path: &str,
     host_file_path: &str,
     component_name: &str,
-    build_options: &BuildOptions,
-    file_indexes: &mut HashMap<String, usize>,
-    read_positions: &mut HashMap<String, usize>,
-    tag_stacks: &mut HashMap<String, Vec<String>>,
-    dep_graph: &DepGraph,
+    ctx: &mut BuildCtx,
     component_slotted_positions: &mut SlottedRanges,
     output_handler: &mut impl FnMut(&[u8]),
 ) {
-    let host_pos_key = pos_key(file_indexes[host_file_path], host_file_path);
+    let host_pos_key = pos_key(ctx.file_indexes[host_file_path], host_file_path);
 
     for part in &template.parts {
         match part {
@@ -157,23 +149,17 @@ pub(crate) fn render_simple_template(
             }
             SimpleTemplatePart::Slot { name, fallback } => {
                 let slot_name = name.as_ref();
-                let slot_lookup = slot_name
-                    .map(|name| name.as_str())
-                    .unwrap_or(DEFAULT_SLOT_NAME);
+                let slot_lookup = slot_name.map(String::as_str).unwrap_or(DEFAULT_SLOT_NAME);
                 let has_slotted_content = component_slotted_positions
                     .get(slot_lookup)
                     .is_some_and(|ranges| !ranges.is_empty());
-                let host_start_pos = read_positions[&host_pos_key];
+                let host_start_pos = ctx.read_positions[&host_pos_key];
 
                 if has_slotted_content {
                     while let Some(light_tag) = build_component_content(
                         slot_name,
                         host_file_path,
-                        build_options,
-                        file_indexes,
-                        read_positions,
-                        tag_stacks,
-                        dep_graph,
+                        ctx,
                         component_slotted_positions,
                         output_handler,
                     ) {
@@ -183,7 +169,7 @@ pub(crate) fn render_simple_template(
                     }
                 }
 
-                if host_start_pos == read_positions[&host_pos_key] {
+                if host_start_pos == ctx.read_positions[&host_pos_key] {
                     write_file_range(component_file_path, fallback, output_handler);
                 }
             }

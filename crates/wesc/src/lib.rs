@@ -93,23 +93,5 @@ pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])
     clear_file_cache();
     clear_simple_templates();
 
-    let file_path = &build_options.entry_points[0];
-
-    // Store file indexes that gets increased each time a component of this file is built.
-    // Needed for nesting the same component to keep track of the read position.
-    let mut file_indexes: HashMap<String, usize> = HashMap::new();
-    // The file index together with the file path is used in the key of
-    // the positions hashmap to keep track of the read position.
-    let mut read_positions: HashMap<String, usize> = HashMap::new();
-    // Keep a stack of the component tags that are being built.
-    let mut tag_stacks: HashMap<String, Vec<String>> = HashMap::new();
-
-    build_file(
-        file_path,
-        &build_options,
-        &mut file_indexes,
-        &mut read_positions,
-        &mut tag_stacks,
-        output_handler,
-    );
+    build_file(&build_options, output_handler);
 }
