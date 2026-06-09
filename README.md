@@ -7,15 +7,16 @@ WeSC is a streaming HTML/web-component bundler written in Rust (via
 single-file `.html` components into Declarative-Shadow-DOM-ready
 output: a standalone CLI, plus sync / async / streaming Node bindings
 (via [napi-rs](https://napi.rs)), Python bindings (via
-[PyO3](https://pyo3.rs)), and PHP bindings (via
-[ext-php-rs](https://ext-php.rs)).
+[PyO3](https://pyo3.rs)), PHP bindings (via
+[ext-php-rs](https://ext-php.rs)), and Go bindings (via
+[cgo](https://pkg.go.dev/cmd/cgo)).
 
 ## Goals
 
 - HTML first ([The Rule of Least Power](https://www.w3.org/2001/tag/doc/leastPower.html))
 - Stay close to web standards (DSD, slots, `<template>`)
 - A first-class authoring experience for single-file components
-- Usable from any backend (standalone CLI; Node, Python and PHP bindings today, more welcome)
+- Usable from any backend (standalone CLI; Node, Python, PHP and Go bindings today, more welcome)
 
 ## What WeSC is
 
@@ -40,7 +41,8 @@ building blocks that can be stamped by whatever renders your data.
 | [`crates/wesc-node`](./crates/wesc-node)       | napi-rs Node bindings.                                     |
 | [`crates/wesc-py`](./crates/wesc-py)           | PyO3 Python bindings.                                      |
 | [`crates/wesc-php`](./crates/wesc-php)         | ext-php-rs PHP bindings.                                   |
-| [`examples`](./examples)                       | Bundler examples (departures-board, node-server, python-server, php-server). |
+| [`crates/wesc-go`](./crates/wesc-go)           | cgo Go bindings (C ABI).                                   |
+| [`examples`](./examples)                       | Bundler examples (departures-board, node-server, python-server, php-server, go-server). |
 
 ## Develop
 
@@ -64,6 +66,7 @@ npm run build:php           # builds the native PHP extension (Rust + PHP header
 - [napi-rs](https://napi.rs) — Rust ↔ Node bindings.
 - [PyO3](https://pyo3.rs) — Rust ↔ Python bindings.
 - [ext-php-rs](https://ext-php.rs) — Rust ↔ PHP bindings.
+- [cgo](https://pkg.go.dev/cmd/cgo) — Rust ↔ Go bindings (over a small C ABI).
 
 **Related projects**
 

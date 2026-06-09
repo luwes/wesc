@@ -1,0 +1,19 @@
+[package]
+name = "wesc-go"
+version = "0.1.0"
+authors = ["Wesley Luyten <me@wesleyluyten.com>"]
+edition = "2021"
+license = "MIT"
+description = "Go (cgo) bindings for the wesc web component bundler"
+repository = "https://github.com/luwes/wesc"
+publish = false
+
+[lib]
+# Builds both a static archive (libwesc_go.a) for self-contained Go binaries and
+# a shared object (libwesc_go.{so,dylib}/wesc_go.dll). The Go package links the
+# shared object by default; see crates/wesc-go/wesc.go for the cgo directives.
+name = "wesc_go"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+wesc = { path = "../wesc" }

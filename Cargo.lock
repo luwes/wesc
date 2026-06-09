@@ -4540,6 +4540,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wesc-go"
+version = "0.1.0"
+dependencies = [
+ "wesc",
+]
+
+[[package]]
 name = "wesc-node"
 version = "0.1.0"
 dependencies = [

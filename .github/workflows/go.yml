@@ -1,0 +1,66 @@
+name: Go
+
+# Build and test the native `wesc` Go bindings (cgo over a small C ABI).
+#
+# Like the PHP job, the artifact is a platform-specific native library rather
+# than a universal package, so this builds the library on each platform, runs
+# the Go test suite against it, and compiles the example server.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'crates/wesc-go/**'
+      - 'crates/wesc/**'
+      - 'examples/go-server/**'
+      - '.github/workflows/go.yml'
+  pull_request:
+    paths:
+      - 'crates/wesc-go/**'
+      - 'crates/wesc/**'
+      - 'examples/go-server/**'
+      - '.github/workflows/go.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build - ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-14
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      # The repo pins nightly via rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      # The Go package links the native library from target/release; build it
+      # first so cgo can find it (and its embedded rpath).
+      - name: Build native library
+        run: cargo build -p wesc-go --release
+
+      - name: Go vet
+        working-directory: crates/wesc-go
+        run: go vet ./...
+
+      - name: Go test
+        working-directory: crates/wesc-go
+        run: go test ./...
+
+      - name: Build example server
+        working-directory: examples/go-server
+        run: go build -o /dev/null .
