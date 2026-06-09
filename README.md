@@ -8,15 +8,16 @@ single-file `.html` components into Declarative-Shadow-DOM-ready
 output: a standalone CLI, plus sync / async / streaming Node bindings
 (via [napi-rs](https://napi.rs)), Python bindings (via
 [PyO3](https://pyo3.rs)), PHP bindings (via
-[ext-php-rs](https://ext-php.rs)), and Go bindings (via
-[cgo](https://pkg.go.dev/cmd/cgo)).
+[ext-php-rs](https://ext-php.rs)), Go bindings (via
+[cgo](https://pkg.go.dev/cmd/cgo)), and Ruby bindings (via
+[Magnus](https://github.com/matsadler/magnus)).
 
 ## Goals
 
 - HTML first ([The Rule of Least Power](https://www.w3.org/2001/tag/doc/leastPower.html))
 - Stay close to web standards (DSD, slots, `<template>`)
 - A first-class authoring experience for single-file components
-- Usable from any backend (standalone CLI; Node, Python, PHP and Go bindings today, more welcome)
+- Usable from any backend (standalone CLI; Node, Python, PHP, Go and Ruby bindings today, more welcome)
 
 ## What WeSC is
 
@@ -42,7 +43,8 @@ building blocks that can be stamped by whatever renders your data.
 | [`crates/wesc-py`](./crates/wesc-py)           | PyO3 Python bindings.                                      |
 | [`crates/wesc-php`](./crates/wesc-php)         | ext-php-rs PHP bindings.                                   |
 | [`crates/wesc-go`](./crates/wesc-go)           | cgo Go bindings (C ABI).                                   |
-| [`examples`](./examples)                       | Bundler examples (departures-board, node-server, python-server, php-server, go-server). |
+| [`crates/wesc-rb`](./crates/wesc-rb)           | Magnus (rb-sys) Ruby bindings.                             |
+| [`examples`](./examples)                       | Bundler examples (departures-board, node-server, python-server, php-server, go-server, ruby-server). |
 
 ## Develop
 
@@ -57,6 +59,10 @@ npm run build:native        # builds the native Node bundler addon (Rust toolcha
 npm run build:php           # builds the native PHP extension (Rust + PHP headers + libclang)
 ```
 
+The Go and Ruby bindings build with their own toolchains (`cargo build -p
+wesc-go --release`; `bundle exec rake compile` in `crates/wesc-rb`); see each
+crate's README.
+
 ## Related
 
 **Built on**
@@ -67,6 +73,8 @@ npm run build:php           # builds the native PHP extension (Rust + PHP header
 - [PyO3](https://pyo3.rs) — Rust ↔ Python bindings.
 - [ext-php-rs](https://ext-php.rs) — Rust ↔ PHP bindings.
 - [cgo](https://pkg.go.dev/cmd/cgo) — Rust ↔ Go bindings (over a small C ABI).
+- [Magnus](https://github.com/matsadler/magnus) — Rust ↔ Ruby bindings (on
+  [rb-sys](https://github.com/oxidize-rb/rb-sys)).
 
 **Related projects**
 

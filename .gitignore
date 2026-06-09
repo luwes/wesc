@@ -18,6 +18,14 @@ __pycache__/
 /crates/wesc-py/dist/
 .venv/
 
+# Ruby / rb-sys build artifacts
+*.bundle
+crates/wesc-rb/Gemfile.lock
+crates/wesc-rb/pkg/
+crates/wesc-rb/tmp/
+crates/wesc-rb/lib/wesc/wesc_rb.so
+crates/wesc-rb/lib/wesc/wesc_rb.bundle
+
 # napi-rs generated artifacts
 # index.cjs / index.d.ts are committed so the published main package always has
 # its loader (the CI publish job doesn't regenerate them).

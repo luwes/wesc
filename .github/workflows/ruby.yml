@@ -1,0 +1,73 @@
+name: Ruby
+
+# Build and test the native `wesc` Ruby bindings (Magnus + rb-sys).
+#
+# Like the Go and PHP jobs, the artifact is a platform-specific native extension
+# rather than a universal package, so this builds the extension on each platform
+# (via `rake compile`, which drives cargo), runs the Ruby test suite against it,
+# and smoke-checks the example server's source.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'crates/wesc-rb/**'
+      - 'crates/wesc/**'
+      - 'examples/ruby-server/**'
+      - '.github/workflows/ruby.yml'
+  pull_request:
+    paths:
+      - 'crates/wesc-rb/**'
+      - 'crates/wesc/**'
+      - 'examples/ruby-server/**'
+      - '.github/workflows/ruby.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build - ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-14
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      # libclang for bindgen (rb-sys). macOS ships it with the Xcode CLT; Linux
+      # needs it installed.
+      - name: Install libclang (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+
+      # The repo pins nightly via rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Install gem dependencies
+        working-directory: crates/wesc-rb
+        run: bundle install
+
+      - name: Compile extension
+        working-directory: crates/wesc-rb
+        run: bundle exec rake compile
+
+      - name: Test
+        working-directory: crates/wesc-rb
+        run: bundle exec rake test
+
+      # Make sure the example server at least loads the freshly built extension
+      # and its dependencies (it binds a port, so don't actually start it).
+      - name: Smoke-test the example server
+        run: ruby -c examples/ruby-server/server.rb

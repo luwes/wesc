@@ -1,0 +1,25 @@
+[package]
+name = "wesc-rb"
+version = "0.1.0"
+authors = ["Wesley Luyten <me@wesleyluyten.com>"]
+edition = "2021"
+license = "MIT"
+description = "Ruby bindings for the wesc web component bundler"
+repository = "https://github.com/luwes/wesc"
+publish = false
+
+[lib]
+# The cdylib is loaded by Ruby as a native extension (`require "wesc/wesc_rb"`).
+# The lib name drives the extension's `Init_wesc_rb` symbol and the built
+# `libwesc_rb` artifact, so it must stay in sync with the
+# `#[magnus::init(name = "wesc_rb")]` in src/lib.rs and the
+# `create_rust_makefile("wesc/wesc_rb")` call in extconf.rb. It deliberately
+# differs from the core crate's `wesc` lib name so rb-sys's `cargo metadata`
+# lookup resolves this crate and not the bundler core.
+name = "wesc_rb"
+crate-type = ["cdylib"]
+
+[dependencies]
+# The bundler core, up at crates/wesc (this crate lives at crates/wesc-rb/ext/wesc).
+wesc = { path = "../../../wesc" }
+magnus = "0.7"

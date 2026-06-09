@@ -1,13 +1,18 @@
 [workspace]
 resolver = "2"
 
-members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php", "crates/wesc-go"]
+members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php", "crates/wesc-go", "crates/wesc-rb/ext/wesc"]
 
-# `wesc-php` is excluded from the default set so a bare `cargo build` / `cargo
-# test` at the root doesn't try to compile the PHP extension, which needs PHP
-# dev headers (php-config) and libclang. Build it explicitly with
-# `cargo build -p wesc-php` (the dedicated `.github/workflows/php.yml` installs
-# those deps); the other crates build with the toolchains CI already provides.
+# `wesc-php` and `wesc-rb` are excluded from the default set so a bare
+# `cargo build` / `cargo test` at the root doesn't try to compile them: the PHP
+# extension needs PHP dev headers (php-config) and libclang, and the Ruby
+# extension needs Ruby dev headers and libclang. Build the PHP extension with
+# `cargo build -p wesc-php`; the Ruby extension is a loadable extension that
+# links against the host Ruby at load time, so build it with `rake compile` in
+# `crates/wesc-rb` (a plain `cargo build -p wesc-rb` won't link standalone, but
+# `cargo check -p wesc-rb` typechecks it). The dedicated `.github/workflows/
+# php.yml` and `.github/workflows/ruby.yml` install those deps; the other crates
+# build with the toolchains CI already provides.
 default-members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-go"]
 
 # Optimize the native Node addon for size/speed when built with --release.
@@ -35,6 +40,6 @@ debug = true
 # panic backtraces through dependency code while dropping the heavy type/variable
 # info that dominates compile time and disk. This glob applies to dependencies
 # only, not the workspace crates, so `wesc`/`wesc-node`/`wesc-py`/`wesc-php`/
-# `wesc-go` keep full debug info for stepping through.
+# `wesc-go`/`wesc-rb` keep full debug info for stepping through.
 [profile.dev.package."*"]
 debug = "line-tables-only"

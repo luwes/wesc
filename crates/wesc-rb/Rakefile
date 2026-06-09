@@ -1,0 +1,25 @@
+# frozen_string_literal: true
+
+require "bundler/gem_tasks"
+require "rake/testtask"
+require "rb_sys/extensiontask"
+
+GEMSPEC = Gem::Specification.load("wesc.gemspec")
+
+# Build the Rust extension (ext/wesc/) into lib/wesc/, so `require "wesc/wesc_rb"`
+# finds it. The name is the crate's Cargo *package* name (`wesc-rb`); rb-sys
+# resolves the manifest via `cargo metadata`, so it must not be the `wesc` core
+# package. The built `libwesc_rb` is copied to lib/wesc/wesc_rb.<dlext>.
+RbSys::ExtensionTask.new("wesc-rb", GEMSPEC) do |ext|
+  ext.lib_dir = "lib/wesc"
+end
+
+Rake::TestTask.new(:test) do |t|
+  t.libs << "test" << "lib"
+  t.test_files = FileList["test/**/test_*.rb"]
+end
+
+# Make sure the native extension is compiled before the tests run.
+task test: :compile
+
+task default: %i[compile test]
