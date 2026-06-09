@@ -1,8 +1,7 @@
+w-card {
+  color: springgreen;
+}
 
-  w-card {
-    color: springgreen;
-  }
-
-  w-counter {
-    color: darkorchid;
-  }
+w-counter {
+  color: darkorchid;
+}

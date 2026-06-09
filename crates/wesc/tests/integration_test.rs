@@ -1,379 +1,298 @@
+//! Fixture-driven integration tests for the `wesc` bundler.
+//!
+//! Each `tests/fixtures/<name>/index.html` is built and its streamed HTML (plus
+//! any bundled CSS/JS) is compared against the committed `expected.*` files.
+//! Both the expected files and the actual output are run through `oxfmt`, so the
+//! fixtures stay readable and diffs are clean regardless of the bundler's raw
+//! whitespace.
+//!
+//! To refresh the expected files after an intentional change, format the new
+//! output with `oxfmt` and write it back (the generated `blog` fixture also has
+//! `tests/fixtures/blog/generate.mjs`).
+
 #[cfg(test)]
 use pretty_assertions::assert_eq;
-use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
-use std::{fs, path::Path};
+use std::{fs, io::Write};
 use wesc::{build, BuildOptions, CHUNK_SIZE, DEFAULT_SLOT_NAME};
 
-static BUILD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+// HTML-only fixtures.
+#[test] fn no_components() { assert_html("no-components"); }
+#[test] fn named_slot() { assert_html("named-slot"); }
+#[test] fn named_slot_nesting() { assert_html("named-slot-nesting"); }
+#[test] fn default_slot_fallback() { assert_html("default-slot-fallback"); }
+#[test] fn light_dom_nesting() { assert_html("light-dom-nesting"); }
+#[test] fn slot_forwarding() { assert_html("slot-forwarding"); }
+#[test] fn nested_template() { assert_html("nested-template"); }
+#[test] fn shadow_template() { assert_html("shadow-template"); }
+#[test] fn layouts() { assert_html("layouts"); }
+#[test] fn real_world() { assert_html("real-world"); }
+
+// Fixtures that also bundle CSS.
+#[test] fn default_slot() { assert_html_and_css("default-slot"); }
+#[test] fn style_tags() { assert_html_and_css("style-tags"); }
+
+// Fixtures that bundle CSS and JS.
+#[test] fn script_tags() { assert_bundle("script-tags"); }
+#[test] fn todo_app() { assert_bundle("todo-app"); }
+#[test] fn blog() { assert_bundle("blog"); }
 
 #[test]
-fn default_slot() {
-    test_file(
-        "./tests/fixtures/default-slot/index.html",
-        Some("./tests/fixtures/default-slot/styles.css"),
+fn named_slot_layout() {
+    // Regression for two slot bugs: (1) a `w-trim` layout with named slots the
+    // host fills out of order, plus a named slot left empty — this used to panic
+    // on the missing slot entry; (2) components nested through several default
+    // slots (layout > list > item) were re-emitted after the layout's close tag,
+    // because a component's end was located via any definition's end tag.
+    assert_html("named-slot-layout");
+}
+
+#[test]
+fn template_passthrough() {
+    // Regression: (1) a component body that nests a <template> containing another
+    // component — the nested </template> must not be read as the component's own
+    // root-template close; (2) a component declared in two files must have its
+    // styles bundled only once.
+    assert_html_and_css("template-passthrough");
+}
+
+#[test]
+fn minify_js() {
+    let dir = fixture_dir("todo-app");
+    let minified = run_build(&dir.join("index.html"), false, true, true)
+        .js
+        .expect("minified JS should be bundled");
+
+    assert_eq!(minified, read(dir.join("expected.min.js")));
+    assert!(
+        minified.len() < read(dir.join("expected.js")).len(),
+        "minified JS should be smaller than the readable bundle"
+    );
+    assert!(!minified.contains("//#region"), "region markers should be stripped");
+}
+
+#[test]
+fn absolute_entry_path() {
+    // Regression: an absolute entry path (as a server passes) must not break the
+    // JS bundler. Extracted component JS must stay inside the `.wesc` mirror, not
+    // get scattered next to the source files (which used to panic the bundler).
+    let dir = fixture_dir("todo-app");
+    let entry = fs::canonicalize(dir.join("index.html")).expect("fixture should exist");
+    let out = run_build(&entry, false, true, false);
+
+    assert!(out.js.unwrap().contains("customElements.define"));
+    assert!(out.html.contains("class=\"todoapp\""));
+    assert!(
+        !dir.join("todo-app.js").exists(),
+        "extracted JS must not be written next to the source"
     );
 }
 
 #[test]
-fn no_components() {
-    test_file("./tests/fixtures/no-components/index.html", None);
-}
+fn scriptless_component() {
+    // Regression: a `rel="definition"` component with no top-level <script> (e.g.
+    // styles only) must not make the bundler import a never-written `.js`.
+    let dir = fixture_dir("scriptless-component");
+    let out = run_build(&dir.join("index.html"), false, true, false);
 
-#[test]
-fn named_slot() {
-    test_file("./tests/fixtures/named-slot/index.html", None);
-}
-
-#[test]
-fn named_slot_nesting() {
-    test_file("./tests/fixtures/named-slot-nesting/index.html", None);
+    assert!(out.js.unwrap().contains("customElements.define"));
+    assert!(out.html.contains("class=\"wrap\""));
+    assert!(out.html.contains("<button part=\"button\">"));
 }
 
 #[test]
 fn utf8_slotted_text_split_across_chunks() {
+    // A multi-byte character straddling a chunk boundary must not panic the
+    // slotted-position scanner.
     let dir = std::env::temp_dir().join(format!("wesc-utf8-slotted-text-{}", std::process::id()));
     fs::create_dir_all(&dir).expect("temp fixture dir should be created");
 
-    let host_file_path = dir.join("index.html");
-    let component_start = "<w-card>";
-    let padding = "a".repeat(CHUNK_SIZE - component_start.len() - 1);
-    fs::write(
-        &host_file_path,
-        format!("{component_start}{padding}ü · Zürich</w-card>"),
-    )
-    .expect("temp host fixture should be written");
+    let host = dir.join("index.html");
+    let start = "<w-card>";
+    let padding = "a".repeat(CHUNK_SIZE - start.len() - 1);
+    fs::write(&host, format!("{start}{padding}ü · Zürich</w-card>")).expect("write host fixture");
 
-    let component_file_path = dir.join("card.html");
     let positions = wesc::slotted_positions::find_slotted_positions(
         0,
-        host_file_path.to_str().unwrap(),
+        host.to_str().unwrap(),
         "w-card",
         &0,
-        component_file_path.to_str().unwrap(),
+        dir.join("card.html").to_str().unwrap(),
     )
     .expect("UTF-8 split across chunks should not panic");
 
-    let ranges = positions
-        .get(DEFAULT_SLOT_NAME)
-        .expect("default slot range should be tracked");
+    let ranges = positions.get(DEFAULT_SLOT_NAME).expect("default slot range");
     assert_eq!(ranges.len(), 1);
     assert!(ranges[0].end > ranges[0].start);
 
     fs::remove_dir_all(&dir).expect("temp fixture should be removed");
 }
 
-#[test]
-fn default_slot_fallback() {
-    test_file("./tests/fixtures/default-slot-fallback/index.html", None);
+// ===========================================================================
+// Harness
+// ===========================================================================
+
+const FIXTURES: &str = "./tests/fixtures";
+
+/// Serializes builds: the bundler uses process-global caches and a shared
+/// `.wesc` scratch directory, so only one build may run at a time.
+static BUILD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+/// Makes each build's temp output paths unique so the reads that happen after
+/// the lock is released can never collide.
+static OUTPUT_SEQ: AtomicU64 = AtomicU64::new(0);
+
+fn fixture_dir(name: &str) -> PathBuf {
+    Path::new(FIXTURES).join(name)
 }
 
-#[test]
-fn light_dom_nesting() {
-    test_file("./tests/fixtures/light-dom-nesting/index.html", None);
+fn assert_html(name: &str) {
+    assert_fixture(name, false, false);
 }
 
-#[test]
-fn slot_forwarding() {
-    test_file("./tests/fixtures/slot-forwarding/index.html", None);
+fn assert_html_and_css(name: &str) {
+    assert_fixture(name, true, false);
 }
 
-#[test]
-fn nested_template() {
-    test_file("./tests/fixtures/nested-template/index.html", None);
+fn assert_bundle(name: &str) {
+    assert_fixture(name, true, true);
 }
 
-#[test]
-fn shadow_template() {
-    test_file("./tests/fixtures/shadow-template/index.html", None);
+/// Build `<name>/index.html` and assert each output matches the pre-formatted
+/// `expected.*` file beside it.
+fn assert_fixture(name: &str, css: bool, js: bool) {
+    let dir = fixture_dir(name);
+    let out = run_build(&dir.join("index.html"), css, js, false);
+
+    assert_matches(&out.html, dir.join("expected.html"), Lang::Html);
+    if let Some(css) = out.css {
+        assert_matches(&css, dir.join("expected.css"), Lang::Css);
+    }
+    if let Some(js) = out.js {
+        assert_matches(&js, dir.join("expected.js"), Lang::Js);
+    }
 }
 
-#[test]
-fn layouts() {
-    test_file("./tests/fixtures/layouts/index.html", None);
-}
-
-#[test]
-fn style_tags() {
-    test_file(
-        "./tests/fixtures/style-tags/index.html",
-        Some("./tests/fixtures/style-tags/styles.css"),
+/// Format `actual` and assert it equals the (already formatted) expected file.
+fn assert_matches(actual: &str, expected_path: PathBuf, lang: Lang) {
+    assert_eq!(
+        oxfmt(actual, lang),
+        read(&expected_path),
+        "{} did not match",
+        expected_path.display()
     );
 }
 
-#[test]
-fn script_tags() {
-    test_file_with_outputs(
-        "./tests/fixtures/script-tags/index.html",
-        Some("./tests/fixtures/script-tags/styles.css"),
-        Some("./tests/fixtures/script-tags/scripts.js"),
-    );
+/// The streamed HTML and any bundled assets produced by a single build.
+struct Output {
+    html: String,
+    css: Option<String>,
+    js: Option<String>,
 }
 
-#[test]
-fn todo_app() {
-    test_file_with_outputs_and_cleanup(
-        "./tests/fixtures/todo-app/index.html",
-        Some("./tests/fixtures/todo-app/styles.css"),
-        Some("./tests/fixtures/todo-app/scripts.js"),
-        true,
-    );
-}
+/// Run one build, returning its HTML and (optionally) its bundled CSS/JS.
+///
+/// CSS/JS go to unique temp files that are read and removed here, so tests never
+/// leave artifacts in the fixtures. Only the build itself is serialized; the
+/// unique temp outputs are safe to read once the lock is released.
+fn run_build(entry: &Path, want_css: bool, want_js: bool, minify: bool) -> Output {
+    let css_path = want_css.then(|| temp_path("css"));
+    let js_path = want_js.then(|| temp_path("js"));
 
-#[test]
-fn minify_js() {
-    let outjs = "./tests/fixtures/todo-app/minified.js";
-    let mut output = Vec::new();
-    let mut output_handler = |c: &[u8]| {
-        output.extend_from_slice(c);
-    };
-
-    let _build_lock = BUILD_LOCK.lock().unwrap();
-    build(
-        BuildOptions {
-            entry_points: vec![String::from("./tests/fixtures/todo-app/index.html")],
-            outcss: None,
-            outjs: Some(String::from(outjs)),
-            minify: true,
-        },
-        &mut output_handler,
-    );
-
-    let minified = fs::read_to_string(outjs).expect("Should have been able to read the file");
-    let expected = fs::read_to_string("./tests/fixtures/todo-app/expected.min.js")
-        .expect("Should read expected minified JS");
-    let readable = fs::read_to_string("./tests/fixtures/todo-app/expected.js")
-        .expect("Should read readable JS");
-
-    assert_eq!(minified, expected);
-    assert!(minified.len() < readable.len());
-    assert!(!minified.contains("//#region"));
-
-    fs::remove_file(outjs).expect("Should have been able to remove the file");
-}
-
-#[test]
-fn real_world() {
-    test_file("./tests/fixtures/real-world/index.html", None);
-}
-
-#[test]
-fn template_passthrough() {
-    // Regression for two issues:
-    // 1. A component whose body nests a <template> containing another component
-    //    (e.g. a clone template for runtime-created items). The nested
-    //    </template> must not be mistaken for the component's own root template
-    //    close, which previously truncated everything after it.
-    // 2. x-item is declared in two files (index.html and x-list.html), so its
-    //    styles must be bundled only once, not duplicated per declaration.
-    test_file_with_outputs_and_cleanup(
-        "./tests/fixtures/template-passthrough/index.html",
-        Some("./tests/fixtures/template-passthrough/styles.css"),
-        None,
-        true,
-    );
-}
-
-#[test]
-fn absolute_entry_path() {
-    // Regression: building with an absolute entry path (as a server would pass)
-    // must not break the JS bundler. Previously `Path::join("./.wesc/scripts", abs)`
-    // discarded the base, scattering the extracted component JS next to the source
-    // files and producing a broken import that panicked the bundler.
-    let abs_entry =
-        fs::canonicalize("./tests/fixtures/todo-app/index.html").expect("fixture should exist");
-    let outjs = "./tests/fixtures/todo-app/abs-scripts.js";
-
-    let _build_lock = BUILD_LOCK.lock().unwrap();
-    let mut output = Vec::new();
-    build(
-        BuildOptions {
-            entry_points: vec![abs_entry.to_string_lossy().to_string()],
-            outcss: None,
-            outjs: Some(String::from(outjs)),
-            minify: false,
-        },
-        &mut |c: &[u8]| output.extend_from_slice(c),
-    );
-
-    // The bundle was produced (no panic) and carries the component definitions.
-    let js = fs::read_to_string(outjs).expect("bundled JS should be written");
-    assert!(js.contains("customElements.define"));
-
-    // The HTML still renders the components.
-    let html = String::from_utf8_lossy(&output);
-    assert!(html.contains("class=\"todoapp\""));
-
-    // The extracted component JS stayed inside the .wesc mirror — it was NOT
-    // scattered next to the source files.
-    assert!(
-        !Path::new("./tests/fixtures/todo-app/todo-app.js").exists(),
-        "extracted JS must not be written next to the source"
-    );
-
-    fs::remove_file(outjs).expect("cleanup outjs");
-}
-
-#[test]
-fn scriptless_component() {
-    // Regression: a component referenced via rel="definition" that has no
-    // top-level <script> (e.g. a styles-only component) previously made the JS
-    // bundler emit an `import` for a .js file that was never written, panicking
-    // with "Module not found". Only components with a script should be imported.
-    let outjs = "./tests/fixtures/scriptless-component/scripts.js";
-
-    let _build_lock = BUILD_LOCK.lock().unwrap();
-    let mut output = Vec::new();
-    build(
-        BuildOptions {
-            entry_points: vec![String::from(
-                "./tests/fixtures/scriptless-component/index.html",
-            )],
-            outcss: None,
-            outjs: Some(String::from(outjs)),
-            minify: false,
-        },
-        &mut |c: &[u8]| output.extend_from_slice(c),
-    );
-
-    // The bundle was produced (no panic) and carries the scripted component,
-    // while the scriptless one contributed nothing.
-    let js = fs::read_to_string(outjs).expect("bundled JS should be written");
-    assert!(js.contains("customElements.define"));
-
-    // Both components still expanded in the HTML output.
-    let html = String::from_utf8_lossy(&output);
-    assert!(html.contains("class=\"wrap\""));
-    assert!(html.contains("<button part=\"button\">"));
-
-    fs::remove_file(outjs).expect("cleanup outjs");
-}
-
-fn test_file(file_path: &str, outcss: Option<&str>) {
-    test_file_with_outputs(file_path, outcss, None);
-}
-
-fn test_file_with_outputs(file_path: &str, outcss: Option<&str>, outjs: Option<&str>) {
-    test_file_with_outputs_and_cleanup(file_path, outcss, outjs, false);
-}
-
-fn test_file_with_outputs_and_cleanup(
-    file_path: &str,
-    outcss: Option<&str>,
-    outjs: Option<&str>,
-    cleanup_outcss: bool,
-) {
-    let mut output = Vec::new();
-
-    let mut output_handler = |c: &[u8]| {
-        output.extend_from_slice(c);
-    };
-
-    let _build_lock = BUILD_LOCK.lock().unwrap();
-    build(
-        BuildOptions {
-            entry_points: vec![String::from(file_path)],
-            outcss: outcss.map(String::from),
-            outjs: outjs.map(String::from),
-            minify: false,
-        },
-        &mut output_handler,
-    );
-
-    let actual = String::from_utf8_lossy(&output);
-    // println!("\nACTUAL:\n{:}\n", actual);
-    let actual = oxfmt(&actual);
-
-    let dir = Path::new(&file_path).parent().unwrap();
-    let expected_file_path = dir.join("expected.html");
-    let expected = oxfmt(
-        &fs::read_to_string(expected_file_path).expect("Should have been able to read the file"),
-    );
-
-    assert_eq!(actual, expected);
-
-    if let Some(outcss) = outcss {
-        let expected_css_file_path = dir.join("expected.css");
-        let expected_css = oxfmt(
-            &fs::read_to_string(expected_css_file_path)
-                .expect("Should have been able to read the file"),
+    let mut html = Vec::new();
+    {
+        let _lock = BUILD_LOCK.lock().unwrap();
+        build(
+            BuildOptions {
+                entry_points: vec![entry.to_string_lossy().into_owned()],
+                outcss: css_path.as_deref().map(path_string),
+                outjs: js_path.as_deref().map(path_string),
+                minify,
+            },
+            &mut |chunk: &[u8]| html.extend_from_slice(chunk),
         );
+    }
 
-        let actual_css_file_path = Path::new(outcss);
-        let actual_css = oxfmt(
-            &fs::read_to_string(actual_css_file_path)
-                .expect("Should have been able to read the file"),
-        );
+    Output {
+        html: String::from_utf8_lossy(&html).into_owned(),
+        css: css_path.map(read_and_remove),
+        js: js_path.map(read_and_remove),
+    }
+}
 
-        assert_eq!(actual_css, expected_css);
+fn temp_path(ext: &str) -> PathBuf {
+    let seq = OUTPUT_SEQ.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("wesc-test-{}-{seq}.{ext}", std::process::id()))
+}
 
-        if cleanup_outcss {
-            fs::remove_file(actual_css_file_path)
-                .expect("Should have been able to remove the file");
+fn path_string(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+fn read(path: impl AsRef<Path>) -> String {
+    let path = path.as_ref();
+    fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+}
+
+fn read_and_remove(path: PathBuf) -> String {
+    let contents = read(&path);
+    let _ = fs::remove_file(&path);
+    contents
+}
+
+#[derive(Clone, Copy)]
+enum Lang {
+    Html,
+    Css,
+    Js,
+}
+
+impl Lang {
+    /// `oxfmt` picks its language from the (virtual) file name.
+    fn stdin_filepath(self) -> &'static str {
+        match self {
+            Lang::Html => "index.html",
+            Lang::Css => "index.css",
+            Lang::Js => "index.js",
         }
     }
-
-    if let Some(outjs) = outjs {
-        let expected_js_file_path = dir.join("expected.js");
-        let expected_js = oxfmt_for(
-            &fs::read_to_string(expected_js_file_path)
-                .expect("Should have been able to read the file"),
-            "index.js",
-        );
-
-        let actual_js_file_path = Path::new(outjs);
-        let actual_js = oxfmt_for(
-            &fs::read_to_string(actual_js_file_path)
-                .expect("Should have been able to read the file"),
-            "index.js",
-        );
-
-        assert_eq!(actual_js, expected_js);
-        fs::remove_file(actual_js_file_path).expect("Should have been able to remove the file");
-    }
 }
 
-fn oxfmt(file_contents: &str) -> String {
-    oxfmt_for(file_contents, "index.html")
-}
-
-/// Resolve the `oxfmt` formatter.
-///
-/// `oxfmt` is the oxc JS/TS formatter, installed via npm (see `package.json`).
-/// It has no Rust crate, so it can't be a Cargo dev-dependency. Prefer the
-/// copy installed in the workspace `node_modules/.bin` (so `cargo test` works
-/// after `npm install` without a global install), and fall back to `PATH`.
-/// Note: `oxfmt` is a Node CLI, so `node` must be available either way.
-fn oxfmt_command() -> Command {
-    let local = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../node_modules/.bin/oxfmt");
-
-    if local.exists() {
+/// Format `source` with `oxfmt` (the oxc formatter, installed via npm — see
+/// `package.json`). It has no Rust crate, so it can't be a Cargo dev-dependency;
+/// prefer the workspace `node_modules/.bin` copy (so `cargo test` works after
+/// `npm install` without a global install) and fall back to `PATH`. `oxfmt` is a
+/// Node CLI, so `node` must be available either way.
+fn oxfmt(source: &str, lang: Lang) -> String {
+    let local = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../node_modules/.bin/oxfmt");
+    let mut command = if local.exists() {
         Command::new(local)
     } else {
         Command::new("oxfmt")
-    }
-}
+    };
 
-fn oxfmt_for(file_contents: &str, file_path: &str) -> String {
-    let mut child = oxfmt_command()
+    let mut child = command
         .arg("--stdin-filepath")
-        .arg(file_path)
+        .arg(lang.stdin_filepath())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .expect("Failed to spawn child process");
+        .expect("failed to spawn oxfmt");
 
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(file_contents.as_bytes())
-            .expect("Failed to write to stdin");
-    }
+    child
+        .stdin
+        .take()
+        .expect("oxfmt stdin")
+        .write_all(source.as_bytes())
+        .expect("failed to write to oxfmt");
 
-    let output = child
-        .wait_with_output()
-        .expect("Failed to wait on child process");
-
-    String::from_utf8_lossy(&output.stdout).to_string()
+    let output = child.wait_with_output().expect("failed to wait for oxfmt");
+    String::from_utf8_lossy(&output.stdout).into_owned()
 }
