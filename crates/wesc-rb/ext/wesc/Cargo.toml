@@ -24,6 +24,9 @@ crate-type = ["cdylib"]
 # when built outside the repo (cross-compiled release gems and `gem install`
 # from source both fetch it from crates.io). Inside this monorepo the root
 # Cargo.toml's `[patch.crates-io]` redirects it to the local crates/wesc, so
-# `rake compile` builds against the in-tree core.
-wesc = "0.5.0"
+# `rake compile` builds against the in-tree core. This requirement must track
+# the core crate's version (the marker keeps release-please bumping it in
+# lockstep); otherwise the patched local 0.x core fails to satisfy it and the
+# whole workspace stops resolving.
+wesc = "0.6.0" # x-release-please-version
 magnus = "0.7"
