@@ -107,8 +107,13 @@ jobs:
           # Resolve the package directly from the dist repo as a VCS repository so
           # the full chain (composer.json -> tag/version -> binary asset -> load)
           # is exercised before the package is on Packagist.
-          pie repository:add vcs "https://github.com/${DIST_REPO}.git"
-          pie install "luwes/wesc:${VERSION}"
+          #
+          # Run both pie commands under sudo: installing the .so into the system
+          # PHP's extension dir needs root, and PIE refuses to self-elevate in a
+          # non-interactive shell. Using sudo for both also keeps PIE's
+          # per-target config (where the VCS repo is registered) consistent.
+          sudo pie repository:add vcs "https://github.com/${DIST_REPO}.git"
+          sudo pie install "luwes/wesc:${VERSION}"
           # Prove the extension is registered and its functions exist.
           php -m | grep -i '^wesc_php$'
           php -r 'exit(function_exists("wesc_build") && function_exists("wesc_build_stream") ? 0 : 1);'
