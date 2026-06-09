@@ -52,6 +52,13 @@
 
 
 
+## [0.6.0](https://github.com/luwes/wesc/compare/wesc-v0.5.0...wesc-v0.6.0) (2026-06-09)
+
+
+### Miscellaneous Chores
+
+* **wesc:** Synchronize wesc versions
+
 ## [0.3.3](https://github.com/luwes/wesc/compare/v0.3.2...v0.3.3) (2023-10-14)
 
 
@@ -124,6 +131,3 @@
 ### Features
 
 * add react module, add unshim ([fc4efee](https://github.com/luwes/wesc/commit/fc4efee9cc2f9cd7e2b033e4e0a93652052f6546))
-
-
-
