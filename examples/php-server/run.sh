@@ -12,8 +12,8 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$here/../.." && pwd)"
 
-echo "building the wesc PHP extension (cargo build -p wesc-php --release)…"
-cargo build -p wesc-php --release --manifest-path "$repo_root/Cargo.toml"
+echo "building the wesc PHP extension (cargo build -p wesc_php --release)…"
+cargo build -p wesc_php --release --manifest-path "$repo_root/Cargo.toml"
 
 # The shared object name is platform-specific.
 case "$(uname -s)" in

@@ -1,5 +1,10 @@
 [package]
-name = "wesc-php"
+# The crate/package name is also the PHP module name ext-php-rs registers (it
+# uses CARGO_PKG_NAME). PHP/PIE extension names must match
+# `^[A-Za-z][A-Za-z0-9_]+$` (no hyphens), and the bare `wesc` name is taken by
+# the core crate, so this is `wesc_php`. The compiled artifact is still
+# `libwesc_php.{so,dylib}` (cargo normalises `-`/`_` the same way).
+name = "wesc_php"
 version = "0.5.0"
 authors = ["Wesley Luyten <me@wesleyluyten.com>"]
 edition = "2021"

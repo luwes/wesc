@@ -7,7 +7,7 @@ members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php
 # `cargo build` / `cargo test` at the root doesn't try to compile them: the PHP
 # extension needs PHP dev headers (php-config) and libclang, and the Ruby
 # extension needs Ruby dev headers and libclang. Build the PHP extension with
-# `cargo build -p wesc-php`; the Ruby extension is a loadable extension that
+# `cargo build -p wesc_php`; the Ruby extension is a loadable extension that
 # links against the host Ruby at load time, so build it with `rake compile` in
 # `crates/wesc-rb` (a plain `cargo build -p wesc-rb` won't link standalone, but
 # `cargo check -p wesc-rb` typechecks it). The dedicated `.github/workflows/

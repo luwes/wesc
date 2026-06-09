@@ -20,8 +20,8 @@
     "build": "npm run build --workspaces --if-present",
     "build:native": "npm run build:native --workspace=wesc",
     "build:native:debug": "npm run build:native:debug --workspace=wesc",
-    "build:php": "cargo build -p wesc-php --release",
-    "build:php:debug": "cargo build -p wesc-php",
+    "build:php": "cargo build -p wesc_php --release",
+    "build:php:debug": "cargo build -p wesc_php",
     "dev": "wet serve --cors --redirect :packages/dom/examples/"
   },
   "devDependencies": {

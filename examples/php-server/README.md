@@ -14,7 +14,7 @@ the browser starts rendering before the build finishes.
 
 Then open <http://localhost:3000>. Stop the server with `Ctrl+C`.
 
-`run.sh` builds the native `wesc` extension (`cargo build -p wesc-php --release`,
+`run.sh` builds the native `wesc` extension (`cargo build -p wesc_php --release`,
 ~30s the first time) and launches `server.php` with it loaded
 (`php -d extension=…`). The prerequisites are:
 
@@ -28,7 +28,7 @@ Then open <http://localhost:3000>. Stop the server with `Ctrl+C`.
   object:
 
   ```sh
-  cargo build -p wesc-php --release
+  cargo build -p wesc_php --release
   php -d extension="$PWD/target/release/libwesc_php.so" \
       examples/php-server/server.php
   ```

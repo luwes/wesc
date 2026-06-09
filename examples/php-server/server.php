@@ -29,7 +29,7 @@ declare(strict_types=1);
  * the builds; the cached assets are served straight from memory.
  */
 
-if (!extension_loaded('wesc-php')) {
+if (!extension_loaded('wesc_php')) {
     fwrite(STDERR, <<<MSG
         The native `wesc` extension is not loaded.
 
@@ -39,7 +39,7 @@ if (!extension_loaded('wesc-php')) {
 
         Or build it yourself and load the shared object explicitly:
 
-            cargo build -p wesc-php --release
+            cargo build -p wesc_php --release
             php -d extension=\$PWD/target/release/libwesc_php.so \\
                 examples/php-server/server.php
 

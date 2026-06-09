@@ -4634,14 +4634,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wesc-php"
-version = "0.5.0"
-dependencies = [
- "ext-php-rs",
- "wesc",
-]
-
-[[package]]
 name = "wesc-py"
 version = "0.5.0"
 dependencies = [
@@ -4654,6 +4646,14 @@ name = "wesc-rb"
 version = "0.5.0"
 dependencies = [
  "magnus",
+ "wesc",
+]
+
+[[package]]
+name = "wesc_php"
+version = "0.5.0"
+dependencies = [
+ "ext-php-rs",
  "wesc",
 ]
 

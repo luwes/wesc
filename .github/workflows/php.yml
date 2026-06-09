@@ -59,7 +59,7 @@ jobs:
           targets: ${{ matrix.platform.target }}
 
       - name: Build extension
-        run: cargo build -p wesc-php --release
+        run: cargo build -p wesc_php --release
 
       - name: Smoke test
         run: |
