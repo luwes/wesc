@@ -32,6 +32,10 @@ jobs:
       gem_release: ${{ steps.release.outputs['crates/wesc-rb--release_created'] }}
       crate_release: ${{ steps.release.outputs['crates/wesc--release_created'] }}
       version: ${{ steps.release.outputs['packages/wesc--version'] }}
+      # PHP: gate the prebuilt-extension jobs, and carry the plain version used
+      # for the dist-repo tag/release + the PIE asset names (e.g. 0.5.1).
+      php_release: ${{ steps.release.outputs['crates/wesc-php--release_created'] }}
+      php_version: ${{ steps.release.outputs['crates/wesc-php--version'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -264,6 +268,162 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
+
+  # ---------------------------------------------------------------------------
+  # PHP: distributed via PIE (https://github.com/php/pie), the official PHP
+  # extension installer, using prebuilt binaries (`download-url-method:
+  # pre-packaged-binary` in crates/wesc-php/composer.json). PIE has no registry
+  # upload of its own — it resolves the package on Packagist, then fetches the
+  # matching binary from the GitHub release whose tag equals the package version,
+  # on the repo Packagist serves the package from.
+  #
+  # Packagist needs a `composer.json` at the *repo root* and *plain* semver tags
+  # (e.g. 0.5.1) — neither of which this polyglot monorepo provides (the
+  # manifest lives under crates/wesc-php/, and release-please tags are namespaced
+  # like wesc-php-v0.5.1). So we mirror crates/wesc-php/ to a small dedicated
+  # distribution repo with the manifest at its root, a plain `<version>` tag, and
+  # a `<version>` release carrying the binaries. Submit that repo to Packagist
+  # once (its composer.json `name` is luwes/wesc), and `pie install luwes/wesc`
+  # resolves there.
+  #
+  # One-time setup to enable these jobs (until then they stay skipped):
+  #   - Create the dist repo (e.g. luwes/wesc-php).
+  #   - Repo variable WESC_PHP_DIST_REPO = "<org>/<repo>" of that dist repo.
+  #   - Repo secret   WESC_PHP_DIST_TOKEN = a token with write access to it.
+  #   - Submit https://github.com/<org>/<repo> to Packagist (auto-updates after).
+  # ---------------------------------------------------------------------------
+
+  # Mirror crates/wesc-php/ to the dist repo, tag the plain `<version>`, and open
+  # the release that the per-platform binaries attach to.
+  publish-php-split:
+    name: php split -> dist repo
+    needs: release-please
+    if: ${{ needs.release-please.outputs.php_release == 'true' && vars.WESC_PHP_DIST_REPO != '' }}
+    runs-on: ubuntu-latest
+    env:
+      DIST_REPO: ${{ vars.WESC_PHP_DIST_REPO }}
+      DIST_TOKEN: ${{ secrets.WESC_PHP_DIST_TOKEN }}
+      VERSION: ${{ needs.release-please.outputs.php_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Snapshot just the consumer-facing files (manifest + IDE stubs + README)
+      # onto the dist repo's history, then tag the plain version. The Rust build
+      # files are intentionally left out: the dist repo is for PIE/Packagist, and
+      # the crate's `wesc = { path = "../wesc" }` dep can't build standalone there.
+      - name: Mirror to dist repo and tag
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          remote="https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git"
+          git clone "$remote" dist || { mkdir dist && (cd dist && git init -b main); }
+          cd dist
+          git checkout main 2>/dev/null || git checkout -b main
+          # Replace tracked content with the current snapshot.
+          git ls-files -z | xargs -0 -r rm -f
+          cp ../crates/wesc-php/composer.json .
+          cp ../crates/wesc-php/README.md .
+          cp -R ../crates/wesc-php/stubs .
+          git add -A
+          git commit -m "wesc_php ${VERSION}" || echo "nothing to commit"
+          git tag -f "${VERSION}"
+          git push "$remote" main
+          git push -f "$remote" "refs/tags/${VERSION}"
+
+      # The release must exist before the matrix jobs upload assets to it.
+      - name: Create the dist release
+        env:
+          GH_TOKEN: ${{ secrets.WESC_PHP_DIST_TOKEN }}
+        run: |
+          gh release create "${VERSION}" --repo "${DIST_REPO}" --title "${VERSION}" \
+            --notes "Prebuilt PIE binaries for the wesc_php PHP extension ${VERSION}." \
+            || gh release edit "${VERSION}" --repo "${DIST_REPO}" --draft=false
+
+  # Build the native extension for each PHP version/platform and attach each as a
+  # PIE-named archive to the dist repo's release. Asset names MUST match PIE's
+  # convention exactly:
+  #   php_<ext>-<version>_php<maj.min>-<arch>-<os>-<libc>-nts.zip
+  # (lowercased; arch arm64/x86_64; macOS libc resolves to bsdlibc). NTS only —
+  # the bundler keeps a process-global cache, so ZTS is unsupported (see
+  # support-zts:false in composer.json).
+  publish-php:
+    name: php ext - php${{ matrix.php }} ${{ matrix.platform.target }}
+    needs: [release-please, publish-php-split]
+    if: ${{ needs.release-please.outputs.php_release == 'true' && vars.WESC_PHP_DIST_REPO != '' }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # PIE installs the binary matching the user's exact PHP minor version.
+        php: ['8.1', '8.2', '8.3', '8.4']
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            arch: x86_64
+            os: linux
+            libc: glibc
+            lib: libwesc_php.so
+          # Native arm64 Linux runner (no cross-compile).
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+            os: linux
+            libc: glibc
+            lib: libwesc_php.so
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            arch: arm64
+            os: darwin
+            libc: bsdlibc
+            lib: libwesc_php.dylib
+          # x86_64 cross-compiles on the arm64 runner; the extension uses
+          # `-undefined dynamic_lookup` (see build.rs) so it never links against
+          # a specific libphp, which makes the cross-build straightforward.
+          - runner: macos-14
+            target: x86_64-apple-darwin
+            arch: x86_64
+            os: darwin
+            libc: bsdlibc
+            lib: libwesc_php.dylib
+    env:
+      DIST_REPO: ${{ vars.WESC_PHP_DIST_REPO }}
+      VERSION: ${{ needs.release-please.outputs.php_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Provides php-config (dev headers) for the requested version, NTS.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+
+      - name: Install libclang (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Build extension
+        run: cargo build -p wesc_php --release --target ${{ matrix.platform.target }}
+
+      - name: Package for PIE
+        shell: bash
+        run: |
+          asset="php_wesc_php-${VERSION}_php${{ matrix.php }}-${{ matrix.platform.arch }}-${{ matrix.platform.os }}-${{ matrix.platform.libc }}-nts.zip"
+          workdir="$(mktemp -d)"
+          # PIE expects the shared object inside the archive to be named
+          # `<extension-name>.so` (PHP loads `.so` extensions even on macOS).
+          cp "target/${{ matrix.platform.target }}/release/${{ matrix.platform.lib }}" "$workdir/wesc_php.so"
+          (cd "$workdir" && zip -q "$asset" wesc_php.so)
+          mv "$workdir/$asset" "$asset"
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+
+      - name: Attach to the dist release
+        env:
+          GH_TOKEN: ${{ secrets.WESC_PHP_DIST_TOKEN }}
+        run: gh release upload "${VERSION}" "$ASSET" --repo "${DIST_REPO}" --clobber
 
   # ---------------------------------------------------------------------------
   # Ruby: build precompiled native gems (per platform, via rb-sys-dock) plus a

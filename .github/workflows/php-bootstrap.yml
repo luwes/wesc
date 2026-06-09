@@ -1,0 +1,128 @@
+name: PHP bootstrap (manual)
+
+# One-off helper to validate the PIE distribution chain end-to-end BEFORE the
+# first automated release — and without needing Packagist yet.
+#
+# It does exactly what the release jobs in cd.yml do (mirror crates/wesc-php to
+# the dist repo, tag a plain `<version>`, cut a release, attach a binary), but
+# for a single throwaway version and a single platform (this runner: x86_64
+# Linux/glibc). It then proves the whole chain works by installing the extension
+# with PIE — resolving the package straight from the dist repo as a VCS
+# repository (so Packagist isn't required) — and loading it.
+#
+# Requires the same configuration as the release jobs:
+#   - repo variable WESC_PHP_DIST_REPO  = "<org>/<repo>" (e.g. luwes/wesc-php)
+#   - repo secret   WESC_PHP_DIST_TOKEN = a token with Contents:write on it
+#
+# Run it from the Actions tab ("Run workflow"). After a green run, delete the
+# throwaway tag/release from the dist repo (commands are printed in the job
+# summary) so your first real release is clean.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Throwaway version to tag/release on the dist repo (plain semver, e.g. 0.0.1).'
+        required: true
+        default: '0.0.1'
+      php-version:
+        description: 'PHP version to build against and validate the install with.'
+        required: true
+        default: '8.3'
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-and-validate:
+    # Skips unless the dist repo is configured (same gate as the release jobs).
+    if: ${{ vars.WESC_PHP_DIST_REPO != '' }}
+    runs-on: ubuntu-latest
+    env:
+      DIST_REPO: ${{ vars.WESC_PHP_DIST_REPO }}
+      DIST_TOKEN: ${{ secrets.WESC_PHP_DIST_TOKEN }}
+      VERSION: ${{ inputs.version }}
+      PHP_MM: ${{ inputs.php-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+
+      - name: Install PIE
+        run: |
+          set -euo pipefail
+          curl -fL --output /tmp/pie.phar \
+            https://github.com/php/pie/releases/latest/download/pie.phar
+          sudo mv /tmp/pie.phar /usr/local/bin/pie
+          sudo chmod +x /usr/local/bin/pie
+          pie --version
+
+      - name: Install libclang (for bindgen)
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: 'Build extension (this runner: x86_64 linux glibc)'
+        run: cargo build -p wesc_php --release
+
+      - name: Mirror crates/wesc-php to the dist repo + tag
+        run: |
+          set -euo pipefail
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          remote="https://x-access-token:${DIST_TOKEN}@github.com/${DIST_REPO}.git"
+          git clone "$remote" dist || { mkdir dist && (cd dist && git init -b main); }
+          cd dist
+          git checkout main 2>/dev/null || git checkout -b main
+          git ls-files -z | xargs -0 -r rm -f
+          cp ../crates/wesc-php/composer.json .
+          cp ../crates/wesc-php/README.md .
+          cp -R ../crates/wesc-php/stubs .
+          git add -A
+          git commit -m "bootstrap wesc_php ${VERSION}" || echo "nothing to commit"
+          git tag -f "${VERSION}"
+          git push "$remote" main
+          git push -f "$remote" "refs/tags/${VERSION}"
+
+      - name: Package + publish the binary to a dist release
+        env:
+          GH_TOKEN: ${{ secrets.WESC_PHP_DIST_TOKEN }}
+        run: |
+          set -euo pipefail
+          asset="php_wesc_php-${VERSION}_php${PHP_MM}-x86_64-linux-glibc-nts.zip"
+          workdir="$(mktemp -d)"
+          # PIE expects the shared object inside the archive to be `<ext-name>.so`.
+          cp target/release/libwesc_php.so "$workdir/wesc_php.so"
+          (cd "$workdir" && zip -q "$asset" wesc_php.so)
+          gh release create "${VERSION}" --repo "${DIST_REPO}" --title "${VERSION}" \
+            --notes "Throwaway bootstrap release for PIE validation." \
+            || gh release edit "${VERSION}" --repo "${DIST_REPO}" --draft=false
+          gh release upload "${VERSION}" "$workdir/$asset" --repo "${DIST_REPO}" --clobber
+
+      - name: Validate `pie install` from the dist repo (no Packagist needed)
+        run: |
+          set -euo pipefail
+          # Resolve the package directly from the dist repo as a VCS repository so
+          # the full chain (composer.json -> tag/version -> binary asset -> load)
+          # is exercised before the package is on Packagist.
+          pie repository:add vcs "https://github.com/${DIST_REPO}.git"
+          pie install "luwes/wesc:${VERSION}"
+          # Prove the extension is registered and its functions exist.
+          php -m | grep -i '^wesc_php$'
+          php -r 'exit(function_exists("wesc_build") && function_exists("wesc_build_stream") ? 0 : 1);'
+          echo "OK: pie install + extension load verified"
+
+      - name: Cleanup hint
+        if: always()
+        run: |
+          {
+            echo "### Bootstrap complete"
+            echo ""
+            echo "To remove the throwaway tag/release from the dist repo before your first real release:"
+            echo ""
+            echo '```sh'
+            echo "gh release delete ${VERSION} --repo ${DIST_REPO} --cleanup-tag --yes"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

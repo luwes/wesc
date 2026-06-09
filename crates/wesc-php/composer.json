@@ -1,0 +1,31 @@
+{
+  "name": "luwes/wesc",
+  "description": "PHP extension bindings for the wesc streaming HTML/web-component bundler",
+  "type": "php-ext",
+  "keywords": [
+    "wesc",
+    "web-components",
+    "ssr",
+    "bundler",
+    "extension"
+  ],
+  "homepage": "https://github.com/luwes/wesc",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Wesley Luyten",
+      "email": "me@wesleyluyten.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.1"
+  },
+  "php-ext": {
+    "extension-name": "wesc_php",
+    "support-zts": false,
+    "support-nts": true,
+    "download-url-method": [
+      "pre-packaged-binary"
+    ]
+  }
+}

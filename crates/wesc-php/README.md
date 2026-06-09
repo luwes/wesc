@@ -5,7 +5,31 @@ HTML/web-component bundler. The Rust core runs in-process — no subprocess, no
 WASM — so you can build and server-render web components straight from a PHP
 backend (plain PHP, Laravel, Symfony, Slim, the built-in dev server, …).
 
-The extension targets PHP 8.1+.
+The extension targets PHP 8.1+ (non-thread-safe builds).
+
+## Install
+
+The recommended way to install is with [PIE](https://github.com/php/pie), the
+official PHP extension installer (the successor to PECL). PIE downloads a
+prebuilt binary matching your PHP version and platform from GitHub releases —
+no Rust toolchain or compilation required:
+
+```sh
+pie install luwes/wesc
+```
+
+Prebuilt binaries are published for PHP 8.1–8.4 (NTS) on:
+
+| OS            | Architectures   |
+| ------------- | --------------- |
+| Linux (glibc) | x86_64, arm64   |
+| macOS         | arm64, x86_64   |
+
+The extension registers itself as `wesc_php`; PIE enables it for you. On a
+platform without a prebuilt binary, [build from source](#building-from-source).
+
+> ZTS (thread-safe) PHP is not supported: the bundler keeps a process-global
+> file/template cache, so builds must be serialized within a process.
 
 ## Usage
 
@@ -66,7 +90,7 @@ Build the extension:
 
 ```sh
 # From the repo root. The shared object lands in target/{debug,release}/.
-cargo build -p wesc-php --release
+cargo build -p wesc_php --release
 ```
 
 The artifact is named per platform:
