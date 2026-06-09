@@ -36,3 +36,31 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+
+## Deploying (Vercel & Cloudflare)
+
+This example uses [`@sveltejs/adapter-auto`](https://kit.svelte.dev/docs/adapter-auto), which automatically selects the right adapter at build time:
+
+- **Vercel** → `adapter-vercel`
+- **Cloudflare Pages** → `adapter-cloudflare`
+
+No adapter changes are needed to support both platforms.
+
+### Cloudflare: `nodejs_compat`
+
+The SvelteKit server bundle imports Node built-ins (e.g. `node:module`, `node:async_hooks`). Cloudflare's Workers runtime only exposes those when the `nodejs_compat` compatibility flag is enabled. Without it, the deploy fails at publish time with:
+
+```
+Error: Failed to publish your Function. Got error: Uncaught Error: No such module "node:module".
+```
+
+This flag is configured in [`wrangler.toml`](./wrangler.toml):
+
+```toml
+name = "sveltekit"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".svelte-kit/cloudflare"
+```
+
+Vercel ignores `wrangler.toml`, so this file only affects Cloudflare deploys.
