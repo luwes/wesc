@@ -106,27 +106,31 @@ jobs:
           if-no-files-found: error
 
   # Publish the platform packages + the main `wesc` package to npm.
+  #
+  # Auth is OIDC Trusted Publishing (no stored token): npm authenticates via the
+  # job's id-token when a trusted publisher is configured on npmjs.com. Each
+  # published package needs its own trusted publisher — the main `wesc` package
+  # AND every @wesc/binding-<triple> package. npm OIDC can't create a package
+  # that doesn't exist yet, so adding a NEW platform triple needs a one-time
+  # manual publish (or token) to bootstrap that package before OIDC takes over.
   publish-wesc:
     name: publish wesc
     runs-on: ubuntu-latest
     needs: [release-please, build]
     if: ${{ needs.release-please.outputs.wesc_release == 'true' }}
     environment: production
-    env:
-      # Token with rights to create new packages — needed to bootstrap the
-      # @wesc/binding-<triple> packages on first publish (OIDC trusted publishing
-      # can't create packages that don't exist yet). Once they exist, this can be
-      # dropped in favour of trusted publishing. Provenance still works via the
-      # job's id-token permission + --provenance.
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    permissions:
+      # OIDC token for npm Trusted Publishing (also drives automatic provenance).
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
-      # Node 24 (latest stable) ships npm 11, required for Trusted Publishing
-      # (OIDC); npm generates provenance automatically when publishing via OIDC.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
+      # Trusted Publishing needs npm >= 11.5.1; pin to latest so it's guaranteed.
+      - run: npm install -g npm@latest
       - run: npm ci
 
       # Collect every platform binary into npm/<triple>/ for prepublish.
@@ -150,21 +154,24 @@ jobs:
         working-directory: packages/wesc
         run: npm publish --provenance --access public
 
-  # Publish the pure-JS `@wesc/dom` package to npm.
+  # Publish the pure-JS `@wesc/dom` package to npm (OIDC Trusted Publishing).
   publish-dom:
     name: publish @wesc/dom
     runs-on: ubuntu-latest
     needs: release-please
     if: ${{ needs.release-please.outputs.dom_release == 'true' }}
     environment: production
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
+      # Trusted Publishing needs npm >= 11.5.1; pin to latest so it's guaranteed.
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm test --workspace=@wesc/dom
 
