@@ -88,6 +88,25 @@ The top-level `<style>` and `<script>` (outside the template) provide
 host styles and the upgrade script for the element, and are collected
 into the bundled CSS / JS outputs.
 
+## Benchmarks
+
+The bundler ships with two performance harnesses:
+
+```sh
+cargo bench -p wesc                                    # detailed measurement (criterion)
+cargo test  -p wesc --release --test perf_guard -- --nocapture   # regression guard
+```
+
+- `benches/bundler.rs` measures time and throughput across a few
+  representative fixtures (a no-op passthrough, the multi-component
+  todo app, a full `blog` site with 100 posts, and a ~750 KB
+  real-world page).
+- `tests/perf_guard.rs` is the CI guard: it asserts each scenario
+  stays under a wall-clock budget so new features can't silently slow
+  the bundler down. It only enforces in release builds; in debug it
+  just prints timings. Tune with `WESC_PERF_SCALE` (budget multiplier
+  for slower hardware) or disable failures with `WESC_PERF_GUARD=0`.
+
 ## License
 
 MIT

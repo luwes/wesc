@@ -24,4 +24,9 @@ rolldown = "1.0.3"
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
+criterion = "0.5.1"
 pretty_assertions = "1.4.0"
+
+[[bench]]
+name = "bundler"
+harness = false

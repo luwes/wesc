@@ -32,3 +32,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cargo build --release
+
+  perf-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Enforce the bundler performance budgets (see crates/wesc/tests/perf_guard.rs).
+      # Release build so timings reflect optimized performance; the scale gives
+      # headroom for shared CI runners.
+      - run: cargo test -p wesc --release --test perf_guard -- --nocapture
+        env:
+          WESC_PERF_SCALE: '2'
