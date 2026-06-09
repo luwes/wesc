@@ -257,11 +257,13 @@ jobs:
           pattern: wheels-*
           merge-multiple: true
           path: dist
+      # The PyPA action performs the PyPI OIDC token exchange automatically when
+      # `id-token: write` is set and a trusted publisher is configured; it uploads
+      # everything in ./dist (the maturin wheels + sdist).
       - name: Publish
-        uses: PyO3/maturin-action@v1
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          command: upload
-          args: --non-interactive --skip-existing dist/*
+          skip-existing: true
 
   # ---------------------------------------------------------------------------
   # Ruby: build precompiled native gems (per platform, via rb-sys-dock) plus a
