@@ -1,6 +1,6 @@
 [package]
 name = "wesc-rb"
-version = "0.1.0"
+version = "0.5.0" # x-release-please-version
 authors = ["Wesley Luyten <me@wesleyluyten.com>"]
 edition = "2021"
 license = "MIT"
@@ -20,6 +20,10 @@ name = "wesc_rb"
 crate-type = ["cdylib"]
 
 [dependencies]
-# The bundler core, up at crates/wesc (this crate lives at crates/wesc-rb/ext/wesc).
-wesc = { path = "../../../wesc" }
+# Depend on the published bundler core by version so the gem is self-contained
+# when built outside the repo (cross-compiled release gems and `gem install`
+# from source both fetch it from crates.io). Inside this monorepo the root
+# Cargo.toml's `[patch.crates-io]` redirects it to the local crates/wesc, so
+# `rake compile` builds against the in-tree core.
+wesc = "0.5.0"
 magnus = "0.7"

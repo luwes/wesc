@@ -8,7 +8,16 @@
     {
       "type": "linked-versions",
       "groupName": "wesc",
-      "components": ["wesc", "dom"]
+      "components": [
+        "wesc",
+        "dom",
+        "wesc-core",
+        "wesc-node",
+        "wesc-py",
+        "wesc-php",
+        "wesc-go",
+        "wesc-rb"
+      ]
     }
   ],
   "packages": {
@@ -20,6 +29,32 @@
       "release-type": "node",
       "component": "dom",
       "package-name": "@wesc/dom"
+    },
+    "crates/wesc": {
+      "release-type": "rust",
+      "component": "wesc-core"
+    },
+    "crates/wesc-node": {
+      "release-type": "rust",
+      "component": "wesc-node"
+    },
+    "crates/wesc-py": {
+      "release-type": "rust",
+      "component": "wesc-py"
+    },
+    "crates/wesc-php": {
+      "release-type": "rust",
+      "component": "wesc-php"
+    },
+    "crates/wesc-go": {
+      "release-type": "rust",
+      "component": "wesc-go"
+    },
+    "crates/wesc-rb": {
+      "release-type": "ruby",
+      "component": "wesc-rb",
+      "version-file": "lib/wesc/version.rb",
+      "extra-files": ["ext/wesc/Cargo.toml"]
     }
   }
 }

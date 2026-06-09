@@ -15,6 +15,14 @@ members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php
 # build with the toolchains CI already provides.
 default-members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-go"]
 
+# The Ruby binding crate (crates/wesc-rb/ext/wesc) depends on the `wesc` core by
+# version (so the published gem can fetch it from crates.io), but in-repo we
+# always want to build against the local core. This redirects that crates.io
+# dependency to the workspace copy; the other binding crates use a plain path
+# dependency and are unaffected.
+[patch.crates-io]
+wesc = { path = "crates/wesc" }
+
 # Optimize the native Node addon for size/speed when built with --release.
 #
 # `lto = "thin"` instead of fat `lto = true`: ThinLTO links the rolldown-heavy

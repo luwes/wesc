@@ -23,8 +23,15 @@ jobs:
     name: release-please
     runs-on: ubuntu-latest
     outputs:
+      # Every package/crate shares one linked version (see
+      # .github/release-please/config.json), so a release bumps them together.
+      # Each `*_release` flag gates the matching publish job below.
       wesc_release: ${{ steps.release.outputs['packages/wesc--release_created'] }}
       dom_release: ${{ steps.release.outputs['packages/dom--release_created'] }}
+      py_release: ${{ steps.release.outputs['crates/wesc-py--release_created'] }}
+      gem_release: ${{ steps.release.outputs['crates/wesc-rb--release_created'] }}
+      crate_release: ${{ steps.release.outputs['crates/wesc--release_created'] }}
+      version: ${{ steps.release.outputs['packages/wesc--version'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -165,3 +172,171 @@ jobs:
       # created.
       - name: Publish
         run: npm publish --workspace=@wesc/dom --provenance --access public
+
+  # ---------------------------------------------------------------------------
+  # Python: build abi3 wheels + sdist with maturin and publish to PyPI via
+  # Trusted Publishing (OIDC). Mirrors the matrix in .github/workflows/python.yml
+  # (which can still build/publish manually); this runs only on a release.
+  # ---------------------------------------------------------------------------
+  python-wheels:
+    name: python wheels - ${{ matrix.platform.target }}
+    needs: release-please
+    if: ${{ needs.release-please.outputs.py_release == 'true' }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: macos-14
+            target: aarch64-apple-darwin
+          - runner: macos-14
+            target: x86_64-apple-darwin
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.platform.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          working-directory: crates/wesc-py
+          manylinux: ${{ contains(matrix.platform.target, 'linux') && 'auto' || '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform.target }}
+          path: crates/wesc-py/dist
+
+  python-sdist:
+    name: python sdist
+    needs: release-please
+    if: ${{ needs.release-please.outputs.py_release == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+          working-directory: crates/wesc-py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: crates/wesc-py/dist
+
+  publish-python:
+    name: publish to PyPI
+    needs: [release-please, python-wheels, python-sdist]
+    if: ${{ needs.release-please.outputs.py_release == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      # Trusted Publishing (OIDC) — no token stored in the repo.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - name: Publish
+        uses: PyO3/maturin-action@v1
+        with:
+          command: upload
+          args: --non-interactive --skip-existing dist/*
+
+  # ---------------------------------------------------------------------------
+  # Ruby: build precompiled native gems (per platform, via rb-sys-dock) plus a
+  # source gem, then push them to RubyGems. Needs the RUBYGEMS_API_KEY secret.
+  # ---------------------------------------------------------------------------
+  publish-gem:
+    name: publish gem - ${{ matrix.platform }}
+    # The gem's Rust ext depends on the `wesc` core crate by version, so the
+    # core must be on crates.io first (publish-crate). Cross-built gems fetch it
+    # there when built outside the workspace.
+    needs: [release-please, publish-crate]
+    if: ${{ needs.release-please.outputs.gem_release == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - x86_64-linux
+          - aarch64-linux
+          - x86_64-darwin
+          - arm64-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oxidize-rb/actions/setup-ruby-and-rust@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          cargo-cache: true
+      # Cross-compile a precompiled gem for the target platform in an
+      # rb-sys-dock container (covers Ruby 3.0–3.3 in one fat gem).
+      - name: Build native gem
+        uses: oxidize-rb/cross-gem-action@v9
+        with:
+          platform: ${{ matrix.platform }}
+          ruby-versions: '3.0,3.1,3.2,3.3'
+          working-directory: crates/wesc-rb
+      - name: Push native gem
+        working-directory: crates/wesc-rb
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          for gem in pkg/*.gem; do
+            gem push "$gem"
+          done
+
+  # Push a plain source gem once (it builds the Rust extension on `gem install`
+  # for platforms without a precompiled build).
+  publish-gem-source:
+    name: publish gem - source
+    needs: [release-please, publish-crate]
+    if: ${{ needs.release-please.outputs.gem_release == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: Build and push source gem
+        working-directory: crates/wesc-rb
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          gem build wesc.gemspec -o pkg/wesc.gem
+          gem push pkg/wesc.gem
+
+  # ---------------------------------------------------------------------------
+  # Rust: publish the bundler core crate to crates.io. The binding crates are
+  # `publish = false`, so only `wesc` is pushed. Needs CARGO_REGISTRY_TOKEN.
+  # ---------------------------------------------------------------------------
+  publish-crate:
+    name: publish wesc crate
+    needs: release-please
+    if: ${{ needs.release-please.outputs.crate_release == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p wesc

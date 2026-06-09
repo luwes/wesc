@@ -1,6 +1,6 @@
 [package]
 name = "wesc-node"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["Wesley Luyten <me@wesleyluyten.com>"]
 edition = "2021"
 license = "MIT"
