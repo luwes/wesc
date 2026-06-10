@@ -35,6 +35,13 @@ jobs:
 
   build-rust:
     runs-on: ubuntu-latest
+    # This job only checks that the workspace compiles in release mode — it
+    # doesn't ship or benchmark anything — so disable LTO (and split into more
+    # codegen units for parallelism) to cut the slow link-time optimization.
+    # Shipped artifacts (cd.yml) and the perf budgets (perf-rust) keep full LTO.
+    env:
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '256'
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
