@@ -58,6 +58,14 @@ jobs:
         with:
           targets: ${{ matrix.platform.target }}
 
+      # Reuse compiled deps across runs. shared-key is per-target (not per PHP
+      # version) since the heavy deps are PHP-independent; it must include the
+      # target so the matrix platforms don't share one cache key.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: phpci-${{ matrix.platform.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Build extension
         run: cargo build -p wesc_php --release
 

@@ -63,6 +63,9 @@ jobs:
           working-directory: crates/wesc-py
           # manylinux build container for portable Linux wheels.
           manylinux: ${{ contains(matrix.platform.target, 'linux') && 'auto' || '' }}
+          # Cache compilation across runs; works inside the manylinux container
+          # (where Swatinem/rust-cache on the runner wouldn't reach).
+          sccache: 'true'
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.platform.target }}

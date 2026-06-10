@@ -85,6 +85,14 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.settings.target }}
+      # Cache compiled deps for the native (non-docker) builds. The docker
+      # Linux builds run cargo inside the napi image, which this runner-side
+      # cache wouldn't reach, so it's skipped there.
+      - name: Cache cargo
+        if: ${{ !matrix.settings.docker }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: node-${{ matrix.settings.target }}
       - name: Install dependencies
         if: ${{ !matrix.settings.docker }}
         run: npm ci
@@ -223,6 +231,8 @@ jobs:
           args: --release --out dist
           working-directory: crates/wesc-py
           manylinux: ${{ contains(matrix.platform.target, 'linux') && 'auto' || '' }}
+          # Cache compilation (works inside the manylinux container too).
+          sccache: 'true'
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.platform.target }}
@@ -410,6 +420,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.platform.target }}
+
+      # shared-key is per-target only: the 4 PHP-version cells on a platform
+      # compile identical (PHP-independent) deps, so they reuse one cache; cargo
+      # rebuilds the PHP-version-specific ext-php-rs crate as needed.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: php-${{ matrix.platform.target }}
 
       - name: Build extension
         run: cargo build -p wesc_php --release --target ${{ matrix.platform.target }}
