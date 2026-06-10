@@ -15,13 +15,73 @@ broader project, see [github.com/luwes/wesc](https://github.com/luwes/wesc).
 - [x] Default and named slots with fallback content
 - [x] Declarative Shadow DOM
 - [x] CSS bundling
-- [x] JS bundling
+- [x] JS bundling (via [rolldown](https://rolldown.rs))
+- [x] TypeScript components (`<script lang="ts">`)
+- [x] Optional minification
 
 ## CLI
 
+The expanded HTML is streamed to **stdout**. Bundled CSS and JS are only
+produced when you ask for them with `--outcss` / `--outjs`, and are
+written to those files (not stdout).
+
 ```sh
+# HTML only, to stdout
 wesc ./index.html > out.html
+
+# HTML to stdout, plus bundled CSS and JS to files
+wesc ./index.html --outcss ./out.css --outjs ./out.js
+
+# Minified assets
+wesc ./index.html --outjs ./out.js --minify
+
+# Run from a specific working directory
+wesc index.html --cwd ./site --outjs ./site/out.js
 ```
+
+```
+Usage: wesc [OPTIONS] <PATH>
+
+Arguments:
+  <PATH>  The path to the entry point file
+
+Options:
+  -o, --outcss <OUTCSS>  The output CSS file
+  -j, --outjs <OUTJS>    The output JS file
+      --cwd <CWD>        Working directory (like rolldown's cwd)
+  -m, --minify           Minify generated assets where supported
+  -h, --help             Print help
+```
+
+## Options
+
+The CLI flags map one-to-one to the library's
+[`BuildOptions`](#library-usage) fields:
+
+| CLI flag             | `BuildOptions` field          | Type             | Description                                                                                                                                   |
+| -------------------- | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<PATH>` (positional)| `entry_points: Vec<String>`   | path(s)          | The entry HTML file. The first entry is the host document that is expanded and streamed out. Required.                                        |
+| `-o`, `--outcss`     | `outcss: Option<String>`      | path             | Write the bundled CSS (every component's top-level `<style>`, concatenated) to this file. Omit to skip CSS bundling.                          |
+| `-j`, `--outjs`      | `outjs: Option<String>`       | path             | Write the bundled JS (every component's top-level `<script>`, bundled with rolldown) to this file. Omit to skip JS bundling.                  |
+| `--cwd`              | `cwd: Option<String>`         | dir              | Working directory, like rolldown's `cwd`. Defaults to the process working directory. See [Working directory](#working-directory).             |
+| `-m`, `--minify`     | `minify: bool`                | flag             | Minify the generated JS/CSS where supported. Defaults to `false`.                                                                             |
+
+### Working directory
+
+`--cwd` (the `cwd` option) controls the directory the build runs from,
+mirroring [rolldown](https://rolldown.rs)'s `cwd`:
+
+- Relative `entry_points`, `outcss`, and `outjs` paths resolve against
+  it (absolute paths are used as-is).
+- The `.wesc` scratch directory is created under it (see
+  [The `.wesc` scratch directory](#the-wesc-scratch-directory)).
+- It is passed through to rolldown, so module ids in the JS bundle stay
+  relative to it.
+
+It defaults to the process working directory, so by default `wesc`
+behaves like any other CLI tool — paths are relative to where you run
+it. Point it elsewhere (e.g. a project root, or a writable build dir
+when the source tree is read-only) when you need to.
 
 ## Syntax
 
@@ -88,6 +148,21 @@ The top-level `<style>` and `<script>` (outside the template) provide
 host styles and the upgrade script for the element, and are collected
 into the bundled CSS / JS outputs.
 
+## CSS & JS output
+
+CSS and JS are emitted as side outputs, independently of the streamed
+HTML, and only when the matching output path is set:
+
+- **CSS** (`--outcss`): each component definition's top-level `<style>`
+  is concatenated into the output file (each unique component once).
+- **JS** (`--outjs`): each component definition's top-level `<script>`
+  is bundled with [rolldown](https://rolldown.rs) into the output file
+  (ES module format). Components register themselves in dependency
+  order — a child custom element is defined before the parent that uses
+  it.
+
+### TypeScript
+
 Add `lang="ts"` (or `lang="tsx"`) to a script to author it in
 TypeScript — rolldown transpiles it (types are stripped, not
 type-checked). Components may import each other with `.js` specifiers
@@ -105,6 +180,40 @@ even when the imported component is TypeScript:
   customElements.define('w-card', WCard);
 </script>
 ```
+
+### The `.wesc` scratch directory
+
+When JS bundling is requested, each component's `<script>` is written to
+a mirror file under a `.wesc/scripts` scratch tree (laid out to match
+the component's path relative to the [`cwd`](#working-directory)), and a
+generated entry imports them for rolldown. The tree is rebuilt on every
+build, so stale scripts from removed components never linger.
+
+`.wesc` is build scratch — add it to your `.gitignore`. HTML-only builds
+(no `--outjs`) never create it.
+
+## Library usage
+
+```rust
+use wesc::{build, BuildOptions};
+
+let options = BuildOptions {
+    entry_points: vec!["./index.html".to_string()],
+    outcss: Some("./out.css".to_string()),
+    outjs: Some("./out.js".to_string()),
+    cwd: None, // defaults to the process working directory
+    minify: false,
+};
+
+// The expanded HTML is delivered to the handler in streaming chunks.
+build(options, &mut |chunk: &[u8]| {
+    // write the chunk to a file, an HTTP response, stdout, ...
+    print!("{}", String::from_utf8_lossy(chunk));
+});
+```
+
+Each call starts from empty, thread-local caches, so independent builds
+can run concurrently on different threads without an external lock.
 
 ## Benchmarks
 
