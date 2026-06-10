@@ -192,12 +192,12 @@ ${p.tags.map((t) => `            <li><a href="/tags/${t}" rel="tag">#${t}</a></l
 // blog-list (with its own named + default slots) that in turn holds the posts —
 // exercising named slots on a w-trim component and several levels of slotted
 // component nesting.
-const html = `<link rel="definition" name="w-layout" href="./w-layout.html">
-<link rel="definition" name="side-bar" href="./side-bar.html">
-<link rel="definition" name="blog-list" href="./blog-list.html">
-<link rel="definition" name="blog-post" href="./blog-post.html">
-<link rel="definition" name="author-card" href="./author-card.html">
-<link rel="definition" name="read-time" href="./read-time.html">
+const html = `<link rel="definition" name="w-layout" href="./components/layout/w-layout.html">
+<link rel="definition" name="side-bar" href="./components/sidebar/side-bar.html">
+<link rel="definition" name="blog-list" href="./components/post/blog-list.html">
+<link rel="definition" name="blog-post" href="./components/post/blog-post.html">
+<link rel="definition" name="author-card" href="./components/post/author-card.html">
+<link rel="definition" name="read-time" href="./components/post/read-time.html">
 
 <template>
   <w-layout w-trim>

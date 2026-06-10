@@ -1,4 +1,4 @@
-//#region .wesc/scripts/tests/fixtures/blog/nav-menu.js
+//#region .wesc/scripts/components/layout/nav-menu.js
 var NavMenu = class extends HTMLElement {
   connectedCallback() {
     const burger = this.querySelector('.nav__burger');
@@ -12,7 +12,7 @@ var NavMenu = class extends HTMLElement {
 };
 customElements.define('nav-menu', NavMenu);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/blog/site-header.js
+//#region .wesc/scripts/components/layout/site-header.js
 var SiteHeader = class extends HTMLElement {
   connectedCallback() {
     const header = this.querySelector('.masthead');
@@ -30,7 +30,7 @@ var SiteHeader = class extends HTMLElement {
 };
 customElements.define('site-header', SiteHeader);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/blog/w-layout.js
+//#region .wesc/scripts/components/layout/w-layout.js
 var WLayout = class extends HTMLElement {
   connectedCallback() {
     this.dataset.enhanced = 'true';
@@ -47,7 +47,7 @@ document.addEventListener('click', (event) => {
   localStorage.setItem('theme', next);
 });
 //#endregion
-//#region .wesc/scripts/tests/fixtures/blog/newsletter-box.js
+//#region .wesc/scripts/components/sidebar/newsletter-box.js
 var NewsletterBox = class extends HTMLElement {
   connectedCallback() {
     const form = this.querySelector('form');
@@ -66,11 +66,11 @@ var NewsletterBox = class extends HTMLElement {
 };
 customElements.define('newsletter-box', NewsletterBox);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/blog/side-bar.js
+//#region .wesc/scripts/components/sidebar/side-bar.js
 var SideBar = class extends HTMLElement {};
 customElements.define('side-bar', SideBar);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/blog/blog-post.js
+//#region .wesc/scripts/components/post/blog-post.js
 var BlogPost = class extends HTMLElement {
   static get observedAttributes() {
     return ['featured'];
