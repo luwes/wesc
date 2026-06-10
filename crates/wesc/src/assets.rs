@@ -73,6 +73,15 @@ pub(crate) fn extract_and_bundle_js(
     minify: bool,
     host_file_path: String,
 ) {
+    // The per-component mirror `.js` files and the bundle they feed only exist
+    // to produce `outjs`. When no JS bundle was requested there is nothing to
+    // do — and skipping it keeps HTML-only builds from touching the shared
+    // `./.wesc` scratch directory at all, so they can run concurrently without
+    // any external lock.
+    let Some(outjs) = outjs else {
+        return;
+    };
+
     let dep_graph = dep_graph.lock().unwrap();
     let dependencies = dep_graph
         .arena
@@ -87,71 +96,68 @@ pub(crate) fn extract_and_bundle_js(
 
     for dependency in dependencies.iter() {
         let dep_file_path = dependency.get().file_path.clone();
-        let outjs = mirror_js_path(Path::new(&dep_file_path));
+        let mirror_path = mirror_js_path(Path::new(&dep_file_path));
 
-        if outjs.exists() {
-            remove_file(&outjs).unwrap();
+        if mirror_path.exists() {
+            remove_file(&mirror_path).unwrap();
         }
 
         // Only components with a top-level <script> produce a mirror .js, and
         // so only those should be imported by the generated entry below.
-        if append_top_level_element(&dep_file_path, "script", &outjs) {
+        if append_top_level_element(&dep_file_path, "script", &mirror_path) {
             scripted_deps.insert(dep_file_path);
         }
     }
 
-    if let Some(outjs) = outjs {
-        if Path::new(&outjs).exists() {
-            remove_file(&outjs).unwrap();
-        }
-
-        let entry_path = Path::new("./.wesc/scripts").join("__entry.js");
-        if entry_path.exists() {
-            remove_file(&entry_path).unwrap();
-        }
-        // Make sure the entry exists even when no component has a script, so
-        // the bundler always has a valid (possibly empty) input.
-        append_data_to_file(&entry_path, b"").unwrap();
-
-        for dependency in dependencies.iter() {
-            let parent_file_path = dep_graph
-                .get_parent_file_path(&dependency.get().file_path)
-                .unwrap();
-
-            // Skip definitions without a top-level <script>: they produce no
-            // mirror .js, so importing them would make the bundler fail with
-            // "Module not found".
-            if parent_file_path == host_file_path
-                && scripted_deps.contains(&dependency.get().file_path)
-            {
-                let dep_file_path = Path::new(&dependency.get().file_path);
-                let script_path = mirror_js_path(dep_file_path);
-                let script_path = script_path
-                    .strip_prefix("./.wesc/scripts")
-                    .unwrap_or(&script_path);
-                let import = format!("import './{}';\n", script_path.to_string_lossy());
-                append_data_to_file(&entry_path, import.as_bytes()).unwrap();
-            }
-        }
-
-        let mut bundler_options = BundlerOptions {
-            input: Some(vec![InputItem::from(
-                entry_path.to_string_lossy().to_string(),
-            )]),
-            file: Some(outjs),
-            format: Some(OutputFormat::Esm),
-            ..BundlerOptions::default()
-        };
-
-        if minify {
-            bundler_options.minify = Some(RawMinifyOptions::Bool(true));
-        }
-
-        let mut bundler = Bundler::new(bundler_options).unwrap();
-
-        let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
-        runtime.block_on(bundler.write()).unwrap();
+    if Path::new(&outjs).exists() {
+        remove_file(&outjs).unwrap();
     }
+
+    let entry_path = Path::new("./.wesc/scripts").join("__entry.js");
+    if entry_path.exists() {
+        remove_file(&entry_path).unwrap();
+    }
+    // Make sure the entry exists even when no component has a script, so the
+    // bundler always has a valid (possibly empty) input.
+    append_data_to_file(&entry_path, b"").unwrap();
+
+    for dependency in dependencies.iter() {
+        let parent_file_path = dep_graph
+            .get_parent_file_path(&dependency.get().file_path)
+            .unwrap();
+
+        // Skip definitions without a top-level <script>: they produce no
+        // mirror .js, so importing them would make the bundler fail with
+        // "Module not found".
+        if parent_file_path == host_file_path && scripted_deps.contains(&dependency.get().file_path)
+        {
+            let dep_file_path = Path::new(&dependency.get().file_path);
+            let script_path = mirror_js_path(dep_file_path);
+            let script_path = script_path
+                .strip_prefix("./.wesc/scripts")
+                .unwrap_or(&script_path);
+            let import = format!("import './{}';\n", script_path.to_string_lossy());
+            append_data_to_file(&entry_path, import.as_bytes()).unwrap();
+        }
+    }
+
+    let mut bundler_options = BundlerOptions {
+        input: Some(vec![InputItem::from(
+            entry_path.to_string_lossy().to_string(),
+        )]),
+        file: Some(outjs),
+        format: Some(OutputFormat::Esm),
+        ..BundlerOptions::default()
+    };
+
+    if minify {
+        bundler_options.minify = Some(RawMinifyOptions::Bool(true));
+    }
+
+    let mut bundler = Bundler::new(bundler_options).unwrap();
+
+    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+    runtime.block_on(bundler.write()).unwrap();
 }
 
 /// Map a component file path to its location in the `./.wesc/scripts` mirror tree.

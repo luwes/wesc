@@ -52,5 +52,7 @@ Then open <http://localhost:3000>. Stop the server with `Ctrl+C`.
   each string chunk goes straight to the socket, then `null` ends the stream.
 
 The server uses a plain blocking accept loop, so it serves one connection at a
-time. The bundler keeps a process-global cache, so that also conveniently
-serializes the builds; the cached assets are served straight from memory.
+time regardless of the bundler — wesc's HTML builds are themselves
+concurrency-safe (thread-local caches, no shared scratch files), so a threaded
+server would not need a lock either; the cached assets are served straight from
+memory.

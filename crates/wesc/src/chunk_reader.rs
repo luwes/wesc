@@ -1,10 +1,18 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::Arc;
 
-static FILE_CACHE: LazyLock<Mutex<HashMap<String, Arc<Vec<u8>>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+// Per-build, per-thread cache of file contents. Each build runs on its own
+// thread (synchronous builds on the caller's thread, streaming builds on a
+// freshly spawned one), so thread-local storage isolates concurrent builds
+// from one another without any locking. [`clear_file_cache`] resets the cache
+// at the start of each build so a reused worker thread never serves stale
+// bytes from a previous build.
+thread_local! {
+    static FILE_CACHE: RefCell<HashMap<String, Arc<Vec<u8>>>> = RefCell::new(HashMap::new());
+}
 
 #[derive(Debug)]
 pub struct ChunkReader {
@@ -45,18 +53,19 @@ impl ChunkReader {
 }
 
 pub fn clear_file_cache() {
-    FILE_CACHE.lock().unwrap().clear();
+    FILE_CACHE.with(|cache| cache.borrow_mut().clear());
 }
 
 pub fn read_file_cached(filepath: &str) -> io::Result<Arc<Vec<u8>>> {
-    if let Some(bytes) = FILE_CACHE.lock().unwrap().get(filepath).cloned() {
+    if let Some(bytes) = FILE_CACHE.with(|cache| cache.borrow().get(filepath).cloned()) {
         return Ok(bytes);
     }
 
     let bytes = Arc::new(fs::read(filepath)?);
-    FILE_CACHE
-        .lock()
-        .unwrap()
-        .insert(filepath.to_string(), bytes.clone());
+    FILE_CACHE.with(|cache| {
+        cache
+            .borrow_mut()
+            .insert(filepath.to_string(), bytes.clone());
+    });
     Ok(bytes)
 }

@@ -4603,7 +4603,7 @@ dependencies = [
 
 [[package]]
 name = "wesc"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "clap",
  "criterion",
@@ -4618,14 +4618,14 @@ dependencies = [
 
 [[package]]
 name = "wesc-go"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "wesc",
 ]
 
 [[package]]
 name = "wesc-node"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "napi",
  "napi-build",
@@ -4635,7 +4635,7 @@ dependencies = [
 
 [[package]]
 name = "wesc-py"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "pyo3",
  "wesc",
@@ -4643,7 +4643,7 @@ dependencies = [
 
 [[package]]
 name = "wesc-rb"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "magnus",
  "wesc",
@@ -4651,7 +4651,7 @@ dependencies = [
 
 [[package]]
 name = "wesc_php"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "ext-php-rs",
  "wesc",

@@ -17,9 +17,9 @@
 // the body is still streaming.
 //
 // The server is concurrent (net/http), so it can serve /scripts.js and
-// /styles.css while a page is still streaming. The bundler keeps a
-// process-global cache and isn't concurrency-safe, so a mutex serializes the
-// builds; the cached assets are served without it.
+// /styles.css while a page is still streaming. The per-request HTML builds are
+// concurrency-safe — wesc's caches are thread-local and an HTML-only build
+// writes nothing to disk — so they run in parallel with no lock.
 package main
 
 import (
@@ -28,7 +28,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sync"
 
 	wesc "github.com/luwes/wesc/crates/wesc-go"
 )
@@ -73,10 +72,6 @@ func main() {
 		log.Fatalf("read styles.css: %v", err)
 	}
 
-	// The bundler isn't concurrency-safe (process-global cache), so serialize
-	// the per-request HTML builds with this lock.
-	var buildMu sync.Mutex
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("/scripts.js", serveStatic(js, "text/javascript; charset=utf-8"))
 	mux.HandleFunc("/styles.css", serveStatic(css, "text/css; charset=utf-8"))
@@ -85,7 +80,7 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		streamHTML(w, entry, &buildMu)
+		streamHTML(w, entry)
 	})
 
 	log.Printf("bundles cached — js %d B, css %d B", len(js), len(css))
@@ -106,12 +101,12 @@ func serveStatic(body []byte, contentType string) http.HandlerFunc {
 // streamHTML streams the (lean) HTML for one request. No OutCSS/OutJS here: we
 // only want the markup. net/http uses chunked transfer encoding automatically
 // when we write without a Content-Length and flush after each chunk.
-func streamHTML(w http.ResponseWriter, entry string, buildMu *sync.Mutex) {
+//
+// No lock: HTML-only builds keep wesc's caches thread-local and write nothing
+// to disk, so concurrent requests can't interfere.
+func streamHTML(w http.ResponseWriter, entry string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	flusher, _ := w.(http.Flusher)
-
-	buildMu.Lock()
-	defer buildMu.Unlock()
 
 	err := wesc.BuildStream(wesc.Options{EntryPoints: []string{entry}}, func(chunk []byte) error {
 		if len(chunk) == 0 {

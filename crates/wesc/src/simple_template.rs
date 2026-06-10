@@ -6,9 +6,9 @@
 //! a list of static byte ranges and slots (cached in [`SIMPLE_TEMPLATES`]) and
 //! rendered without re-running the streaming scanner on every expansion.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::{LazyLock, Mutex};
 
 use crate::build::BuildCtx;
 use crate::chunk_reader::read_file_cached;
@@ -20,8 +20,13 @@ use crate::slots::build_component_content;
 use crate::slotted_positions::SlottedRanges;
 use crate::{pos_key, DEFAULT_SLOT_NAME};
 
-static SIMPLE_TEMPLATES: LazyLock<Mutex<HashMap<String, Option<SimpleTemplate>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+// Per-build, per-thread cache of parsed simple templates. Thread-local for the
+// same reason as the file cache: it keeps concurrent builds isolated without
+// locking. Cleared at the start of each build via [`clear_simple_templates`].
+thread_local! {
+    static SIMPLE_TEMPLATES: RefCell<HashMap<String, Option<SimpleTemplate>>> =
+        RefCell::new(HashMap::new());
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct SimpleTemplate {
@@ -39,27 +44,25 @@ enum SimpleTemplatePart {
 
 /// Drop all cached parsed templates. Called at the start of each build.
 pub(crate) fn clear_simple_templates() {
-    SIMPLE_TEMPLATES.lock().unwrap().clear();
+    SIMPLE_TEMPLATES.with(|cache| cache.borrow_mut().clear());
 }
 
 pub(crate) fn get_simple_template(
     component_file_path: &str,
     component_definition_names: &[String],
 ) -> Option<SimpleTemplate> {
-    if let Some(template) = SIMPLE_TEMPLATES
-        .lock()
-        .unwrap()
-        .get(component_file_path)
-        .cloned()
+    if let Some(template) =
+        SIMPLE_TEMPLATES.with(|cache| cache.borrow().get(component_file_path).cloned())
     {
         return template;
     }
 
     let template = parse_simple_template(component_file_path, component_definition_names);
-    SIMPLE_TEMPLATES
-        .lock()
-        .unwrap()
-        .insert(component_file_path.to_string(), template.clone());
+    SIMPLE_TEMPLATES.with(|cache| {
+        cache
+            .borrow_mut()
+            .insert(component_file_path.to_string(), template.clone());
+    });
     template
 }
 

@@ -24,9 +24,10 @@ declare(strict_types=1);
  * them — the <link> in <head> lets the browser fetch the CSS in parallel while
  * the body is still streaming.
  *
- * This uses a plain blocking accept loop, so it serves one connection at a time.
- * The bundler keeps a process-global cache, so that also conveniently serializes
- * the builds; the cached assets are served straight from memory.
+ * This uses a plain blocking accept loop, so it serves one connection at a time
+ * regardless of the bundler — wesc's HTML builds are themselves concurrency-safe
+ * (thread-local caches, no shared scratch files), so a threaded server would not
+ * need a lock either; the cached assets are served straight from memory.
  */
 
 if (!extension_loaded('wesc_php')) {

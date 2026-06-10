@@ -5,15 +5,25 @@ use std::collections::HashMap;
 use std::io::{self};
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::{LazyLock, Mutex};
 
 use crate::chunk_reader::ChunkReader;
 use crate::CHUNK_SIZE;
 
 // Store the definitions of the components.
 // e.g. <link rel="definition" name="w-card" href="./card.html">
-static DEFINITIONS: LazyLock<Mutex<HashMap<String, IndexMap<String, String>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+//
+// Per-build, per-thread like the other caches, so concurrent builds stay
+// isolated without locking. Cleared at the start of each build via
+// [`clear_definitions`].
+thread_local! {
+    static DEFINITIONS: RefCell<HashMap<String, IndexMap<String, String>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Drop all cached component definitions. Called at the start of each build.
+pub fn clear_definitions() {
+    DEFINITIONS.with(|cache| cache.borrow_mut().clear());
+}
 
 /// Resolve a component's `href` against the file that declared it.
 pub fn resolve_href(declaring_file: &str, href: &str) -> String {
@@ -48,10 +58,8 @@ pub fn find_component_definition_names(file_path: &str) -> io::Result<Vec<String
 /// <link rel="definition" name="my-element" href="./my-element.html">
 /// ```
 pub fn find_component_definitions(file_path: &str) -> io::Result<IndexMap<String, String>> {
-    let mut defs = DEFINITIONS.lock().unwrap();
-
-    if defs.contains_key(file_path) {
-        return Ok(defs[file_path].clone());
+    if let Some(defs) = DEFINITIONS.with(|cache| cache.borrow().get(file_path).cloned()) {
+        return Ok(defs);
     }
 
     let mut reader = ChunkReader::new(file_path, CHUNK_SIZE).unwrap();
@@ -95,7 +103,11 @@ pub fn find_component_definitions(file_path: &str) -> io::Result<IndexMap<String
 
     rewriter.end().unwrap();
 
-    defs.insert(file_path.to_string(), component_definitions.clone());
+    DEFINITIONS.with(|cache| {
+        cache
+            .borrow_mut()
+            .insert(file_path.to_string(), component_definitions.clone());
+    });
 
     Ok(component_definitions)
 }

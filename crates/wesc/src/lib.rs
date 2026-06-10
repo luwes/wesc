@@ -35,6 +35,7 @@ mod slots;
 
 use self::build::build_file;
 use self::chunk_reader::clear_file_cache;
+use self::component_definitions::clear_definitions;
 use self::simple_template::clear_simple_templates;
 
 // TODO: figure out optimal chunk size
@@ -69,6 +70,11 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 
 /// Build the web components from the entry points to an output handler function.
 ///
+/// Each build starts from empty caches. The caches are thread-local, so this
+/// only resets the calling thread's caches and never interferes with builds
+/// running concurrently on other threads — callers no longer need to serialize
+/// builds with an external lock.
+///
 /// # Example
 ///
 /// ```rust
@@ -92,6 +98,7 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
     clear_file_cache();
     clear_simple_templates();
+    clear_definitions();
 
     build_file(&build_options, output_handler);
 }

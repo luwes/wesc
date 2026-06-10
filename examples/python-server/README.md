@@ -53,5 +53,6 @@ The only prerequisites are Python 3.8+ and Rust.
 The server is threaded so it can serve `/scripts.js` and `/styles.css` in
 parallel while a page is still streaming — a browser keeps the HTML connection
 open for reuse, and a single-threaded server would block every other connection
-behind it. The bundler keeps a process-global cache, so a lock serializes the
-builds; the cached assets are served without it.
+behind it. The per-request HTML builds are concurrency-safe — wesc's caches are
+thread-local and an HTML-only build writes nothing to disk — so they run in
+parallel with no lock.

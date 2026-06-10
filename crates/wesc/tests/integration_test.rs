@@ -135,14 +135,45 @@ fn utf8_slotted_text_split_across_chunks() {
     fs::remove_dir_all(&dir).expect("temp fixture should be removed");
 }
 
+#[test]
+fn concurrent_builds_are_isolated() {
+    // Independent HTML-only builds on separate threads must not interfere: the
+    // caches are thread-local, and an HTML-only build writes nothing to the
+    // shared `.wesc` scratch directory (JS extraction is skipped without
+    // `outjs`). `script-tags` has components with top-level <script>, so before
+    // that skip these concurrent builds raced on `.wesc/scripts/*.js`.
+    //
+    // Build the same fixture on many threads at once — deliberately *without*
+    // the harness BUILD_LOCK, so the concurrency is real — and assert every
+    // thread matches a single-threaded build. A regression (shared global cache
+    // or shared scratch file) would surface as garbled HTML or a panic.
+    let entry = fixture_dir("script-tags").join("index.html");
+    let reference = build_html_only(&entry);
+
+    let handles: Vec<_> = (0..16)
+        .map(|_| {
+            let entry = entry.clone();
+            std::thread::spawn(move || build_html_only(&entry))
+        })
+        .collect();
+
+    for handle in handles {
+        let html = handle.join().expect("a concurrent build panicked");
+        assert_eq!(html, reference, "a concurrent build diverged from the single-threaded output");
+    }
+}
+
 // ===========================================================================
 // Harness
 // ===========================================================================
 
 const FIXTURES: &str = "./tests/fixtures";
 
-/// Serializes builds: the bundler uses process-global caches and a shared
-/// `.wesc` scratch directory, so only one build may run at a time.
+/// Serializes builds that emit CSS/JS: those share the `.wesc` scratch
+/// directory and the temp output paths, so only one may run at a time. The
+/// in-memory caches are thread-local and need no locking (see
+/// `concurrent_builds_are_isolated`), but the filesystem scratch space still
+/// does.
 static BUILD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 /// Makes each build's temp output paths unique so the reads that happen after
@@ -225,6 +256,22 @@ fn run_build(entry: &Path, want_css: bool, want_js: bool, minify: bool) -> Outpu
         css: css_path.map(read_and_remove),
         js: js_path.map(read_and_remove),
     }
+}
+
+/// Build an entry to HTML only (no CSS/JS outputs, so no shared `.wesc` scratch
+/// files), bypassing the harness build lock so concurrency is actually tested.
+fn build_html_only(entry: &Path) -> String {
+    let mut html = Vec::new();
+    build(
+        BuildOptions {
+            entry_points: vec![entry.to_string_lossy().into_owned()],
+            outcss: None,
+            outjs: None,
+            minify: false,
+        },
+        &mut |chunk: &[u8]| html.extend_from_slice(chunk),
+    );
+    String::from_utf8_lossy(&html).into_owned()
 }
 
 fn temp_path(ext: &str) -> PathBuf {

@@ -19,9 +19,9 @@
 # the body is still streaming.
 #
 # WEBrick is concurrent, so it can serve /scripts.js and /styles.css while a page
-# is still streaming. The bundler keeps a process-global cache and isn't
-# concurrency-safe, so a Mutex serializes the builds; the cached assets are
-# served without it.
+# is still streaming. The per-request HTML builds are concurrency-safe — wesc's
+# caches are thread-local and an HTML-only build writes nothing to disk — so they
+# run in parallel with no lock.
 
 require "webrick"
 require "fileutils"
@@ -42,10 +42,6 @@ Dir.chdir(DIST_DIR)
 Wesc.build([ENTRY], outjs: "scripts.js", outcss: "styles.css")
 JS = File.binread(File.join(DIST_DIR, "scripts.js"))
 CSS = File.binread(File.join(DIST_DIR, "styles.css"))
-
-# The bundler isn't concurrency-safe (process-global cache), so serialize the
-# per-request HTML builds with this lock.
-BUILD_MUTEX = Mutex.new
 
 server = WEBrick::HTTPServer.new(Port: 3000, Logger: WEBrick::Log.new($stderr, WEBrick::Log::WARN))
 
@@ -74,11 +70,11 @@ server.mount_proc("/") do |req, res|
   reader, writer = IO.pipe
   res.body = reader
 
+  # No lock: HTML-only builds keep wesc's caches thread-local and write nothing
+  # to disk, so concurrent requests can't interfere.
   Thread.new do
-    BUILD_MUTEX.synchronize do
-      Wesc.build_stream([ENTRY]) do |chunk|
-        writer.write(chunk) unless chunk.nil? || chunk.empty?
-      end
+    Wesc.build_stream([ENTRY]) do |chunk|
+      writer.write(chunk) unless chunk.nil? || chunk.empty?
     end
   rescue IOError, Errno::EPIPE
     # The client went away mid-stream; nothing left to do.

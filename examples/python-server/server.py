@@ -22,12 +22,12 @@ the body is still streaming.
 The server is threaded so it can serve /scripts.js and /styles.css in parallel
 while a page is still streaming (a browser keeps the HTML connection open for
 reuse — a single-threaded server would block every other connection behind it).
-The bundler keeps a process-global cache, so a lock makes sure only one build
-runs at a time; the cached assets are served without it.
+The per-request HTML builds are concurrency-safe — wesc's caches are
+thread-local and an HTML-only build writes nothing to disk — so they run in
+parallel with no lock.
 """
 
 import os
-import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -53,9 +53,6 @@ os.chdir(DIST_DIR)
 wesc.build([ENTRY], outjs="scripts.js", outcss="styles.css")
 JS = (DIST_DIR / "scripts.js").read_bytes()
 CSS = (DIST_DIR / "styles.css").read_bytes()
-
-# The bundler keeps a process-global cache, so serialize concurrent builds.
-build_lock = threading.Lock()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -83,8 +80,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(chunk)
                 self.wfile.write(b"\r\n")
 
-        with build_lock:
-            wesc.build_stream([ENTRY], on_chunk)
+        # No lock: HTML-only builds keep wesc's caches thread-local and write
+        # nothing to disk, so concurrent requests can't interfere.
+        wesc.build_stream([ENTRY], on_chunk)
 
     def _send(self, body: bytes, content_type: str) -> None:
         self.send_response(200)

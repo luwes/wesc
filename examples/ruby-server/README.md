@@ -48,6 +48,6 @@ path. The prerequisites are:
   chunk is written into a pipe that WEBrick drains straight to the socket.
 
 WEBrick is concurrent, so it can serve `/scripts.js` and `/styles.css` in
-parallel while a page is still streaming. The bundler keeps a process-global
-cache and isn't concurrency-safe, so a `Mutex` serializes the builds; the cached
-assets are served without it.
+parallel while a page is still streaming. The per-request HTML builds are
+concurrency-safe — wesc's caches are thread-local and an HTML-only build writes
+nothing to disk — so they run in parallel with no lock.
