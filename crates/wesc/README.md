@@ -88,6 +88,24 @@ The top-level `<style>` and `<script>` (outside the template) provide
 host styles and the upgrade script for the element, and are collected
 into the bundled CSS / JS outputs.
 
+Add `lang="ts"` (or `lang="tsx"`) to a script to author it in
+TypeScript — rolldown transpiles it (types are stripped, not
+type-checked). Components may import each other with `.js` specifiers
+even when the imported component is TypeScript:
+
+```html
+<script type="module" lang="ts">
+  import './child.js'; // resolves to the child's `.ts` script
+
+  class WCard extends HTMLElement {
+    connectedCallback(): void {
+      console.log('w-card connected');
+    }
+  }
+  customElements.define('w-card', WCard);
+</script>
+```
+
 ## Benchmarks
 
 The bundler ships with two performance harnesses:

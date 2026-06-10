@@ -7,7 +7,7 @@
 
 use indextree::Node;
 use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, remove_file};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
@@ -64,17 +64,50 @@ fn append_top_level_element(file_path: &str, tag: &str, out_path: &Path) -> bool
     true
 }
 
-/// Extract each component's top-level `<script>` into its mirror `.js`, then
-/// (when `outjs` is set) generate an entry that imports the scripted ones and
-/// bundle them with `rolldown`.
+/// Mirror-file extension for a component's top-level `<script>`, derived from its
+/// `lang` attribute. TypeScript scripts get a `.ts`/`.tsx` extension so rolldown
+/// transpiles them (via oxc); everything else stays `.js`.
+fn script_extension(lang: Option<&String>) -> &'static str {
+    match lang.map(|l| l.to_ascii_lowercase()).as_deref() {
+        Some("ts") | Some("typescript") => "ts",
+        Some("tsx") => "tsx",
+        _ => "js",
+    }
+}
+
+/// Extract `file_path`'s top-level `<script>` into its mirror file, choosing the
+/// extension from the script's `lang` attribute. Returns the chosen extension, or
+/// `None` when the file has no top-level `<script>`.
+fn extract_script(file_path: &str) -> Option<&'static str> {
+    let Ok(start) = read_until_start_tag(file_path, 0, &["root > script"], "") else {
+        return None;
+    };
+    let ext = script_extension(start.attributes.get("lang"));
+    let mirror_path = mirror_script_path(Path::new(file_path), ext);
+    write_until_end_tag(
+        file_path,
+        start.position.end,
+        &["script"],
+        "<script>",
+        false,
+        &mut |chunk: &[u8]| append_data_to_file(&mirror_path, chunk).unwrap(),
+    )
+    .unwrap();
+    Some(ext)
+}
+
+/// Extract each component's top-level `<script>` into its mirror file (a `.js`,
+/// or `.ts`/`.tsx` for TypeScript components), then (when `outjs` is set)
+/// generate an entry that imports the scripted ones and bundle them with
+/// `rolldown`.
 pub(crate) fn extract_and_bundle_js(
     dep_graph: Arc<Mutex<DepGraph>>,
     outjs: Option<String>,
     minify: bool,
     host_file_path: String,
 ) {
-    // The per-component mirror `.js` files and the bundle they feed only exist
-    // to produce `outjs`. When no JS bundle was requested there is nothing to
+    // The per-component mirror files and the bundle they feed only exist to
+    // produce `outjs`. When no JS bundle was requested there is nothing to
     // do — and skipping it keeps HTML-only builds from touching the shared
     // `./.wesc` scratch directory at all, so they can run concurrently without
     // any external lock.
@@ -89,23 +122,28 @@ pub(crate) fn extract_and_bundle_js(
         .filter(|node| node.parent().is_some())
         .collect::<Vec<&Node<Module>>>();
 
-    // Track which components actually have a top-level <script>. Only those
-    // produce a mirror .js file, and so only those should be imported by the
-    // generated entry below.
-    let mut scripted_deps: HashSet<String> = HashSet::new();
+    // Track which components have a top-level <script> and the extension each
+    // mirror was written with, so the generated entry imports the right file.
+    // Only scripted components produce a mirror, and so only those are imported.
+    let mut script_exts: HashMap<String, &'static str> = HashMap::new();
+    let mut any_typescript = false;
 
     for dependency in dependencies.iter() {
         let dep_file_path = dependency.get().file_path.clone();
-        let mirror_path = mirror_js_path(Path::new(&dep_file_path));
 
-        if mirror_path.exists() {
-            remove_file(&mirror_path).unwrap();
+        // Clear any stale mirror from a previous build before re-extracting: the
+        // script may have been removed or switched language, and extraction
+        // appends, so a leftover file would otherwise be duplicated onto.
+        for ext in ["js", "ts", "tsx"] {
+            let stale = mirror_script_path(Path::new(&dep_file_path), ext);
+            if stale.exists() {
+                remove_file(&stale).unwrap();
+            }
         }
 
-        // Only components with a top-level <script> produce a mirror .js, and
-        // so only those should be imported by the generated entry below.
-        if append_top_level_element(&dep_file_path, "script", &mirror_path) {
-            scripted_deps.insert(dep_file_path);
+        if let Some(ext) = extract_script(&dep_file_path) {
+            any_typescript |= ext != "js";
+            script_exts.insert(dep_file_path, ext);
         }
     }
 
@@ -122,22 +160,20 @@ pub(crate) fn extract_and_bundle_js(
     append_data_to_file(&entry_path, b"").unwrap();
 
     for dependency in dependencies.iter() {
-        let parent_file_path = dep_graph
-            .get_parent_file_path(&dependency.get().file_path)
-            .unwrap();
+        let dep_file_path = dependency.get().file_path.clone();
+        let parent_file_path = dep_graph.get_parent_file_path(&dep_file_path).unwrap();
 
-        // Skip definitions without a top-level <script>: they produce no
-        // mirror .js, so importing them would make the bundler fail with
-        // "Module not found".
-        if parent_file_path == host_file_path && scripted_deps.contains(&dependency.get().file_path)
-        {
-            let dep_file_path = Path::new(&dependency.get().file_path);
-            let script_path = mirror_js_path(dep_file_path);
-            let script_path = script_path
-                .strip_prefix("./.wesc/scripts")
-                .unwrap_or(&script_path);
-            let import = format!("import './{}';\n", script_path.to_string_lossy());
-            append_data_to_file(&entry_path, import.as_bytes()).unwrap();
+        // Skip definitions without a top-level <script>: they produce no mirror,
+        // so importing them would make the bundler fail with "Module not found".
+        if parent_file_path == host_file_path {
+            if let Some(ext) = script_exts.get(&dep_file_path) {
+                let script_path = mirror_script_path(Path::new(&dep_file_path), ext);
+                let script_path = script_path
+                    .strip_prefix("./.wesc/scripts")
+                    .unwrap_or(&script_path);
+                let import = format!("import './{}';\n", script_path.to_string_lossy());
+                append_data_to_file(&entry_path, import.as_bytes()).unwrap();
+            }
         }
     }
 
@@ -154,27 +190,47 @@ pub(crate) fn extract_and_bundle_js(
         bundler_options.minify = Some(RawMinifyOptions::Bool(true));
     }
 
+    // TypeScript components are written as `.ts` mirrors (rolldown transpiles
+    // them via oxc), but sibling components still import each other with `.js`
+    // specifiers, so teach the resolver to try `.ts`/`.tsx` first. Only set this
+    // when TS is present so pure-JS builds resolve exactly as before.
+    if any_typescript {
+        let mut resolve = bundler_options.resolve.take().unwrap_or_default();
+        resolve.extension_alias = Some(vec![(
+            ".js".to_string(),
+            vec![".ts".to_string(), ".tsx".to_string(), ".js".to_string()],
+        )]);
+        resolve.extensions = Some(
+            [".ts", ".tsx", ".mjs", ".js", ".json"]
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        );
+        bundler_options.resolve = Some(resolve);
+    }
+
     let mut bundler = Bundler::new(bundler_options).unwrap();
 
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
     runtime.block_on(bundler.write()).unwrap();
 }
 
-/// Map a component file path to its location in the `./.wesc/scripts` mirror tree.
+/// Map a component file path to its location in the `./.wesc/scripts` mirror
+/// tree, using `ext` for the extension (`js`, `ts`, or `tsx`).
 ///
 /// `Path::join` discards the base when its argument is absolute, so joining
 /// `./.wesc/scripts` with an absolute entry path (e.g. from a server) would let
 /// the extracted JS escape the mirror and produce a broken import path. Stripping
 /// the root/prefix components keeps the path nested under the mirror, so the write
 /// location and the `__entry.js` import stay consistent regardless of the cwd.
-pub(crate) fn mirror_js_path(dep_file_path: &Path) -> PathBuf {
+pub(crate) fn mirror_script_path(dep_file_path: &Path, ext: &str) -> PathBuf {
     let relative: PathBuf = dep_file_path
         .components()
         .filter(|c| !matches!(c, Component::RootDir | Component::Prefix(_)))
         .collect();
     Path::new("./.wesc/scripts")
         .join(relative)
-        .with_extension("js")
+        .with_extension(ext)
 }
 
 pub(crate) fn append_data_to_file(

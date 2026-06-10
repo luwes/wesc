@@ -1,0 +1,35 @@
+<link rel="definition" name="w-counter" href="./counter.html">
+
+<template>
+  card text before counter
+
+  <w-counter>
+    <slot>card default slot fallback content</slot>
+  </w-counter>
+
+  card text after counter
+</template>
+
+<style>
+  w-card {
+    color: springgreen;
+  }
+</style>
+
+<script type="module" lang="ts">
+  // Imported with a `.js` specifier even though the sibling component is
+  // authored in TypeScript: the bundler resolves it to `counter.ts`.
+  import './counter.js';
+
+  type Mode = 'on' | 'off';
+
+  class WCard extends HTMLElement {
+    mode: Mode = 'on';
+
+    connectedCallback(): void {
+      console.log('w-card connected', this.mode);
+    }
+  }
+
+  customElements.define('w-card', WCard);
+</script>

@@ -41,6 +41,7 @@ use wesc::{build, BuildOptions, CHUNK_SIZE, DEFAULT_SLOT_NAME};
 
 // Fixtures that bundle CSS and JS.
 #[test] fn script_tags() { assert_bundle("script-tags"); }
+#[test] fn ts_script_tags() { assert_bundle("ts-script-tags"); }
 #[test] fn todo_app() { assert_bundle("todo-app"); }
 #[test] fn blog() { assert_bundle("blog"); }
 

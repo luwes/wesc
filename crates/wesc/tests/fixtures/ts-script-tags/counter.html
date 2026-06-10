@@ -1,0 +1,28 @@
+<template>
+  <button>+</button>
+  <div class="c0"><slot>0</slot></div>
+  <button>-</button>
+</template>
+
+<style>
+  w-counter {
+    color: darkorchid;
+  }
+</style>
+
+<script type="module" lang="ts">
+  interface CounterState {
+    count: number;
+  }
+
+  class WCounter extends HTMLElement {
+    private state: CounterState = { count: 0 };
+
+    connectedCallback(): void {
+      const label: string = `w-counter connected at ${this.state.count}`;
+      console.log(label);
+    }
+  }
+
+  customElements.define('w-counter', WCounter);
+</script>
