@@ -6,6 +6,7 @@
 //! each custom element to [`crate::component`].
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -46,7 +47,11 @@ impl<'a> BuildCtx<'a> {
 }
 
 pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
-    let host_file_path = &options.entry_points[0];
+    // Resolve relative paths against the build's working directory — like
+    // rolldown's `cwd` — which defaults to the process working directory.
+    let cwd = resolve_cwd(options.cwd.as_deref());
+    let resolved_entry = resolve_path(&cwd, &options.entry_points[0]);
+    let host_file_path = resolved_entry.as_str();
 
     // Resolve all the dependencies of the entry point.
     let dep_graph = resolve_dependencies(host_file_path);
@@ -55,14 +60,15 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     // graph, independently of the HTML expansion below.
     let dep_graph_ptr = Arc::new(Mutex::new(dep_graph.clone()));
     let dep_graph_ptr_clone = dep_graph_ptr.clone();
-    let outcss = options.outcss.clone();
-    let outjs = options.outjs.clone();
+    let outcss = options.outcss.as_deref().map(|p| resolve_path(&cwd, p));
+    let outjs = options.outjs.as_deref().map(|p| resolve_path(&cwd, p));
     let minify = options.minify;
     let host_file_path_string = host_file_path.to_owned();
+    let cwd_for_js = cwd.clone();
 
     let css_thread_handle = thread::spawn(move || extract_css(dep_graph_ptr, outcss));
     let js_thread_handle = thread::spawn(move || {
-        extract_and_bundle_js(dep_graph_ptr_clone, outjs, minify, host_file_path_string)
+        extract_and_bundle_js(dep_graph_ptr_clone, outjs, minify, host_file_path_string, cwd_for_js)
     });
 
     let mut ctx = BuildCtx::new(&dep_graph);
@@ -106,4 +112,33 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
 
     css_thread_handle.join().unwrap();
     js_thread_handle.join().unwrap();
+}
+
+/// The working directory for a build, like rolldown's `cwd`: the directory that
+/// relative `entry_points`/`outcss`/`outjs` resolve against. Defaults to the
+/// process working directory and is always returned as an absolute path.
+fn resolve_cwd(cwd: Option<&str>) -> PathBuf {
+    match cwd {
+        Some(cwd) => {
+            let cwd = Path::new(cwd);
+            if cwd.is_absolute() {
+                cwd.to_path_buf()
+            } else {
+                std::env::current_dir()
+                    .map(|base| base.join(cwd))
+                    .unwrap_or_else(|_| cwd.to_path_buf())
+            }
+        }
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    }
+}
+
+/// Resolve `path` against `cwd` when it is relative, leaving absolute paths as-is.
+fn resolve_path(cwd: &Path, path: &str) -> String {
+    let path = Path::new(path);
+    if path.is_absolute() {
+        path.to_string_lossy().into_owned()
+    } else {
+        cwd.join(path).to_string_lossy().into_owned()
+    }
 }

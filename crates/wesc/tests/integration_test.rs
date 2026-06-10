@@ -170,11 +170,11 @@ fn concurrent_builds_are_isolated() {
 
 const FIXTURES: &str = "./tests/fixtures";
 
-/// Serializes builds that emit CSS/JS: those share the `.wesc` scratch
-/// directory and the temp output paths, so only one may run at a time. The
-/// in-memory caches are thread-local and need no locking (see
-/// `concurrent_builds_are_isolated`), but the filesystem scratch space still
-/// does.
+/// Serializes builds that emit CSS/JS. Each build now scopes its `.wesc` scratch
+/// tree to its own fixture folder (via `cwd`), but several tests build the *same*
+/// fixture, so they'd still share that folder — the lock keeps them from racing.
+/// The in-memory caches are thread-local and need no locking (see
+/// `concurrent_builds_are_isolated`), but the filesystem scratch space still does.
 static BUILD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 /// Makes each build's temp output paths unique so the reads that happen after
@@ -237,15 +237,17 @@ struct Output {
 fn run_build(entry: &Path, want_css: bool, want_js: bool, minify: bool) -> Output {
     let css_path = want_css.then(|| temp_path("css"));
     let js_path = want_js.then(|| temp_path("js"));
+    let (cwd, entry_point) = entry_in_cwd(entry);
 
     let mut html = Vec::new();
     {
         let _lock = BUILD_LOCK.lock().unwrap();
         build(
             BuildOptions {
-                entry_points: vec![entry.to_string_lossy().into_owned()],
+                entry_points: vec![entry_point],
                 outcss: css_path.as_deref().map(path_string),
                 outjs: js_path.as_deref().map(path_string),
+                cwd,
                 minify,
             },
             &mut |chunk: &[u8]| html.extend_from_slice(chunk),
@@ -259,20 +261,34 @@ fn run_build(entry: &Path, want_css: bool, want_js: bool, minify: bool) -> Outpu
     }
 }
 
-/// Build an entry to HTML only (no CSS/JS outputs, so no shared `.wesc` scratch
-/// files), bypassing the harness build lock so concurrency is actually tested.
+/// Build an entry to HTML only (no CSS/JS outputs, so no `.wesc` scratch files),
+/// bypassing the harness build lock so concurrency is actually tested.
 fn build_html_only(entry: &Path) -> String {
+    let (cwd, entry_point) = entry_in_cwd(entry);
     let mut html = Vec::new();
     build(
         BuildOptions {
-            entry_points: vec![entry.to_string_lossy().into_owned()],
+            entry_points: vec![entry_point],
             outcss: None,
             outjs: None,
+            cwd,
             minify: false,
         },
         &mut |chunk: &[u8]| html.extend_from_slice(chunk),
     );
     String::from_utf8_lossy(&html).into_owned()
+}
+
+/// Split an entry path into its `cwd` (the fixture folder) and the entry file
+/// name, so each fixture build runs with its working directory set to the
+/// fixture folder — where its `.wesc` scratch tree then lives.
+fn entry_in_cwd(entry: &Path) -> (Option<String>, String) {
+    let cwd = entry.parent().map(path_string);
+    let name = entry
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| entry.to_string_lossy().into_owned());
+    (cwd, name)
 }
 
 fn temp_path(ext: &str) -> PathBuf {

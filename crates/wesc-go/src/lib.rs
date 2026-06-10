@@ -90,6 +90,7 @@ unsafe fn collect_options(
         entry_points,
         outcss: opt_string(outcss),
         outjs: opt_string(outjs),
+        cwd: None,
         minify: minify != 0,
     }
 }

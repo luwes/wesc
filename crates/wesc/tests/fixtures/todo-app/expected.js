@@ -1,8 +1,8 @@
-//#region .wesc/scripts/tests/fixtures/todo-app/todo-header.js
+//#region .wesc/scripts/todo-header.js
 var TodoHeader = class extends HTMLElement {};
 customElements.define('todo-header', TodoHeader);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/todo-app/todo-form.js
+//#region .wesc/scripts/todo-form.js
 var TodoForm = class extends HTMLElement {
   connectedCallback() {
     this.querySelector('form')?.addEventListener('submit', (event) => {
@@ -23,7 +23,7 @@ var TodoForm = class extends HTMLElement {
 };
 customElements.define('todo-form', TodoForm);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/todo-app/todo-list.js
+//#region .wesc/scripts/todo-list.js
 var TodoList = class extends HTMLElement {
   get items() {
     return [...this.querySelectorAll('todo-item')];
@@ -41,7 +41,7 @@ var TodoList = class extends HTMLElement {
 };
 customElements.define('todo-list', TodoList);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/todo-app/todo-item.js
+//#region .wesc/scripts/todo-item.js
 var TodoItem = class extends HTMLElement {
   connectedCallback() {
     if (this.getAttribute('status') === 'completed') this.completed = true;
@@ -99,7 +99,7 @@ var TodoItem = class extends HTMLElement {
 };
 customElements.define('todo-item', TodoItem);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/todo-app/todo-footer.js
+//#region .wesc/scripts/todo-footer.js
 var TodoFooter = class extends HTMLElement {
   static get observedAttributes() {
     return ['count'];
@@ -128,7 +128,7 @@ var TodoFooter = class extends HTMLElement {
 };
 customElements.define('todo-footer', TodoFooter);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/todo-app/todo-app.js
+//#region .wesc/scripts/todo-app.js
 var TodoApp = class extends HTMLElement {
   connectedCallback() {
     this.dataset.enhanced = 'true';

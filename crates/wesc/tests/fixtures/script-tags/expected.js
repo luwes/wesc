@@ -1,4 +1,4 @@
-//#region .wesc/scripts/tests/fixtures/script-tags/counter.js
+//#region .wesc/scripts/counter.js
 var WCounter = class extends HTMLElement {
   connectedCallback() {
     console.log('w-counter connected');
@@ -6,7 +6,7 @@ var WCounter = class extends HTMLElement {
 };
 customElements.define('w-counter', WCounter);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/script-tags/card.js
+//#region .wesc/scripts/card.js
 var WCard = class extends HTMLElement {
   connectedCallback() {
     console.log('w-card connected');

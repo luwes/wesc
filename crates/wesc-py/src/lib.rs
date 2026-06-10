@@ -47,6 +47,7 @@ fn build<'py>(
         entry_points,
         outcss,
         outjs,
+        cwd: None,
         minify,
     };
 
@@ -100,6 +101,7 @@ fn build_stream<'py>(
         entry_points,
         outcss,
         outjs,
+        cwd: None,
         minify,
     };
 

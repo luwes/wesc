@@ -75,15 +75,16 @@ fn script_extension(lang: Option<&String>) -> &'static str {
     }
 }
 
-/// Extract `file_path`'s top-level `<script>` into its mirror file, choosing the
+/// Extract `file_path`'s top-level `<script>` into its mirror file (under
+/// `scripts_dir`, mirroring the file's path relative to `cwd`), choosing the
 /// extension from the script's `lang` attribute. Returns the chosen extension, or
 /// `None` when the file has no top-level `<script>`.
-fn extract_script(file_path: &str) -> Option<&'static str> {
+fn extract_script(scripts_dir: &Path, cwd: &Path, file_path: &str) -> Option<&'static str> {
     let Ok(start) = read_until_start_tag(file_path, 0, &["root > script"], "") else {
         return None;
     };
     let ext = script_extension(start.attributes.get("lang"));
-    let mirror_path = mirror_script_path(Path::new(file_path), ext);
+    let mirror_path = mirror_script_path(scripts_dir, cwd, Path::new(file_path), ext);
     write_until_end_tag(
         file_path,
         start.position.end,
@@ -105,15 +106,26 @@ pub(crate) fn extract_and_bundle_js(
     outjs: Option<String>,
     minify: bool,
     host_file_path: String,
+    cwd: PathBuf,
 ) {
     // The per-component mirror files and the bundle they feed only exist to
     // produce `outjs`. When no JS bundle was requested there is nothing to
-    // do — and skipping it keeps HTML-only builds from touching the shared
-    // `./.wesc` scratch directory at all, so they can run concurrently without
-    // any external lock.
+    // do — and skipping it keeps HTML-only builds from touching the `.wesc`
+    // scratch directory at all.
     let Some(outjs) = outjs else {
         return;
     };
+
+    // The scratch tree lives in a `.wesc` folder under the build's working
+    // directory (`cwd`), mirroring how rolldown roots its own paths.
+    let scripts_dir = cwd.join(".wesc").join("scripts");
+
+    // Start from a clean scratch tree so mirror files for components that have
+    // since been removed or renamed never linger in the output. Extraction also
+    // appends, so a leftover file would otherwise be duplicated onto.
+    if scripts_dir.exists() {
+        fs::remove_dir_all(&scripts_dir).unwrap();
+    }
 
     let dep_graph = dep_graph.lock().unwrap();
     let dependencies = dep_graph
@@ -128,20 +140,17 @@ pub(crate) fn extract_and_bundle_js(
     let mut script_exts: HashMap<String, &'static str> = HashMap::new();
     let mut any_typescript = false;
 
+    // A component used in several places appears as multiple nodes; extract each
+    // unique file's script only once (extraction appends, so a re-extract would
+    // duplicate the declarations into the mirror).
+    let mut seen_paths: HashSet<String> = HashSet::new();
+
     for dependency in dependencies.iter() {
         let dep_file_path = dependency.get().file_path.clone();
-
-        // Clear any stale mirror from a previous build before re-extracting: the
-        // script may have been removed or switched language, and extraction
-        // appends, so a leftover file would otherwise be duplicated onto.
-        for ext in ["js", "ts", "tsx"] {
-            let stale = mirror_script_path(Path::new(&dep_file_path), ext);
-            if stale.exists() {
-                remove_file(&stale).unwrap();
-            }
+        if !seen_paths.insert(dep_file_path.clone()) {
+            continue;
         }
-
-        if let Some(ext) = extract_script(&dep_file_path) {
+        if let Some(ext) = extract_script(&scripts_dir, &cwd, &dep_file_path) {
             any_typescript |= ext != "js";
             script_exts.insert(dep_file_path, ext);
         }
@@ -151,36 +160,37 @@ pub(crate) fn extract_and_bundle_js(
         remove_file(&outjs).unwrap();
     }
 
-    let entry_path = Path::new("./.wesc/scripts").join("__entry.js");
-    if entry_path.exists() {
-        remove_file(&entry_path).unwrap();
-    }
+    let entry_path = scripts_dir.join("__entry.js");
     // Make sure the entry exists even when no component has a script, so the
     // bundler always has a valid (possibly empty) input.
     append_data_to_file(&entry_path, b"").unwrap();
 
+    let mut imported: HashSet<String> = HashSet::new();
     for dependency in dependencies.iter() {
         let dep_file_path = dependency.get().file_path.clone();
         let parent_file_path = dep_graph.get_parent_file_path(&dep_file_path).unwrap();
 
         // Skip definitions without a top-level <script>: they produce no mirror,
         // so importing them would make the bundler fail with "Module not found".
-        if parent_file_path == host_file_path {
+        // A host may declare the same component twice; import it only once.
+        if parent_file_path == host_file_path && imported.insert(dep_file_path.clone()) {
             if let Some(ext) = script_exts.get(&dep_file_path) {
-                let script_path = mirror_script_path(Path::new(&dep_file_path), ext);
-                let script_path = script_path
-                    .strip_prefix("./.wesc/scripts")
-                    .unwrap_or(&script_path);
+                let script_path = mirror_script_path(&scripts_dir, &cwd, Path::new(&dep_file_path), ext);
+                let script_path = script_path.strip_prefix(&scripts_dir).unwrap_or(&script_path);
                 let import = format!("import './{}';\n", script_path.to_string_lossy());
                 append_data_to_file(&entry_path, import.as_bytes()).unwrap();
             }
         }
     }
 
+    // Drive rolldown from the same `cwd`, so the module ids it prints in the
+    // bundle stay relative to it (`.wesc/scripts/...`). The entry and output
+    // paths are already absolute (resolved against `cwd` in `build`).
     let mut bundler_options = BundlerOptions {
         input: Some(vec![InputItem::from(
             entry_path.to_string_lossy().to_string(),
         )]),
+        cwd: Some(cwd),
         file: Some(outjs),
         format: Some(OutputFormat::Esm),
         ..BundlerOptions::default()
@@ -215,22 +225,26 @@ pub(crate) fn extract_and_bundle_js(
     runtime.block_on(bundler.write()).unwrap();
 }
 
-/// Map a component file path to its location in the `./.wesc/scripts` mirror
-/// tree, using `ext` for the extension (`js`, `ts`, or `tsx`).
+/// Map a component file path to its location in the `scripts_dir` mirror tree,
+/// mirroring its path relative to `cwd` and using `ext` for the extension (`js`,
+/// `ts`, or `tsx`).
 ///
-/// `Path::join` discards the base when its argument is absolute, so joining
-/// `./.wesc/scripts` with an absolute entry path (e.g. from a server) would let
-/// the extracted JS escape the mirror and produce a broken import path. Stripping
-/// the root/prefix components keeps the path nested under the mirror, so the write
-/// location and the `__entry.js` import stay consistent regardless of the cwd.
-pub(crate) fn mirror_script_path(dep_file_path: &Path, ext: &str) -> PathBuf {
-    let relative: PathBuf = dep_file_path
+/// Stripping `cwd` mirrors the project layout under the scratch dir; keeping only
+/// `Normal` components then guarantees the mirror can never escape it (via a
+/// leading `/` or a `..` from a resolved href or a component outside `cwd`), so
+/// the write location and the import specifiers in `__entry.js` stay consistent.
+pub(crate) fn mirror_script_path(
+    scripts_dir: &Path,
+    cwd: &Path,
+    dep_file_path: &Path,
+    ext: &str,
+) -> PathBuf {
+    let relative = dep_file_path.strip_prefix(cwd).unwrap_or(dep_file_path);
+    let relative: PathBuf = relative
         .components()
-        .filter(|c| !matches!(c, Component::RootDir | Component::Prefix(_)))
+        .filter(|c| matches!(c, Component::Normal(_)))
         .collect();
-    Path::new("./.wesc/scripts")
-        .join(relative)
-        .with_extension(ext)
+    scripts_dir.join(relative).with_extension(ext)
 }
 
 pub(crate) fn append_data_to_file(

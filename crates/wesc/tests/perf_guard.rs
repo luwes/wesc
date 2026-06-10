@@ -93,6 +93,7 @@ fn run_build(entry: &str) -> usize {
             entry_points: vec![entry.to_string()],
             outcss: None,
             outjs: None,
+            cwd: None,
             minify: false,
         },
         &mut |chunk: &[u8]| {

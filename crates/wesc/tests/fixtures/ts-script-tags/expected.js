@@ -1,4 +1,4 @@
-//#region .wesc/scripts/tests/fixtures/ts-script-tags/counter.ts
+//#region .wesc/scripts/counter.ts
 var WCounter = class extends HTMLElement {
   state = { count: 0 };
   connectedCallback() {
@@ -8,7 +8,7 @@ var WCounter = class extends HTMLElement {
 };
 customElements.define('w-counter', WCounter);
 //#endregion
-//#region .wesc/scripts/tests/fixtures/ts-script-tags/card.ts
+//#region .wesc/scripts/card.ts
 var WCard = class extends HTMLElement {
   mode = 'on';
   connectedCallback() {

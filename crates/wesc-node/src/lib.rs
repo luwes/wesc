@@ -26,6 +26,10 @@ pub struct BuildOptions {
     pub outcss: Option<String>,
     /// Optional path to write the bundled JS file.
     pub outjs: Option<String>,
+    /// Working directory (like rolldown's cwd). Relative `entryPoints`/`outcss`/
+    /// `outjs` resolve against it and the `.wesc` scratch dir is created under
+    /// it. Defaults to the process working directory.
+    pub cwd: Option<String>,
     /// Minify generated JS/CSS assets where supported. Defaults to `false`.
     pub minify: Option<bool>,
 }
@@ -36,6 +40,7 @@ impl From<BuildOptions> for WescBuildOptions {
             entry_points: o.entry_points,
             outcss: o.outcss,
             outjs: o.outjs,
+            cwd: o.cwd,
             minify: o.minify.unwrap_or(false),
         }
     }

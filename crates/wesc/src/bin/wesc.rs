@@ -17,6 +17,12 @@ struct Cli {
     #[arg(short = 'j', long)]
     outjs: Option<String>,
 
+    /// Working directory (like rolldown's cwd). Relative paths resolve against
+    /// it and the `.wesc` scratch dir is created under it. Defaults to the
+    /// current directory.
+    #[arg(long)]
+    cwd: Option<String>,
+
     /// Minify generated assets where supported.
     #[arg(short, long)]
     minify: bool,
@@ -73,6 +79,7 @@ fn main() {
             entry_points: vec![args.path],
             outcss: args.outcss,
             outjs: args.outjs,
+            cwd: args.cwd,
             minify: args.minify,
         },
         &mut output_handler,

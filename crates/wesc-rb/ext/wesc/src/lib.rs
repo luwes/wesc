@@ -40,6 +40,7 @@ fn collect_options(
         entry_points,
         outcss,
         outjs,
+        cwd: None,
         minify,
     }
 }

@@ -34,6 +34,7 @@ fn make_options(
         entry_points,
         outcss,
         outjs,
+        cwd: None,
         minify,
     }
 }
