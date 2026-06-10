@@ -1,6 +1,6 @@
 [package]
 name = "wesc-rb"
-version = "0.6.1" # x-release-please-version
+version = "0.6.2" # x-release-please-version
 authors = ["Wesley Luyten <me@wesleyluyten.com>"]
 edition = "2021"
 license = "MIT"
@@ -28,5 +28,5 @@ crate-type = ["cdylib"]
 # the core crate's version (the marker keeps release-please bumping it in
 # lockstep); otherwise the patched local 0.x core fails to satisfy it and the
 # whole workspace stops resolving.
-wesc = "0.6.1" # x-release-please-version
+wesc = "0.6.2" # x-release-please-version
 magnus = "0.7"
