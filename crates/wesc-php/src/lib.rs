@@ -25,13 +25,13 @@ use wesc::{build as wesc_build_core, BuildOptions as WescBuildOptions};
 
 /// Assemble [`WescBuildOptions`] from the PHP-facing arguments.
 fn make_options(
-    entry_points: Vec<String>,
+    input: Vec<String>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> WescBuildOptions {
     WescBuildOptions {
-        entry_points,
+        input,
         outcss,
         outjs,
         cwd: None,
@@ -49,19 +49,19 @@ fn make_options(
 /// ```
 ///
 /// # Parameters
-/// - `entry_points`: Entry point file paths. The first entry is the host document.
+/// - `input`: Entry point file paths. The first entry is the host document.
 /// - `outcss`: Optional path to write the bundled CSS file.
 /// - `outjs`: Optional path to write the bundled JS file.
 /// - `minify`: Minify generated JS/CSS assets where supported. Defaults to `false`.
 #[php_function]
 #[php(defaults(outcss = None, outjs = None, minify = false))]
 pub fn wesc_build(
-    entry_points: Vec<String>,
+    input: Vec<String>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> Binary<u8> {
-    let options = make_options(entry_points, outcss, outjs, minify);
+    let options = make_options(input, outcss, outjs, minify);
 
     let mut output: Vec<u8> = Vec::new();
     wesc_build_core(options, &mut |chunk: &[u8]| {
@@ -91,7 +91,7 @@ pub fn wesc_build(
 /// thread. If it throws, the exception propagates out and the build stops.
 ///
 /// # Parameters
-/// - `entry_points`: Entry point file paths. The first entry is the host document.
+/// - `input`: Entry point file paths. The first entry is the host document.
 /// - `callback`: Called with each chunk string, then `null` at end-of-stream.
 /// - `outcss`: Optional path to write the bundled CSS file.
 /// - `outjs`: Optional path to write the bundled JS file.
@@ -99,13 +99,13 @@ pub fn wesc_build(
 #[php_function]
 #[php(defaults(outcss = None, outjs = None, minify = false))]
 pub fn wesc_build_stream(
-    entry_points: Vec<String>,
+    input: Vec<String>,
     callback: ZendCallable,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> PhpResult<()> {
-    let options = make_options(entry_points, outcss, outjs, minify);
+    let options = make_options(input, outcss, outjs, minify);
 
     // Remember the first callback failure so we can stop calling and surface it.
     // `ZendCallable::try_call` returns `Err`, taking ownership of any exception

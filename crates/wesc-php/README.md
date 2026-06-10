@@ -52,12 +52,12 @@ wesc_build_stream(['./index.html'], function ($chunk) {
 
 ## API
 
-- `wesc_build(array $entry_points, ?string $outcss = null, ?string $outjs = null, bool $minify = false): string`
-- `wesc_build_stream(array $entry_points, callable $callback, ?string $outcss = null, ?string $outjs = null, bool $minify = false): void`
+- `wesc_build(array $input, ?string $outcss = null, ?string $outjs = null, bool $minify = false): string`
+- `wesc_build_stream(array $input, callable $callback, ?string $outcss = null, ?string $outjs = null, bool $minify = false): void`
 
 | Argument       | Type                  | Notes                                          |
 | -------------- | --------------------- | ---------------------------------------------- |
-| `entry_points` | `string[]`            | First entry is the host document.              |
+| `input`        | `string[]`            | First entry is the host document.              |
 | `callback`     | `callable`            | `wesc_build_stream` only. Gets each string chunk, then `null` at end-of-stream. |
 | `outcss`       | `?string`             | Path to write the bundled CSS file.            |
 | `outjs`        | `?string`             | Path to write the bundled JS file.             |

@@ -30,21 +30,21 @@ use wesc::{build as wesc_build, BuildOptions as WescBuildOptions};
 /// ```
 ///
 /// Args:
-///     entry_points: Entry point file paths. The first entry is the host document.
+///     input: Entry point file paths. The first entry is the host document.
 ///     outcss: Optional path to write the bundled CSS file.
 ///     outjs: Optional path to write the bundled JS file.
 ///     minify: Minify generated JS/CSS assets where supported. Defaults to ``False``.
 #[pyfunction]
-#[pyo3(signature = (entry_points, *, outcss=None, outjs=None, minify=false))]
+#[pyo3(signature = (input, *, outcss=None, outjs=None, minify=false))]
 fn build<'py>(
     py: Python<'py>,
-    entry_points: Vec<String>,
+    input: Vec<String>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> Bound<'py, PyBytes> {
     let options = WescBuildOptions {
-        entry_points,
+        input,
         outcss,
         outjs,
         cwd: None,
@@ -82,23 +82,23 @@ fn build<'py>(
 /// stops.
 ///
 /// Args:
-///     entry_points: Entry point file paths. The first entry is the host document.
+///     input: Entry point file paths. The first entry is the host document.
 ///     callback: Called with each `bytes` chunk, then ``None`` at end-of-stream.
 ///     outcss: Optional path to write the bundled CSS file.
 ///     outjs: Optional path to write the bundled JS file.
 ///     minify: Minify generated JS/CSS assets where supported. Defaults to ``False``.
 #[pyfunction]
-#[pyo3(signature = (entry_points, callback, *, outcss=None, outjs=None, minify=false))]
+#[pyo3(signature = (input, callback, *, outcss=None, outjs=None, minify=false))]
 fn build_stream<'py>(
     py: Python<'py>,
-    entry_points: Vec<String>,
+    input: Vec<String>,
     callback: Bound<'py, PyAny>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> PyResult<()> {
     let options = WescBuildOptions {
-        entry_points,
+        input,
         outcss,
         outjs,
         cwd: None,

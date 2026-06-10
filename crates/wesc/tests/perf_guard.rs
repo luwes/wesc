@@ -90,7 +90,7 @@ fn run_build(entry: &str) -> usize {
     let mut total = 0usize;
     build(
         BuildOptions {
-            entry_points: vec![entry.to_string()],
+            input: vec![entry.to_string()],
             outcss: None,
             outjs: None,
             cwd: None,

@@ -45,12 +45,12 @@ html = await asyncio.to_thread(wesc.build, ["./index.html"], minify=True)
 
 ## API
 
-- `build(entry_points, *, outcss=None, outjs=None, minify=False) -> bytes`
-- `build_stream(entry_points, callback, *, outcss=None, outjs=None, minify=False) -> None`
+- `build(input, *, outcss=None, outjs=None, minify=False) -> bytes`
+- `build_stream(input, callback, *, outcss=None, outjs=None, minify=False) -> None`
 
 | Argument       | Type                                | Notes                                       |
 | -------------- | ----------------------------------- | ------------------------------------------- |
-| `entry_points` | `list[str]`                         | First entry is the host document.           |
+| `input`        | `list[str]`                         | First entry is the host document.           |
 | `callback`     | `Callable[[bytes \| None], object]` | `build_stream` only. `None` ends the stream.|
 | `outcss`       | `str \| None`                       | Path to write the bundled CSS file.         |
 | `outjs`        | `str \| None`                       | Path to write the bundled JS file.          |

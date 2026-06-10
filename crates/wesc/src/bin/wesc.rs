@@ -76,7 +76,7 @@ fn main() {
 
     build(
         BuildOptions {
-            entry_points: vec![args.path],
+            input: vec![args.path],
             outcss: args.outcss,
             outjs: args.outjs,
             cwd: args.cwd,

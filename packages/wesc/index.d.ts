@@ -6,13 +6,13 @@
 /** Options for a wesc build. Mirrors the CLI flags. */
 export interface BuildOptions {
   /** Entry point file paths. The first entry is the host document. */
-  entryPoints: Array<string>
+  input: Array<string>;
   /** Optional path to write the bundled CSS file. */
-  outcss?: string
+  outcss?: string;
   /** Optional path to write the bundled JS file. */
-  outjs?: string
+  outjs?: string;
   /** Minify generated JS/CSS assets where supported. Defaults to `false`. */
-  minify?: boolean
+  minify?: boolean;
 }
 /**
  * Build the entry points and return the full HTML output as a `Buffer`.
@@ -20,14 +20,14 @@ export interface BuildOptions {
  * Synchronous: blocks the calling thread until the build completes. Fine for
  * build scripts; prefer [`build_async`] on a request-serving hot path.
  */
-export declare function build(options: BuildOptions): Buffer
+export declare function build(options: BuildOptions): Buffer;
 /**
  * Build off the JS thread and resolve with the full output as a `Buffer`.
  *
  * Runs on libuv's thread pool, so it never blocks the event loop — the right
  * choice for a server that builds per request.
  */
-export declare function buildAsync(options: BuildOptions): Promise<Buffer>
+export declare function buildAsync(options: BuildOptions): Promise<Buffer>;
 /**
  * Stream the build to a callback, chunk by chunk, for low-memory output.
  *
@@ -36,10 +36,13 @@ export declare function buildAsync(options: BuildOptions): Promise<Buffer>
  * background thread, so the event loop stays free while chunks flow.
  *
  * ```js
- * build_stream({ entryPoints: ['./index.html'] }, (chunk) => {
+ * build_stream({ input: ['./index.html'] }, (chunk) => {
  *   if (chunk === null) res.end();
  *   else res.write(chunk);
  * });
  * ```
  */
-export declare function buildStream(options: BuildOptions, callback: (arg: Buffer | undefined | null) => any): void
+export declare function buildStream(
+  options: BuildOptions,
+  callback: (arg: Buffer | undefined | null) => any,
+): void;

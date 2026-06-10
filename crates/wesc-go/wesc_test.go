@@ -38,7 +38,7 @@ func fixtureEntry(t *testing.T, name string) string {
 func TestBuild(t *testing.T) {
 	entry := fixtureEntry(t, "default-slot")
 
-	html, err := wesc.Build(wesc.Options{EntryPoints: []string{entry}})
+	html, err := wesc.Build(wesc.Options{Input: []string{entry}})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -50,13 +50,13 @@ func TestBuild(t *testing.T) {
 func TestBuildStreamMatchesBuild(t *testing.T) {
 	entry := fixtureEntry(t, "default-slot")
 
-	oneShot, err := wesc.Build(wesc.Options{EntryPoints: []string{entry}})
+	oneShot, err := wesc.Build(wesc.Options{Input: []string{entry}})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 
 	var streamed bytes.Buffer
-	err = wesc.BuildStream(wesc.Options{EntryPoints: []string{entry}}, func(chunk []byte) error {
+	err = wesc.BuildStream(wesc.Options{Input: []string{entry}}, func(chunk []byte) error {
 		streamed.Write(chunk)
 		return nil
 	})
@@ -73,7 +73,7 @@ func TestBuildStreamPropagatesCallbackError(t *testing.T) {
 	entry := fixtureEntry(t, "default-slot")
 
 	sentinel := os.ErrClosed
-	err := wesc.BuildStream(wesc.Options{EntryPoints: []string{entry}}, func(chunk []byte) error {
+	err := wesc.BuildStream(wesc.Options{Input: []string{entry}}, func(chunk []byte) error {
 		return sentinel
 	})
 	if err != sentinel {

@@ -142,7 +142,7 @@ install time. The bundler runs in-process — no subprocess, no WASM.
 ```js
 import { build, buildAsync, buildStream } from 'wesc';
 
-const opts = { entryPoints: ['./index.html'], minify: true };
+const opts = { input: ['./index.html'], minify: true };
 
 // Async — runs on libuv's thread pool, never blocks the event loop.
 // Prefer this on a request-serving path.
@@ -162,7 +162,7 @@ const buf = build(opts);
 
 | Option        | Type       | Notes                                       |
 | ------------- | ---------- | ------------------------------------------- |
-| `entryPoints` | `string[]` | First entry is the host document.           |
+| `input`       | `string[]` | First entry is the host document.           |
 | `outcss`      | `string?`  | Path to write the bundled CSS file.         |
 | `outjs`       | `string?`  | Path to write the bundled JS file.          |
 | `minify`      | `boolean?` | Minify generated assets. Defaults to false. |

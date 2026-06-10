@@ -25,8 +25,8 @@ import (
 func main() {
 	// One-shot: returns the full HTML output as bytes.
 	html, err := wesc.Build(wesc.Options{
-		EntryPoints: []string{"./index.html"},
-		Minify:      true,
+		Input:  []string{"./index.html"},
+		Minify: true,
 	})
 	if err != nil {
 		panic(err)
@@ -35,7 +35,7 @@ func main() {
 
 	// Streaming: low memory, chunk by chunk. The callback receives each chunk;
 	// the call returns once the stream ends. Returning an error stops it.
-	err = wesc.BuildStream(wesc.Options{EntryPoints: []string{"./index.html"}}, func(chunk []byte) error {
+	err = wesc.BuildStream(wesc.Options{Input: []string{"./index.html"}}, func(chunk []byte) error {
 		_, err := writer.Write(chunk)
 		return err
 	})
@@ -49,16 +49,16 @@ func main() {
 
 ```go
 type Options struct {
-	EntryPoints []string // First entry is the host document.
-	OutCSS      string   // Path to write the bundled CSS file (empty = skip).
-	OutJS       string   // Path to write the bundled JS file (empty = skip).
-	Minify      bool     // Minify generated assets. Defaults to false.
+	Input  []string // First entry is the host document.
+	OutCSS string   // Path to write the bundled CSS file (empty = skip).
+	OutJS  string   // Path to write the bundled JS file (empty = skip).
+	Minify bool     // Minify generated assets. Defaults to false.
 }
 ```
 
 | Field / argument | Type                       | Notes                                            |
 | ---------------- | -------------------------- | ------------------------------------------------ |
-| `EntryPoints`    | `[]string`                 | First entry is the host document.                |
+| `Input`          | `[]string`                 | First entry is the host document.                |
 | `OutCSS`         | `string`                   | Path to write the bundled CSS file. Empty skips. |
 | `OutJS`          | `string`                   | Path to write the bundled JS file. Empty skips.  |
 | `Minify`         | `bool`                     | Minify generated assets. Defaults to `false`.    |

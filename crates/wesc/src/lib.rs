@@ -45,11 +45,11 @@ pub const CONTENT_IN_PROGRESS: usize = 0;
 
 #[derive(Debug, Clone)]
 pub struct BuildOptions {
-    pub entry_points: Vec<String>,
+    pub input: Vec<String>,
     pub outcss: Option<String>,
     pub outjs: Option<String>,
     /// Working directory for the build, like rolldown's `cwd`. Relative
-    /// `entry_points`, `outcss`, and `outjs` resolve against it, the `.wesc`
+    /// `input`, `outcss`, and `outjs` resolve against it, the `.wesc`
     /// scratch tree is created under it, and it is passed through to rolldown.
     /// Defaults to the process working directory when `None`.
     pub cwd: Option<String>,
@@ -86,7 +86,7 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 /// use wesc::{build, BuildOptions};
 ///
 /// let build_options = BuildOptions {
-///    entry_points: vec!["./tests/fixtures/default-slot/index.html".to_string()],
+///    input: vec!["./tests/fixtures/default-slot/index.html".to_string()],
 ///    outcss: None,
 ///    outjs: None,
 ///    cwd: None,

@@ -38,16 +38,16 @@ typedef void (*WescChunkCallback)(uintptr_t user_data, uint8_t *chunk, size_t le
 
 /* Build the entry points and return the full HTML output. Free with
  * wesc_buffer_free. `minify` is treated as a boolean (non-zero is true). */
-WescBuffer wesc_build(const char *const *entry_points,
-                      size_t entry_points_len,
+WescBuffer wesc_build(const char *const *input,
+                      size_t input_len,
                       const char *outcss,
                       const char *outjs,
                       int minify);
 
 /* Stream the build to `callback`, chunk by chunk. Returns NULL on success, or a
  * heap error string to free with wesc_string_free. */
-char *wesc_build_stream(const char *const *entry_points,
-                        size_t entry_points_len,
+char *wesc_build_stream(const char *const *input,
+                        size_t input_len,
                         const char *outcss,
                         const char *outjs,
                         int minify,

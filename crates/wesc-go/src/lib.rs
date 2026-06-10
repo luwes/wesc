@@ -68,26 +68,26 @@ unsafe fn opt_string(ptr: *const c_char) -> Option<String> {
 /// Assemble [`BuildOptions`] from the C-facing arguments.
 ///
 /// # Safety
-/// `entry_points` must point to `entry_points_len` valid C strings, and `outcss`
+/// `input` must point to `input_len` valid C strings, and `outcss`
 /// / `outjs` must each be null or a valid C string.
 unsafe fn collect_options(
-    entry_points: *const *const c_char,
-    entry_points_len: usize,
+    input: *const *const c_char,
+    input_len: usize,
     outcss: *const c_char,
     outjs: *const c_char,
     minify: c_int,
 ) -> BuildOptions {
-    let entry_points = if entry_points.is_null() || entry_points_len == 0 {
+    let input = if input.is_null() || input_len == 0 {
         Vec::new()
     } else {
-        slice::from_raw_parts(entry_points, entry_points_len)
+        slice::from_raw_parts(input, input_len)
             .iter()
             .map(|&p| CStr::from_ptr(p).to_string_lossy().into_owned())
             .collect()
     };
 
     BuildOptions {
-        entry_points,
+        input,
         outcss: opt_string(outcss),
         outjs: opt_string(outjs),
         cwd: None,
@@ -122,18 +122,18 @@ fn panic_message(payload: Box<dyn Any + Send>) -> String {
 /// The returned buffer owns its bytes; release it with [`wesc_buffer_free`].
 ///
 /// # Safety
-/// `entry_points` must point to `entry_points_len` valid NUL-terminated C
+/// `input` must point to `input_len` valid NUL-terminated C
 /// strings. `outcss` and `outjs` must each be null or a valid C string.
 #[no_mangle]
 pub unsafe extern "C" fn wesc_build(
-    entry_points: *const *const c_char,
-    entry_points_len: usize,
+    input: *const *const c_char,
+    input_len: usize,
     outcss: *const c_char,
     outjs: *const c_char,
     minify: c_int,
 ) -> WescBuffer {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let options = collect_options(entry_points, entry_points_len, outcss, outjs, minify);
+        let options = collect_options(input, input_len, outcss, outjs, minify);
         let mut output: Vec<u8> = Vec::new();
         wesc_build_core(options, &mut |chunk: &[u8]| {
             output.extend_from_slice(chunk);
@@ -167,13 +167,13 @@ pub unsafe extern "C" fn wesc_build(
 /// [`wesc_string_free`]) if the build panicked.
 ///
 /// # Safety
-/// `entry_points` must point to `entry_points_len` valid NUL-terminated C
+/// `input` must point to `input_len` valid NUL-terminated C
 /// strings. `outcss` and `outjs` must each be null or a valid C string.
 /// `callback` must be a valid function pointer for the whole call.
 #[no_mangle]
 pub unsafe extern "C" fn wesc_build_stream(
-    entry_points: *const *const c_char,
-    entry_points_len: usize,
+    input: *const *const c_char,
+    input_len: usize,
     outcss: *const c_char,
     outjs: *const c_char,
     minify: c_int,
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn wesc_build_stream(
     user_data: usize,
 ) -> *mut c_char {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let options = collect_options(entry_points, entry_points_len, outcss, outjs, minify);
+        let options = collect_options(input, input_len, outcss, outjs, minify);
         wesc_build_core(options, &mut |chunk: &[u8]| {
             callback(user_data, chunk.as_ptr() as *mut u8, chunk.len());
         });

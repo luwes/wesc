@@ -21,7 +21,7 @@ Options:
   -o, --outcss  <f>  Write the bundled CSS to file <f>.
   -m, --minify       Minify generated assets where supported.
   -h, --help         Show this help.
-`
+`,
   );
   process.exit(code);
 }
@@ -75,6 +75,6 @@ process.stdout.on('error', (err) => {
   throw err;
 });
 
-buildStream({ entryPoints: [path], outjs, outcss, minify }, (chunk) => {
+buildStream({ input: [path], outjs, outcss, minify }, (chunk) => {
   if (chunk !== null) process.stdout.write(chunk);
 });

@@ -30,13 +30,13 @@ void wescGoChunk(uintptr_t user_data, uint8_t *chunk, size_t len);
 // Calling wesc_build_stream from C (rather than passing the Go function pointer
 // from Go) keeps cgo happy: Go code can't hand a Go func pointer to C, but C can
 // reference the exported wescGoChunk symbol directly.
-static char *wescBuildStreamBridge(const char *const *entry_points,
-                                   size_t entry_points_len,
+static char *wescBuildStreamBridge(const char *const *input,
+                                   size_t input_len,
                                    const char *outcss,
                                    const char *outjs,
                                    int minify,
                                    uintptr_t user_data) {
-    return wesc_build_stream(entry_points, entry_points_len, outcss, outjs,
+    return wesc_build_stream(input, input_len, outcss, outjs,
                              minify, wescGoChunk, user_data);
 }
 */
@@ -51,9 +51,9 @@ import (
 // Options configures a build. It mirrors the CLI flags and the other language
 // bindings.
 type Options struct {
-	// EntryPoints are the entry point file paths. The first entry is the host
+	// Input are the entry point file paths. The first entry is the host
 	// document.
-	EntryPoints []string
+	Input []string
 	// OutCSS, if non-empty, is the path to write the bundled CSS file.
 	OutCSS string
 	// OutJS, if non-empty, is the path to write the bundled JS file.
@@ -66,8 +66,8 @@ type Options struct {
 // function releases every C allocation and must be called when the build
 // returns.
 func (o Options) cArgs() (entries **C.char, n C.size_t, outcss, outjs *C.char, minify C.int, free func()) {
-	cEntries := make([]*C.char, len(o.EntryPoints))
-	for i, e := range o.EntryPoints {
+	cEntries := make([]*C.char, len(o.Input))
+	for i, e := range o.Input {
 		cEntries[i] = C.CString(e)
 	}
 
@@ -101,7 +101,7 @@ func (o Options) cArgs() (entries **C.char, n C.size_t, outcss, outjs *C.char, m
 
 // Build compiles the entry points and returns the full HTML output as bytes.
 //
-//	html, err := wesc.Build(wesc.Options{EntryPoints: []string{"./index.html"}, Minify: true})
+//	html, err := wesc.Build(wesc.Options{Input: []string{"./index.html"}, Minify: true})
 func Build(opts Options) ([]byte, error) {
 	entries, n, outcss, outjs, minify, free := opts.cArgs()
 	defer free()
@@ -130,7 +130,7 @@ type streamState struct {
 // for low-memory streaming. If fn returns an error, that error is returned and
 // no further chunks are delivered.
 //
-//	err := wesc.BuildStream(wesc.Options{EntryPoints: []string{"./index.html"}}, func(chunk []byte) error {
+//	err := wesc.BuildStream(wesc.Options{Input: []string{"./index.html"}}, func(chunk []byte) error {
 //	    _, err := w.Write(chunk)
 //	    return err
 //	})

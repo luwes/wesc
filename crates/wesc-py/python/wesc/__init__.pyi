@@ -3,7 +3,7 @@ from typing import Callable, List, Optional
 __version__: str
 
 def build(
-    entry_points: List[str],
+    input: List[str],
     *,
     outcss: Optional[str] = ...,
     outjs: Optional[str] = ...,
@@ -15,7 +15,7 @@ def build(
     on a worker thread: ``await asyncio.to_thread(wesc.build, ["./index.html"])``.
 
     Args:
-        entry_points: Entry point file paths. The first entry is the host document.
+        input: Entry point file paths. The first entry is the host document.
         outcss: Optional path to write the bundled CSS file.
         outjs: Optional path to write the bundled JS file.
         minify: Minify generated JS/CSS assets where supported. Defaults to ``False``.
@@ -23,7 +23,7 @@ def build(
     ...
 
 def build_stream(
-    entry_points: List[str],
+    input: List[str],
     callback: Callable[[Optional[bytes]], object],
     *,
     outcss: Optional[str] = ...,
@@ -37,7 +37,7 @@ def build_stream(
     propagates out and the build stops.
 
     Args:
-        entry_points: Entry point file paths. The first entry is the host document.
+        input: Entry point file paths. The first entry is the host document.
         callback: Called with each ``bytes`` chunk, then ``None`` at end-of-stream.
         outcss: Optional path to write the bundled CSS file.
         outjs: Optional path to write the bundled JS file.

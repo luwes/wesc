@@ -31,13 +31,13 @@ use wesc::{build as wesc_build, BuildOptions};
 
 /// Assemble [`BuildOptions`] from the native (positional) arguments.
 fn collect_options(
-    entry_points: Vec<String>,
+    input: Vec<String>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> BuildOptions {
     BuildOptions {
-        entry_points,
+        input,
         outcss,
         outjs,
         cwd: None,
@@ -51,12 +51,12 @@ fn collect_options(
 /// for the public keyword-argument API.
 fn build(
     ruby: &Ruby,
-    entry_points: Vec<String>,
+    input: Vec<String>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> RString {
-    let options = collect_options(entry_points, outcss, outjs, minify);
+    let options = collect_options(input, outcss, outjs, minify);
 
     let mut output: Vec<u8> = Vec::new();
     wesc_build(options, &mut |chunk: &[u8]| {
@@ -76,13 +76,13 @@ fn build(
 /// `lib/wesc.rb` for the public keyword-argument API.
 fn build_stream(
     ruby: &Ruby,
-    entry_points: Vec<String>,
+    input: Vec<String>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
 ) -> Result<(), Error> {
     let block = ruby.block_proc()?;
-    let options = collect_options(entry_points, outcss, outjs, minify);
+    let options = collect_options(input, outcss, outjs, minify);
 
     // Remember the first block error so we can stop yielding and surface it.
     let mut pending_error: Option<Error> = None;

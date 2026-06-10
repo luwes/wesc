@@ -35,7 +35,7 @@ mkdirSync(distDir, { recursive: true });
 process.chdir(distDir);
 
 // Build once up front purely to produce the JS/CSS bundles, then cache them.
-build({ entryPoints: [entry], outjs: 'scripts.js', outcss: 'styles.css' });
+build({ input: [entry], outjs: 'scripts.js', outcss: 'styles.css' });
 const js = readFileSync(join(distDir, 'scripts.js'));
 const css = readFileSync(join(distDir, 'styles.css'));
 
@@ -53,7 +53,7 @@ const server = createServer((req, res) => {
   // Node uses chunked transfer encoding automatically when we write without a
   // Content-Length. Scales to arbitrarily large documents.
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  buildStream({ entryPoints: [entry] }, (chunk) => {
+  buildStream({ input: [entry] }, (chunk) => {
     if (chunk === null) res.end();
     else if (!res.writableEnded) res.write(chunk);
   });

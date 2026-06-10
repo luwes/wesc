@@ -26,7 +26,7 @@ function buildBoard() {
   process.chdir(projectDir);
 
   const page = build({
-    entryPoints: ['app/templates/index.liquid'],
+    input: ['app/templates/index.liquid'],
     outjs: 'dist/scripts.js',
     outcss: 'dist/styles.css',
   })

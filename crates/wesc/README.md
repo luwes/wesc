@@ -60,7 +60,7 @@ The CLI flags map one-to-one to the library's
 
 | CLI flag             | `BuildOptions` field          | Type             | Description                                                                                                                                   |
 | -------------------- | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<PATH>` (positional)| `entry_points: Vec<String>`   | path(s)          | The entry HTML file. The first entry is the host document that is expanded and streamed out. Required.                                        |
+| `<PATH>` (positional)| `input: Vec<String>`          | path(s)          | The entry HTML file. The first entry is the host document that is expanded and streamed out. Required.                                        |
 | `-o`, `--outcss`     | `outcss: Option<String>`      | path             | Write the bundled CSS (every component's top-level `<style>`, concatenated) to this file. Omit to skip CSS bundling.                          |
 | `-j`, `--outjs`      | `outjs: Option<String>`       | path             | Write the bundled JS (every component's top-level `<script>`, bundled with rolldown) to this file. Omit to skip JS bundling.                  |
 | `--cwd`              | `cwd: Option<String>`         | dir              | Working directory, like rolldown's `cwd`. Defaults to the process working directory. See [Working directory](#working-directory).             |
@@ -71,7 +71,7 @@ The CLI flags map one-to-one to the library's
 `--cwd` (the `cwd` option) controls the directory the build runs from,
 mirroring [rolldown](https://rolldown.rs)'s `cwd`:
 
-- Relative `entry_points`, `outcss`, and `outjs` paths resolve against
+- Relative `input`, `outcss`, and `outjs` paths resolve against
   it (absolute paths are used as-is).
 - The `.wesc` scratch directory is created under it (see
   [The `.wesc` scratch directory](#the-wesc-scratch-directory)).
@@ -198,7 +198,7 @@ build, so stale scripts from removed components never linger.
 use wesc::{build, BuildOptions};
 
 let options = BuildOptions {
-    entry_points: vec!["./index.html".to_string()],
+    input: vec!["./index.html".to_string()],
     outcss: Some("./out.css".to_string()),
     outjs: Some("./out.js".to_string()),
     cwd: None, // defaults to the process working directory

@@ -244,7 +244,7 @@ fn run_build(entry: &Path, want_css: bool, want_js: bool, minify: bool) -> Outpu
         let _lock = BUILD_LOCK.lock().unwrap();
         build(
             BuildOptions {
-                entry_points: vec![entry_point],
+                input: vec![entry_point],
                 outcss: css_path.as_deref().map(path_string),
                 outjs: js_path.as_deref().map(path_string),
                 cwd,
@@ -268,7 +268,7 @@ fn build_html_only(entry: &Path) -> String {
     let mut html = Vec::new();
     build(
         BuildOptions {
-            entry_points: vec![entry_point],
+            input: vec![entry_point],
             outcss: None,
             outjs: None,
             cwd,

@@ -57,9 +57,9 @@ func main() {
 
 	// Build once up front purely to produce the JS/CSS bundles, then cache them.
 	if _, err := wesc.Build(wesc.Options{
-		EntryPoints: []string{entry},
-		OutCSS:      "styles.css",
-		OutJS:       "scripts.js",
+		Input:  []string{entry},
+		OutCSS: "styles.css",
+		OutJS:  "scripts.js",
 	}); err != nil {
 		log.Fatalf("initial build: %v", err)
 	}
@@ -108,7 +108,7 @@ func streamHTML(w http.ResponseWriter, entry string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	flusher, _ := w.(http.Flusher)
 
-	err := wesc.BuildStream(wesc.Options{EntryPoints: []string{entry}}, func(chunk []byte) error {
+	err := wesc.BuildStream(wesc.Options{Input: []string{entry}}, func(chunk []byte) error {
 		if len(chunk) == 0 {
 			return nil
 		}

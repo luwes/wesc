@@ -21,12 +21,12 @@ use wesc::{build as wesc_build, BuildOptions as WescBuildOptions};
 #[napi(object)]
 pub struct BuildOptions {
     /// Entry point file paths. The first entry is the host document.
-    pub entry_points: Vec<String>,
+    pub input: Vec<String>,
     /// Optional path to write the bundled CSS file.
     pub outcss: Option<String>,
     /// Optional path to write the bundled JS file.
     pub outjs: Option<String>,
-    /// Working directory (like rolldown's cwd). Relative `entryPoints`/`outcss`/
+    /// Working directory (like rolldown's cwd). Relative `input`/`outcss`/
     /// `outjs` resolve against it and the `.wesc` scratch dir is created under
     /// it. Defaults to the process working directory.
     pub cwd: Option<String>,
@@ -37,7 +37,7 @@ pub struct BuildOptions {
 impl From<BuildOptions> for WescBuildOptions {
     fn from(o: BuildOptions) -> Self {
         WescBuildOptions {
-            entry_points: o.entry_points,
+            input: o.input,
             outcss: o.outcss,
             outjs: o.outjs,
             cwd: o.cwd,
@@ -98,7 +98,7 @@ pub fn build_async(options: BuildOptions) -> AsyncTask<BuildTask> {
 /// background thread, so the event loop stays free while chunks flow.
 ///
 /// ```js
-/// build_stream({ entryPoints: ['./index.html'] }, (chunk) => {
+/// build_stream({ input: ['./index.html'] }, (chunk) => {
 ///   if (chunk === null) res.end();
 ///   else res.write(chunk);
 /// });

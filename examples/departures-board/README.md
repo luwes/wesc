@@ -79,7 +79,7 @@ uses them like ordinary custom elements:
 
 ```js
 const page = build({
-  entryPoints: ['app/templates/index.liquid'],
+  input: ['app/templates/index.liquid'],
   outjs: 'dist/scripts.js',
   outcss: 'dist/styles.css',
 }).toString('utf8').trim();

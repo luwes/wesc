@@ -29,14 +29,14 @@ module Wesc
   #
   #   html = Wesc.build(["./index.html"], minify: true)
   #
-  # @param entry_points [Array<String>] entry point paths; the first is the host
+  # @param input [Array<String>] entry point paths; the first is the host
   #   document.
   # @param outcss [String, nil] optional path to write the bundled CSS file.
   # @param outjs [String, nil] optional path to write the bundled JS file.
   # @param minify [Boolean] minify generated JS/CSS assets. Defaults to false.
   # @return [String] the rendered HTML (ASCII-8BIT / binary encoding).
-  def build(entry_points, outcss: nil, outjs: nil, minify: false)
-    Native.build(Array(entry_points), outcss, outjs, minify ? true : false)
+  def build(input, outcss: nil, outjs: nil, minify: false)
+    Native.build(Array(input), outcss, outjs, minify ? true : false)
   end
 
   # Stream the build to a block, chunk by chunk, for low-memory output.
@@ -49,16 +49,16 @@ module Wesc
   #     io.write(chunk) unless chunk.nil?
   #   end
   #
-  # @param entry_points [Array<String>] entry point paths; the first is the host
+  # @param input [Array<String>] entry point paths; the first is the host
   #   document.
   # @param outcss [String, nil] optional path to write the bundled CSS file.
   # @param outjs [String, nil] optional path to write the bundled JS file.
   # @param minify [Boolean] minify generated JS/CSS assets. Defaults to false.
   # @yieldparam chunk [String, nil] each output chunk, then `nil` at end-of-stream.
   # @return [void]
-  def build_stream(entry_points, outcss: nil, outjs: nil, minify: false, &block)
+  def build_stream(input, outcss: nil, outjs: nil, minify: false, &block)
     raise ArgumentError, "Wesc.build_stream requires a block" unless block
 
-    Native.build_stream(Array(entry_points), outcss, outjs, minify ? true : false, &block)
+    Native.build_stream(Array(input), outcss, outjs, minify ? true : false, &block)
   end
 end

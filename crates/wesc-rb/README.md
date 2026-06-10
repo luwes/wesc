@@ -35,12 +35,12 @@ end
 
 ## API
 
-- `Wesc.build(entry_points, outcss: nil, outjs: nil, minify: false) -> String`
-- `Wesc.build_stream(entry_points, outcss: nil, outjs: nil, minify: false) { |chunk| ... } -> nil`
+- `Wesc.build(input, outcss: nil, outjs: nil, minify: false) -> String`
+- `Wesc.build_stream(input, outcss: nil, outjs: nil, minify: false) { |chunk| ... } -> nil`
 
 | Argument       | Type                  | Notes                                              |
 | -------------- | --------------------- | -------------------------------------------------- |
-| `entry_points` | `Array<String>`       | First entry is the host document.                  |
+| `input`        | `Array<String>`       | First entry is the host document.                  |
 | `outcss`       | `String, nil`         | Path to write the bundled CSS file. `nil` skips.   |
 | `outjs`        | `String, nil`         | Path to write the bundled JS file. `nil` skips.    |
 | `minify`       | `Boolean`             | Minify generated assets. Defaults to `false`.      |

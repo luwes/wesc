@@ -50,7 +50,7 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     // Resolve relative paths against the build's working directory — like
     // rolldown's `cwd` — which defaults to the process working directory.
     let cwd = resolve_cwd(options.cwd.as_deref());
-    let resolved_entry = resolve_path(&cwd, &options.entry_points[0]);
+    let resolved_entry = resolve_path(&cwd, &options.input[0]);
     let host_file_path = resolved_entry.as_str();
 
     // Resolve all the dependencies of the entry point.
@@ -115,7 +115,7 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
 }
 
 /// The working directory for a build, like rolldown's `cwd`: the directory that
-/// relative `entry_points`/`outcss`/`outjs` resolve against. Defaults to the
+/// relative `input`/`outcss`/`outjs` resolve against. Defaults to the
 /// process working directory and is always returned as an absolute path.
 fn resolve_cwd(cwd: Option<&str>) -> PathBuf {
     match cwd {
