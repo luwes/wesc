@@ -48,7 +48,7 @@ building blocks that can be stamped by whatever renders your data.
 | [`crates/wesc-php`](./crates/wesc-php)         | ext-php-rs PHP bindings.                                   |
 | [`crates/wesc-go`](./crates/wesc-go)           | cgo Go bindings (C ABI).                                   |
 | [`crates/wesc-rb`](./crates/wesc-rb)           | Magnus (rb-sys) Ruby bindings.                             |
-| [`examples`](./examples)                       | Bundler examples (departures-board, node-server, python-server, php-server, go-server, ruby-server). |
+| [`examples`](./examples)                       | Bundler examples (departures-board, node-server, python-server, php-server, go-server, ruby-server, rust-server). |
 
 ## Develop
 

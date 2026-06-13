@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php", "crates/wesc-go", "crates/wesc-rb/ext/wesc"]
+members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php", "crates/wesc-go", "crates/wesc-rb/ext/wesc", "examples/rust-server"]
 
 # `wesc-php` and `wesc-rb` are excluded from the default set so a bare
 # `cargo build` / `cargo test` at the root doesn't try to compile them: the PHP
@@ -12,7 +12,9 @@ members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php
 # `crates/wesc-rb` (a plain `cargo build -p wesc-rb` won't link standalone, but
 # `cargo check -p wesc-rb` typechecks it). The dedicated `.github/workflows/
 # php.yml` and `.github/workflows/ruby.yml` install those deps; the other crates
-# build with the toolchains CI already provides.
+# build with the toolchains CI already provides. The `examples/rust-server`
+# demo is also left out of the default set so root builds/tests stay focused on
+# the library crates; build it explicitly with `cargo run -p rust-server`.
 default-members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-go"]
 
 # The Ruby binding crate (crates/wesc-rb/ext/wesc) depends on the `wesc` core by
