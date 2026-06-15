@@ -19,6 +19,7 @@
 
 use std::collections::HashMap;
 use std::ops::Range;
+use std::rc::Rc;
 
 pub mod chunk_reader;
 pub mod component_definitions;
@@ -34,7 +35,7 @@ mod simple_template;
 mod slots;
 
 use self::build::build_file;
-use self::chunk_reader::clear_file_cache;
+use self::chunk_reader::{clear_file_cache, use_source, OsSource, Source};
 use self::component_definitions::clear_definitions;
 use self::simple_template::clear_simple_templates;
 
@@ -102,6 +103,45 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 /// });
 /// ```
 pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
+    build_with_source(build_options, OsSource, output_handler);
+}
+
+/// Like [`build`], but draws inputs from a custom [`Source`] instead of the
+/// filesystem — for example [`MemorySource`](crate::chunk_reader::MemorySource)
+/// on a target without a filesystem, such as a WebAssembly worker.
+///
+/// The source is active only for the duration of this call.
+///
+/// # Example
+///
+/// ```rust
+/// use wesc::chunk_reader::MemorySource;
+/// use wesc::{build_with_source, BuildOptions};
+///
+/// let source = MemorySource::new()
+///     .with("/app/index.html", "<!doctype html><html><body><p>Hi</p></body></html>");
+///     // ...plus any component definitions the entry references.
+///
+/// build_with_source(
+///     BuildOptions {
+///         input: vec!["/app/index.html".to_string()],
+///         outcss: None,
+///         outjs: None,
+///         cwd: Some("/app".to_string()),
+///         minify: false,
+///     },
+///     source,
+///     &mut |chunk: &[u8]| { let _ = chunk; },
+/// );
+/// ```
+pub fn build_with_source(
+    build_options: BuildOptions,
+    source: impl Source + 'static,
+    output_handler: &mut impl FnMut(&[u8]),
+) {
+    // Restores the default `OsSource` when this guard drops at the end of the call.
+    let _source = use_source(Rc::new(source));
+
     clear_file_cache();
     clear_simple_templates();
     clear_definitions();

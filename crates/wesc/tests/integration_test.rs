@@ -142,6 +142,61 @@ fn comments_before_component_template() {
 }
 
 #[test]
+fn build_from_memory_source() {
+    // A build can draw its inputs from an in-memory `Source` instead of disk,
+    // which is what a no-filesystem target (e.g. a WebAssembly worker) needs.
+    // The component href uses `..`, exercising path normalization.
+    use wesc::chunk_reader::MemorySource;
+    use wesc::build_with_source;
+
+    let source = MemorySource::new()
+        .with(
+            "/site/pages/index.html",
+            concat!(
+                "<!doctype html>\n",
+                "<html>\n",
+                "  <head>\n",
+                "    <link rel=\"definition\" name=\"w-card\" href=\"../components/card.html\">\n",
+                "  </head>\n",
+                "  <body>\n",
+                "    <w-card><span slot=\"title\">Hello</span>Body copy.</w-card>\n",
+                "  </body>\n",
+                "</html>\n",
+            ),
+        )
+        .with(
+            "/site/components/card.html",
+            concat!(
+                "<template>\n",
+                "  <article class=\"card\">\n",
+                "    <h3><slot name=\"title\">Untitled</slot></h3>\n",
+                "    <p><slot>No body.</slot></p>\n",
+                "  </article>\n",
+                "</template>\n",
+            ),
+        );
+
+    let mut html = Vec::new();
+    build_with_source(
+        BuildOptions {
+            input: vec!["/site/pages/index.html".to_string()],
+            outcss: None,
+            outjs: None,
+            cwd: Some("/site/pages".to_string()),
+            minify: false,
+        },
+        source,
+        &mut |chunk: &[u8]| html.extend_from_slice(chunk),
+    );
+
+    let html = String::from_utf8(html).expect("valid utf8");
+    assert!(html.contains("<article class=\"card\">"), "got: {html}");
+    // The slotted element is projected with its `slot` attribute stripped.
+    assert!(html.contains("<span>Hello</span>"), "got: {html}");
+    assert!(html.contains("Body copy."), "got: {html}");
+}
+
+#[test]
 fn utf8_slotted_text_split_across_chunks() {
     // A multi-byte character straddling a chunk boundary must not panic the
     // slotted-position scanner.

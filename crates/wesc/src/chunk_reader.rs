@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self};
+use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -28,6 +29,69 @@ impl Source for OsSource {
     }
 }
 
+/// An in-memory [`Source`] backed by a `path -> bytes` map, for builds with no
+/// filesystem (e.g. a WebAssembly worker).
+///
+/// Keys are **lexically normalized** (`.`/`..` segments collapsed) on both
+/// insert and lookup. The engine resolves component `href`s relative to the
+/// declaring file without collapsing `..` (so it asks for paths like
+/// `web/pages/../components/card.html`); normalizing both ends makes those
+/// lookups hit the entry the caller stored as `web/components/card.html`.
+#[derive(Debug, Default, Clone)]
+pub struct MemorySource {
+    files: HashMap<String, Arc<Vec<u8>>>,
+}
+
+impl MemorySource {
+    /// Create an empty source.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add (or replace) a file's contents at `path`.
+    pub fn insert(&mut self, path: impl AsRef<str>, contents: impl Into<Vec<u8>>) {
+        self.files
+            .insert(normalize_key(path.as_ref()), Arc::new(contents.into()));
+    }
+
+    /// Builder-style [`insert`](Self::insert).
+    #[must_use]
+    pub fn with(mut self, path: impl AsRef<str>, contents: impl Into<Vec<u8>>) -> Self {
+        self.insert(path, contents);
+        self
+    }
+}
+
+impl Source for MemorySource {
+    fn read(&self, path: &str) -> io::Result<Vec<u8>> {
+        self.files
+            .get(&normalize_key(path))
+            .map(|bytes| bytes.as_ref().clone())
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("path not found in memory source: {path}"),
+                )
+            })
+    }
+}
+
+/// Collapse `.` and `..` segments in `path` lexically (without touching the
+/// filesystem), so logically-equal paths map to the same key.
+fn normalize_key(path: &str) -> String {
+    let mut out = PathBuf::new();
+    for component in Path::new(path).components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out.to_string_lossy().into_owned()
+}
+
 // Per-build, per-thread cache of file contents. Each build runs on its own
 // thread (synchronous builds on the caller's thread, streaming builds on a
 // freshly spawned one), so thread-local storage isolates concurrent builds
@@ -44,16 +108,23 @@ thread_local! {
     static SOURCE: RefCell<Rc<dyn Source>> = RefCell::new(Rc::new(OsSource));
 }
 
-/// Use `source` for subsequent reads on the current thread (until reset). The
-/// byte cache is independent, so callers typically also call
-/// [`clear_file_cache`] when switching inputs.
-pub fn set_source(source: Rc<dyn Source>) {
+/// Make `source` the active input source on the current thread until the
+/// returned guard drops, which restores the default [`OsSource`].
+///
+/// Internal plumbing: the public entry point is
+/// [`build_with_source`](crate::build_with_source).
+pub(crate) fn use_source(source: Rc<dyn Source>) -> SourceGuard {
     SOURCE.with(|current| *current.borrow_mut() = source);
+    SourceGuard
 }
 
-/// Restore the default [`OsSource`] for the current thread.
-pub fn reset_source() {
-    SOURCE.with(|current| *current.borrow_mut() = Rc::new(OsSource));
+/// Restores the default [`OsSource`] on drop. See [`use_source`].
+pub(crate) struct SourceGuard;
+
+impl Drop for SourceGuard {
+    fn drop(&mut self) {
+        SOURCE.with(|current| *current.borrow_mut() = Rc::new(OsSource));
+    }
 }
 
 #[derive(Debug)]
@@ -110,4 +181,28 @@ pub fn read_file_cached(filepath: &str) -> io::Result<Arc<Vec<u8>>> {
             .insert(filepath.to_string(), bytes.clone());
     });
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_collapses_dot_segments() {
+        assert_eq!(normalize_key("/a/b/../c.html"), "/a/c.html");
+        assert_eq!(normalize_key("/a/./b/c.html"), "/a/b/c.html");
+        assert_eq!(normalize_key("a/b/../../c.html"), "c.html");
+    }
+
+    #[test]
+    fn memory_source_matches_unnormalized_lookups() {
+        // The caller stores a clean key; the engine looks it up with the
+        // `..` form `resolve_href` produces.
+        let source = MemorySource::new().with("/web/components/card.html", "hi");
+        assert_eq!(
+            source.read("/web/pages/../components/card.html").unwrap(),
+            b"hi"
+        );
+        assert!(source.read("/web/missing.html").is_err());
+    }
 }
