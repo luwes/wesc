@@ -1,0 +1,18 @@
+<template>
+  <span class="badge"><slot>Badge</slot></span>
+</template>
+
+<style>
+  x-badge {
+    display: inline-block;
+  }
+
+  x-badge .badge {
+    color: rebeccapurple;
+  }
+</style>
+
+<script type="module">
+  class XBadge extends HTMLElement {}
+  customElements.define('x-badge', XBadge);
+</script>

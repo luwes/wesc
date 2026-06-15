@@ -1,0 +1,26 @@
+<!--
+  This leading comment must be ignored, even though it contains tag-looking text:
+  <template>, </template>, <slot>, and <x-card>.
+  It should be stripped from the expanded result because it is outside the root template.
+-->
+<template>
+  <article class="card">
+    <h2><slot name="title">Untitled</slot></h2>
+    <p><slot>No body.</slot></p>
+  </article>
+</template>
+
+<style>
+  x-card {
+    display: block;
+  }
+
+  x-card .card {
+    border: 1px solid currentColor;
+  }
+</style>
+
+<script type="module">
+  class XCard extends HTMLElement {}
+  customElements.define('x-card', XCard);
+</script>

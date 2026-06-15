@@ -109,6 +109,39 @@ fn scriptless_component() {
 }
 
 #[test]
+fn definition_manifest_assets() {
+    // An asset-only manifest may contain only rel=definition links. It emits no
+    // HTML, but still resolves the dependency graph and builds the CSS/JS side
+    // outputs for those definitions.
+    let dir = fixture_dir("definition-manifest");
+    let out = run_build(&dir.join("index.html"), true, true, false);
+
+    assert!(out.html.trim().is_empty());
+    assert!(out.css.unwrap().contains("x-badge .badge"));
+    let js = out.js.unwrap();
+    assert!(js.contains("customElements.define"));
+    assert!(js.contains("x-badge"));
+}
+
+#[test]
+fn comments_before_component_template() {
+    // Component definition files may carry documentation comments before their
+    // root <template>. Tag-looking text inside those comments must not be
+    // mistaken for real markup, and the pre-template comments are not emitted.
+    let dir = fixture_dir("comments-before-template");
+    let out = run_build(&dir.join("index.html"), true, true, false);
+
+    assert!(out.html.contains("<article class=\"card\">"));
+    assert!(out.html.contains("<span>Hello</span>"));
+    assert!(out.html.contains("Body copy."));
+    assert!(!out.html.contains("This leading comment must be ignored"));
+    assert!(out.css.unwrap().contains("x-card .card"));
+    let js = out.js.unwrap();
+    assert!(js.contains("customElements.define"));
+    assert!(js.contains("x-card"));
+}
+
+#[test]
 fn utf8_slotted_text_split_across_chunks() {
     // A multi-byte character straddling a chunk boundary must not panic the
     // slotted-position scanner.

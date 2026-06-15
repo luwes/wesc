@@ -62,13 +62,20 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     let dep_graph_ptr_clone = dep_graph_ptr.clone();
     let outcss = options.outcss.as_deref().map(|p| resolve_path(&cwd, p));
     let outjs = options.outjs.as_deref().map(|p| resolve_path(&cwd, p));
+    let has_side_outputs = outcss.is_some() || outjs.is_some();
     let minify = options.minify;
     let host_file_path_string = host_file_path.to_owned();
     let cwd_for_js = cwd.clone();
 
     let css_thread_handle = thread::spawn(move || extract_css(dep_graph_ptr, outcss));
     let js_thread_handle = thread::spawn(move || {
-        extract_and_bundle_js(dep_graph_ptr_clone, outjs, minify, host_file_path_string, cwd_for_js)
+        extract_and_bundle_js(
+            dep_graph_ptr_clone,
+            outjs,
+            minify,
+            host_file_path_string,
+            cwd_for_js,
+        )
     });
 
     let mut ctx = BuildCtx::new(&dep_graph);
@@ -76,7 +83,21 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     ctx.read_positions.insert(pos_key(0, host_file_path), 0);
 
     let html_or_component_tag =
-        read_until_start_tag(host_file_path, 0, &["root > html", "root > template"], "").unwrap();
+        match read_until_start_tag(host_file_path, 0, &["root > html", "root > template"], "") {
+            Ok(tag) => tag,
+            Err(err) if has_side_outputs => {
+                // Asset-only manifests are useful for building a shared CSS/JS bundle:
+                // an entry can contain only `<link rel="definition">` declarations,
+                // with no root document/template and no HTML output. The dependency
+                // graph was already resolved above, so wait for the side-output
+                // extractors and return an empty HTML stream.
+                css_thread_handle.join().unwrap();
+                js_thread_handle.join().unwrap();
+                let _ = err;
+                return;
+            }
+            Err(err) => panic!("entry must contain a root <html> or <template>: {err}"),
+        };
 
     let entry_is_component = html_or_component_tag.tag_name != "html";
     let host_pos_key = pos_key(ctx.file_indexes[host_file_path], host_file_path);

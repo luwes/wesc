@@ -125,6 +125,11 @@ pub(crate) fn find_start_tag(bytes: &[u8], start: usize, tag_name: &[u8]) -> Opt
     let mut pos = start;
     while pos < bytes.len() {
         let tag_start = find_next_byte(bytes, pos, b'<')?;
+        if is_html_comment_start(bytes, tag_start) {
+            pos = find_html_comment_end(bytes, tag_start).unwrap_or(bytes.len());
+            continue;
+        }
+
         let name_start = tag_start + 1;
         let name_end = name_start + tag_name.len();
         if name_end <= bytes.len()
@@ -146,6 +151,11 @@ pub(crate) fn find_end_tag(bytes: &[u8], start: usize, tag_name: &[u8]) -> Optio
     let mut pos = start;
     while pos < bytes.len() {
         let tag_start = find_next_byte(bytes, pos, b'<')?;
+        if is_html_comment_start(bytes, tag_start) {
+            pos = find_html_comment_end(bytes, tag_start).unwrap_or(bytes.len());
+            continue;
+        }
+
         let name_start = tag_start + 2;
         let name_end = name_start + tag_name.len();
         if bytes.get(tag_start + 1) == Some(&b'/')
@@ -161,6 +171,15 @@ pub(crate) fn find_end_tag(bytes: &[u8], start: usize, tag_name: &[u8]) -> Optio
     }
 
     None
+}
+
+fn is_html_comment_start(bytes: &[u8], pos: usize) -> bool {
+    bytes.get(pos..pos + 4) == Some(b"<!--".as_slice())
+}
+
+fn find_html_comment_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let search_start = start.checked_add(4)?;
+    memchr::memmem::find(bytes.get(search_start..)?, b"-->").map(|offset| search_start + offset + 3)
 }
 
 pub(crate) fn find_next_byte(bytes: &[u8], start: usize, needle: u8) -> Option<usize> {
@@ -344,7 +363,8 @@ pub(crate) fn parse_start_tag_attributes(start_tag: &[u8]) -> HashMap<String, St
         }
 
         if name_end > name_start {
-            let name = String::from_utf8_lossy(&start_tag[name_start..name_end]).to_ascii_lowercase();
+            let name =
+                String::from_utf8_lossy(&start_tag[name_start..name_end]).to_ascii_lowercase();
             attributes.entry(name).or_insert_with(|| value.to_string());
         }
     }
@@ -363,7 +383,8 @@ pub(crate) fn read_first_start_tag(file_path: &str, tag_name: &[u8]) -> io::Resu
 
     let tag_start =
         find_start_tag(&bytes, 0, tag_name).ok_or_else(|| io::Error::other("tag not found"))?;
-    let tag_end = find_tag_end(&bytes, tag_start).ok_or_else(|| io::Error::other("tag not found"))?;
+    let tag_end =
+        find_tag_end(&bytes, tag_start).ok_or_else(|| io::Error::other("tag not found"))?;
 
     Ok(Tag {
         tag_name: String::from_utf8_lossy(tag_name).into_owned(),
@@ -396,6 +417,11 @@ pub(crate) fn read_next_tag_named(
     // case for the end-tag lookups this serves.
     let mut pos = position;
     while let Some(lt) = find_next_byte(&bytes, pos, b'<') {
+        if is_html_comment_start(&bytes, lt) {
+            pos = find_html_comment_end(&bytes, lt).unwrap_or(bytes.len());
+            continue;
+        }
+
         let is_end = bytes.get(lt + 1) == Some(&b'/');
         let name_start = if is_end { lt + 2 } else { lt + 1 };
         let name_end = name_start + tag_name.len();
@@ -433,6 +459,11 @@ pub(crate) fn contains_start_tag(bytes: &[u8], tag_name: &[u8]) -> bool {
     while i < bytes.len() {
         if bytes[i] != b'<' || i + 1 >= bytes.len() {
             i += 1;
+            continue;
+        }
+
+        if is_html_comment_start(bytes, i) {
+            i = find_html_comment_end(bytes, i).unwrap_or(bytes.len());
             continue;
         }
 
