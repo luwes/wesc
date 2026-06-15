@@ -2,7 +2,31 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self};
+use std::rc::Rc;
 use std::sync::Arc;
+
+/// A read-only provider of input bytes, keyed by path.
+///
+/// The expansion engine never writes and only ever reads inputs by path (every
+/// read funnels through [`read_file_cached`]). Abstracting that behind a trait
+/// lets a build draw its inputs from somewhere other than the local filesystem
+/// — e.g. an in-memory map — which is what a no-filesystem target like a
+/// WebAssembly worker needs. The default is [`OsSource`], so native builds keep
+/// reading from disk unchanged.
+pub trait Source {
+    /// Read the full contents of `path`.
+    fn read(&self, path: &str) -> io::Result<Vec<u8>>;
+}
+
+/// The default [`Source`]: reads from the local filesystem with [`std::fs`].
+#[derive(Debug, Default, Clone, Copy)]
+pub struct OsSource;
+
+impl Source for OsSource {
+    fn read(&self, path: &str) -> io::Result<Vec<u8>> {
+        fs::read(path)
+    }
+}
 
 // Per-build, per-thread cache of file contents. Each build runs on its own
 // thread (synchronous builds on the caller's thread, streaming builds on a
@@ -12,6 +36,24 @@ use std::sync::Arc;
 // bytes from a previous build.
 thread_local! {
     static FILE_CACHE: RefCell<HashMap<String, Arc<Vec<u8>>>> = RefCell::new(HashMap::new());
+
+    // The active input source for this thread. Defaults to the filesystem; a
+    // caller can swap in another source (e.g. an in-memory map) for the builds
+    // that run on this thread. `Rc<dyn Source>` is fine because the cache and
+    // the source are only ever touched from the owning thread.
+    static SOURCE: RefCell<Rc<dyn Source>> = RefCell::new(Rc::new(OsSource));
+}
+
+/// Use `source` for subsequent reads on the current thread (until reset). The
+/// byte cache is independent, so callers typically also call
+/// [`clear_file_cache`] when switching inputs.
+pub fn set_source(source: Rc<dyn Source>) {
+    SOURCE.with(|current| *current.borrow_mut() = source);
+}
+
+/// Restore the default [`OsSource`] for the current thread.
+pub fn reset_source() {
+    SOURCE.with(|current| *current.borrow_mut() = Rc::new(OsSource));
 }
 
 #[derive(Debug)]
@@ -61,7 +103,7 @@ pub fn read_file_cached(filepath: &str) -> io::Result<Arc<Vec<u8>>> {
         return Ok(bytes);
     }
 
-    let bytes = Arc::new(fs::read(filepath)?);
+    let bytes = Arc::new(SOURCE.with(|source| source.borrow().read(filepath))?);
     FILE_CACHE.with(|cache| {
         cache
             .borrow_mut()
