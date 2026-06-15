@@ -1,0 +1,28 @@
+<template>
+  <footer class="site-footer">
+    <p>
+      <strong>WeSC</strong> — We are the Superlative Components ·
+      <a href="https://github.com/luwes/wesc">GitHub</a>
+    </p>
+  </footer>
+</template>
+
+<style>
+  w-site-footer {
+    display: block;
+  }
+  w-site-footer .site-footer {
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    padding: 1.5rem clamp(1rem, 4vw, 3rem);
+    font-size: 0.9rem;
+  }
+  w-site-footer .site-footer a {
+    color: var(--muted);
+  }
+</style>
+
+<script type="module">
+  class WSiteFooter extends HTMLElement {}
+  customElements.define('w-site-footer', WSiteFooter);
+</script>

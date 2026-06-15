@@ -1,0 +1,43 @@
+[package]
+name = "wesc-site"
+version = "0.0.0"
+edition = "2021"
+authors = ["Wesley Luyten <me@wesleyluyten.com>"]
+description = "Marketing/docs site for WeSC, served from a Rust Cloudflare Worker."
+license = "MIT"
+repository = "luwes/wesc"
+publish = false
+build = "build.rs"
+
+# Cloudflare Workers run a wasm32-unknown-unknown module, so the crate is a
+# cdylib that `worker-build` wraps in a generated JS entrypoint.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+worker = "0.8.5"
+# Routes panics to `console.error` so failures show up in `wrangler tail`.
+console_error_panic_hook = "0.1"
+# Adapts our `Vec<u8>` chunks into the `Stream` that `Response::from_stream`
+# wants, so the Worker can stream HTML chunk by chunk.
+futures-util = "0.3"
+
+# wesc runs at BUILD TIME (in build.rs), never in the Worker: it pulls in
+# rolldown, which doesn't target wasm32-unknown-unknown. Build dependencies are
+# always compiled for the host, so this dogfoods the bundler to produce the
+# site's HTML/CSS/JS, which the Worker then serves.
+[build-dependencies]
+wesc = { path = "../crates/wesc" }
+
+# Size optimizations recommended for Wasm Workers (small binaries start faster
+# and stay under bundle-size limits). `worker-build` additionally runs
+# `wasm-opt` on the release output.
+#
+# Note: do NOT set `strip = true` here. Stripping removes the wasm
+# `target_features` custom section, which `wasm-bindgen` needs to detect that
+# `reference-types` is enabled; without it the build fails with
+# "externref table required for catch wrappers". `wasm-opt` strips what's safe.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

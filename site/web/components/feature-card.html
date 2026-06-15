@@ -1,0 +1,38 @@
+<template shadowrootmode="open">
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.2rem;
+      transition: border-color 0.15s ease;
+    }
+
+    h3 {
+      margin: 0 0 0.4rem;
+      font-size: 1.05rem;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+    ::slotted(a) {
+      color: var(--accent);
+    }
+  </style>
+  <h3><slot name="title">Feature</slot></h3>
+  <p><slot>Description.</slot></p>
+</template>
+
+<style>
+  w-feature-card {
+    display: block;
+  }
+</style>
+
+<script type="module">
+  class WFeatureCard extends HTMLElement {}
+  customElements.define('w-feature-card', WFeatureCard);
+</script>

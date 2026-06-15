@@ -1,0 +1,15 @@
+<link rel="definition" name="w-layout" href="../components/layout.html" />
+
+<template>
+  <w-layout w-trim>
+    <title slot="title">Not found — WeSC</title>
+    <meta slot="description" name="robots" content="noindex" />
+
+    <h1>404 — Not found</h1>
+    <!-- PATH is replaced by the Worker with the escaped request path. -->
+    <p>There's nothing at <code>{{PATH}}</code>.</p>
+    <p>
+      <a href="/">Back home</a> or <a href="/docs">browse the docs</a>.
+    </p>
+  </w-layout>
+</template>

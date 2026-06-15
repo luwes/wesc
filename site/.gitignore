@@ -1,0 +1,14 @@
+# Rust build output
+/target/
+
+# worker-build output (generated wasm + JS shim)
+/build/
+
+# Fast local dev-server output
+/.dev-dist/
+
+# Wrangler local state
+/.wrangler/
+
+# npm
+/node_modules/

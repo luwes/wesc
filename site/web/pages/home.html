@@ -1,0 +1,112 @@
+<link rel="definition" name="w-layout" href="../components/layout.html" />
+<link rel="definition" name="w-feature-card" href="../components/feature-card.html" />
+<link rel="definition" name="w-copy-button" href="../components/copy-button.html" />
+
+<template>
+  <w-layout w-trim>
+    <title slot="title">Home — WeSC</title>
+    <meta
+      slot="description"
+      name="description"
+      content="WeSC — a streaming HTML/web-component bundler written in Rust. Build web components from any backend."
+    />
+
+    <section class="hero">
+      <h1>Build web components from any backend.</h1>
+      <p class="tagline">
+        WeSC is a streaming HTML/web-component bundler written in Rust. It
+        compiles single-file <code>.html</code> components into ready-to-serve
+        HTML, supporting both light DOM expansion and Declarative Shadow DOM.
+      </p>
+      <p><w-copy-button text="npm i wesc">npm i wesc</w-copy-button></p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="/docs">Read the docs</a>
+        <a class="btn btn-ghost" href="https://github.com/luwes/wesc">GitHub</a>
+      </div>
+    </section>
+
+    <section class="cards">
+      <w-feature-card>
+        <span slot="title">HTML first</span>
+        Lean on the platform — Declarative Shadow DOM, slots, and
+        <code>&lt;template&gt;</code>, not a custom dialect.
+      </w-feature-card>
+      <w-feature-card>
+        <span slot="title">Single-file components</span>
+        Author markup, styles, and script together in one
+        <code>.html</code> file.
+      </w-feature-card>
+      <w-feature-card>
+        <span slot="title">Backend-agnostic</span>
+        A standalone CLI plus native bindings for Node, Python, PHP, Go, and
+        Ruby.
+      </w-feature-card>
+      <w-feature-card>
+        <span slot="title">Streaming &amp; fast</span>
+        Built on lol-html and rolldown — chunk-by-chunk, low-memory, no host
+        runtime.
+      </w-feature-card>
+    </section>
+
+    <h2>Author once, expand at build time</h2>
+    <p>
+      Define a component with the WeSC-specific
+      <code>rel="definition"</code> link, then use it like any custom element:
+    </p>
+    <pre><code class="language-html">&lt;link rel="definition" name="w-card" href="./components/card.html"&gt;
+
+&lt;w-card&gt;
+  &lt;h3 slot="title"&gt;Title&lt;/h3&gt;
+  Description
+&lt;/w-card&gt;</code></pre>
+    <p>
+      WeSC resolves the definition at build time, expands every matching
+      element into ready-to-serve HTML, and bundles the component CSS and JS
+      separately so the streamed HTML stays lean.
+      <a href="/docs">See the docs →</a>
+    </p>
+
+    <h2>Bindings</h2>
+    <p>
+      WeSC is a Rust core exposed through native bindings, so you can call the
+      same bundler from your stack of choice:
+    </p>
+    <section class="cards">
+      <a class="card-link" href="https://github.com/luwes/wesc/tree/main/crates/wesc-node">
+        <w-feature-card>
+          <span slot="title">Node</span>
+          via napi-rs — the <code>wesc</code> npm package.
+        </w-feature-card>
+      </a>
+      <a class="card-link" href="https://github.com/luwes/wesc/tree/main/crates/wesc-py">
+        <w-feature-card>
+          <span slot="title">Python</span>
+          via PyO3.
+        </w-feature-card>
+      </a>
+      <a class="card-link" href="https://github.com/luwes/wesc/tree/main/crates/wesc-php">
+        <w-feature-card>
+          <span slot="title">PHP</span>
+          via ext-php-rs.
+        </w-feature-card>
+      </a>
+      <a class="card-link" href="https://github.com/luwes/wesc/tree/main/crates/wesc-go">
+        <w-feature-card>
+          <span slot="title">Go</span>
+          via cgo (a small C ABI).
+        </w-feature-card>
+      </a>
+      <a class="card-link" href="https://github.com/luwes/wesc/tree/main/crates/wesc-rb">
+        <w-feature-card>
+          <span slot="title">Ruby</span>
+          via Magnus (rb-sys).
+        </w-feature-card>
+      </a>
+    </section>
+    <p>
+      The public build options stay in sync across every binding. See the
+      <a href="https://github.com/luwes/wesc">repository</a> for per-language
+      examples under <code>examples/</code>.
+    </p>
+  </w-layout>
+</template>

@@ -1,0 +1,64 @@
+<link rel="definition" name="w-layout" href="../components/layout.html" />
+
+<template>
+  <w-layout w-trim>
+    <title slot="title">Docs — WeSC</title>
+    <meta slot="description" name="description" content="WeSC documentation." />
+
+    <h1>Documentation</h1>
+    <p>
+      WeSC is an HTML component bundler. It turns component definitions into
+      reusable HTML building blocks that whatever renders your data can stamp
+      out. It is <em>not</em> a template engine — pair it with Liquid,
+      Nunjucks, Jinja, Twig, ERB, or your framework of choice.
+    </p>
+
+    <h2>CLI</h2>
+    <p>
+      The expanded HTML is streamed to <strong>stdout</strong>. Bundled CSS and
+      JS are produced only when you ask for them with
+      <code>--outcss</code> / <code>--outjs</code>.
+    </p>
+    <pre><code class="language-sh"># HTML only, to stdout
+wesc ./index.html &gt; out.html
+
+# HTML to stdout, plus bundled CSS and JS to files
+wesc ./index.html --outcss ./out.css --outjs ./out.js
+
+# Minified assets
+wesc ./index.html --outjs ./out.js --minify</code></pre>
+
+    <h3>Options</h3>
+    <ul>
+      <li><code>&lt;PATH&gt;</code> — the entry HTML file (required).</li>
+      <li><code>-o, --outcss &lt;FILE&gt;</code> — write the bundled CSS.</li>
+      <li><code>-j, --outjs &lt;FILE&gt;</code> — write the bundled JS (rolldown).</li>
+      <li><code>--cwd &lt;DIR&gt;</code> — working directory (like rolldown's <code>cwd</code>).</li>
+      <li><code>-m, --minify</code> — minify generated assets where supported.</li>
+    </ul>
+
+    <h2>Library usage</h2>
+    <p>
+      The Rust core exposes <code>build</code> and <code>BuildOptions</code>.
+      The expanded HTML is delivered to your handler in streaming chunks.
+    </p>
+    <pre><code class="language-rust">use wesc::{build, BuildOptions};
+
+let options = BuildOptions {
+    input: vec!["./index.html".to_string()],
+    outcss: Some("./out.css".to_string()),
+    outjs: Some("./out.js".to_string()),
+    cwd: None, // defaults to the process working directory
+    minify: false,
+};
+
+build(options, &amp;mut |chunk: &amp;[u8]| {
+    // write the chunk to a file, an HTTP response, stdout, ...
+    print!("{}", String::from_utf8_lossy(chunk));
+});</code></pre>
+    <p>
+      Each call starts from empty, thread-local caches, so independent builds
+      can run concurrently on different threads without an external lock.
+    </p>
+  </w-layout>
+</template>
