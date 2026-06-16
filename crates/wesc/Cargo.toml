@@ -16,11 +16,18 @@ include = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.4.11", features = ["derive"] }
 indexmap = "2.2.6"
 indextree = "4.6.0"
 lol_html = "1.2.1"
 memchr = "2"
+
+# Native-only dependencies. `clap` powers the CLI binary; `rolldown` + `tokio`
+# power CSS/JS bundling, which spawns threads and touches the filesystem. None of
+# them are needed for HTML-only expansion, so they're excluded on wasm targets
+# (e.g. a Cloudflare Worker) where the library can still run via `build_with_source`
+# fed from an in-memory `Source`.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+clap = { version = "4.4.11", features = ["derive"] }
 rolldown = "1.0.3"
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 

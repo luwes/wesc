@@ -3,19 +3,32 @@
 //! Independently of the HTML expansion, a build also collects the top-level
 //! `<style>` of every component definition into a single CSS file, and the
 //! top-level `<script>` of every component into a JS bundle (via `rolldown`).
-//! Both run on their own threads from [`crate::build`].
+//!
+//! CSS concatenation and JS bundling write to the filesystem and the JS path
+//! drives `rolldown` (which spawns threads). Neither is available on wasm
+//! targets, so the JS bundling path is gated off there; an HTML-only build
+//! (`outcss`/`outjs` both `None`) does no asset work and runs everywhere.
 
 use indextree::Node;
-use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs::{self, remove_file};
 use std::io::Write;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use tokio::runtime::Builder;
 
 use crate::dep_graph::{DepGraph, Module};
 use crate::write_tags::{read_until_start_tag, write_until_end_tag};
+
+// Bundling-only imports: rolldown, tokio, and the helpers that feed them are
+// native-only (see Cargo.toml). HTML-only builds never reach this code.
+#[cfg(not(target_family = "wasm"))]
+use std::collections::HashMap;
+#[cfg(not(target_family = "wasm"))]
+use std::path::Component;
+#[cfg(not(target_family = "wasm"))]
+use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
+#[cfg(not(target_family = "wasm"))]
+use tokio::runtime::Builder;
 
 /// Concatenate the top-level `<style>` of each unique component definition into
 /// `outcss`. Does nothing when no CSS output path was requested.
@@ -67,6 +80,7 @@ fn append_top_level_element(file_path: &str, tag: &str, out_path: &Path) -> bool
 /// Mirror-file extension for a component's top-level `<script>`, derived from its
 /// `lang` attribute. TypeScript scripts get a `.ts`/`.tsx` extension so rolldown
 /// transpiles them (via oxc); everything else stays `.js`.
+#[cfg(not(target_family = "wasm"))]
 fn script_extension(lang: Option<&String>) -> &'static str {
     match lang.map(|l| l.to_ascii_lowercase()).as_deref() {
         Some("ts") | Some("typescript") => "ts",
@@ -79,6 +93,7 @@ fn script_extension(lang: Option<&String>) -> &'static str {
 /// `scripts_dir`, mirroring the file's path relative to `cwd`), choosing the
 /// extension from the script's `lang` attribute. Returns the chosen extension, or
 /// `None` when the file has no top-level `<script>`.
+#[cfg(not(target_family = "wasm"))]
 fn extract_script(scripts_dir: &Path, cwd: &Path, file_path: &str) -> Option<&'static str> {
     let Ok(start) = read_until_start_tag(file_path, 0, &["root > script"], "") else {
         return None;
@@ -111,11 +126,31 @@ pub(crate) fn extract_and_bundle_js(
     // The per-component mirror files and the bundle they feed only exist to
     // produce `outjs`. When no JS bundle was requested there is nothing to
     // do — and skipping it keeps HTML-only builds from touching the `.wesc`
-    // scratch directory at all.
+    // scratch directory at all. This early return is the entire job on wasm.
     let Some(outjs) = outjs else {
         return;
     };
 
+    #[cfg(target_family = "wasm")]
+    {
+        let _ = (dep_graph, outjs, minify, host_file_path, cwd);
+        panic!("wesc: JS bundling (outjs) requires a native target; build HTML only on wasm");
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    bundle_js(dep_graph, outjs, minify, host_file_path, cwd);
+}
+
+/// Extract each scripted component's `<script>` to a `.wesc` mirror tree, write
+/// an entry that imports them, and bundle the result to `outjs` with rolldown.
+#[cfg(not(target_family = "wasm"))]
+fn bundle_js(
+    dep_graph: Arc<Mutex<DepGraph>>,
+    outjs: String,
+    minify: bool,
+    host_file_path: String,
+    cwd: PathBuf,
+) {
     // The scratch tree lives in a `.wesc` folder under the build's working
     // directory (`cwd`), mirroring how rolldown roots its own paths.
     let scripts_dir = cwd.join(".wesc").join("scripts");
@@ -233,6 +268,7 @@ pub(crate) fn extract_and_bundle_js(
 /// `Normal` components then guarantees the mirror can never escape it (via a
 /// leading `/` or a `..` from a resolved href or a component outside `cwd`), so
 /// the write location and the import specifiers in `__entry.js` stay consistent.
+#[cfg(not(target_family = "wasm"))]
 pub(crate) fn mirror_script_path(
     scripts_dir: &Path,
     cwd: &Path,

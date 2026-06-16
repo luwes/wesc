@@ -1,13 +1,15 @@
 //! Build orchestration.
 //!
 //! [`build_file`] resolves the dependency graph for an entry point, kicks off
-//! the CSS/JS asset extraction on background threads (see [`crate::assets`]),
-//! and then drives the top-level expansion loop over the host file, delegating
-//! each custom element to [`crate::component`].
+//! the CSS/JS asset extraction (see [`crate::assets`]), and then drives the
+//! top-level expansion loop over the host file, delegating each custom element
+//! to [`crate::component`]. The extractors run on background threads on native
+//! targets; on wasm (no threads) they run inline.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+#[cfg(not(target_family = "wasm"))]
 use std::thread;
 
 use crate::assets::{extract_and_bundle_js, extract_css};
@@ -56,8 +58,8 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     // Resolve all the dependencies of the entry point.
     let dep_graph = resolve_dependencies(host_file_path);
 
-    // CSS/JS extraction runs on background threads over their own clone of the
-    // graph, independently of the HTML expansion below.
+    // CSS/JS extraction works over its own clone of the graph, independently of
+    // the HTML expansion below.
     let dep_graph_ptr = Arc::new(Mutex::new(dep_graph.clone()));
     let dep_graph_ptr_clone = dep_graph_ptr.clone();
     let outcss = options.outcss.as_deref().map(|p| resolve_path(&cwd, p));
@@ -67,16 +69,15 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     let host_file_path_string = host_file_path.to_owned();
     let cwd_for_js = cwd.clone();
 
-    let css_thread_handle = thread::spawn(move || extract_css(dep_graph_ptr, outcss));
-    let js_thread_handle = thread::spawn(move || {
-        extract_and_bundle_js(
-            dep_graph_ptr_clone,
-            outjs,
-            minify,
-            host_file_path_string,
-            cwd_for_js,
-        )
-    });
+    let extractors = Extractors::start(
+        dep_graph_ptr,
+        outcss,
+        dep_graph_ptr_clone,
+        outjs,
+        minify,
+        host_file_path_string,
+        cwd_for_js,
+    );
 
     let mut ctx = BuildCtx::new(&dep_graph);
     ctx.file_indexes.insert(host_file_path.to_string(), 0);
@@ -91,8 +92,7 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
                 // with no root document/template and no HTML output. The dependency
                 // graph was already resolved above, so wait for the side-output
                 // extractors and return an empty HTML stream.
-                css_thread_handle.join().unwrap();
-                js_thread_handle.join().unwrap();
+                extractors.finish();
                 let _ = err;
                 return;
             }
@@ -131,8 +131,59 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
         }
     }
 
-    css_thread_handle.join().unwrap();
-    js_thread_handle.join().unwrap();
+    extractors.finish();
+}
+
+/// Runs the CSS/JS side-output extractors (see [`crate::assets`]).
+///
+/// On native targets they run on background threads, concurrently with the HTML
+/// expansion; wasm targets have no threads, so they run inline in
+/// [`start`](Extractors::start). Either way an HTML-only build (`outcss`/`outjs`
+/// both `None`) makes both a no-op.
+struct Extractors {
+    #[cfg(not(target_family = "wasm"))]
+    css: thread::JoinHandle<()>,
+    #[cfg(not(target_family = "wasm"))]
+    js: thread::JoinHandle<()>,
+}
+
+impl Extractors {
+    fn start(
+        css_graph: Arc<Mutex<DepGraph>>,
+        outcss: Option<String>,
+        js_graph: Arc<Mutex<DepGraph>>,
+        outjs: Option<String>,
+        minify: bool,
+        host_file_path: String,
+        cwd: PathBuf,
+    ) -> Self {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            Extractors {
+                css: thread::spawn(move || extract_css(css_graph, outcss)),
+                js: thread::spawn(move || {
+                    extract_and_bundle_js(js_graph, outjs, minify, host_file_path, cwd)
+                }),
+            }
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            extract_css(css_graph, outcss);
+            extract_and_bundle_js(js_graph, outjs, minify, host_file_path, cwd);
+            Extractors {}
+        }
+    }
+
+    fn finish(self) {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            self.css.join().unwrap();
+            self.js.join().unwrap();
+        }
+        // On wasm the extractors already ran inline in `start`; nothing to join.
+        #[cfg(target_family = "wasm")]
+        let Extractors {} = self;
+    }
 }
 
 /// The working directory for a build, like rolldown's `cwd`: the directory that
