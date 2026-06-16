@@ -38,6 +38,7 @@ impl From<BuildOptions> for WescBuildOptions {
     fn from(o: BuildOptions) -> Self {
         WescBuildOptions {
             input: o.input,
+            code: None,
             outcss: o.outcss,
             outjs: o.outjs,
             cwd: o.cwd,

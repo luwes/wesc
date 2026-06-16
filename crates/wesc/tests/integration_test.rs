@@ -24,26 +24,74 @@ use wesc::{build, BuildOptions, CHUNK_SIZE, DEFAULT_SLOT_NAME};
 // ===========================================================================
 
 // HTML-only fixtures.
-#[test] fn no_components() { assert_html("no-components"); }
-#[test] fn named_slot() { assert_html("named-slot"); }
-#[test] fn named_slot_nesting() { assert_html("named-slot-nesting"); }
-#[test] fn default_slot_fallback() { assert_html("default-slot-fallback"); }
-#[test] fn light_dom_nesting() { assert_html("light-dom-nesting"); }
-#[test] fn slot_forwarding() { assert_html("slot-forwarding"); }
-#[test] fn nested_template() { assert_html("nested-template"); }
-#[test] fn shadow_template() { assert_html("shadow-template"); }
-#[test] fn layouts() { assert_html("layouts"); }
-#[test] fn real_world() { assert_html("real-world"); }
+#[test]
+fn no_components() {
+    assert_html("no-components");
+}
+#[test]
+fn named_slot() {
+    assert_html("named-slot");
+}
+#[test]
+fn named_slot_nesting() {
+    assert_html("named-slot-nesting");
+}
+#[test]
+fn default_slot_fallback() {
+    assert_html("default-slot-fallback");
+}
+#[test]
+fn light_dom_nesting() {
+    assert_html("light-dom-nesting");
+}
+#[test]
+fn slot_forwarding() {
+    assert_html("slot-forwarding");
+}
+#[test]
+fn nested_template() {
+    assert_html("nested-template");
+}
+#[test]
+fn shadow_template() {
+    assert_html("shadow-template");
+}
+#[test]
+fn layouts() {
+    assert_html("layouts");
+}
+#[test]
+fn real_world() {
+    assert_html("real-world");
+}
 
 // Fixtures that also bundle CSS.
-#[test] fn default_slot() { assert_html_and_css("default-slot"); }
-#[test] fn style_tags() { assert_html_and_css("style-tags"); }
+#[test]
+fn default_slot() {
+    assert_html_and_css("default-slot");
+}
+#[test]
+fn style_tags() {
+    assert_html_and_css("style-tags");
+}
 
 // Fixtures that bundle CSS and JS.
-#[test] fn script_tags() { assert_bundle("script-tags"); }
-#[test] fn ts_script_tags() { assert_bundle("ts-script-tags"); }
-#[test] fn todo_app() { assert_bundle("todo-app"); }
-#[test] fn blog() { assert_bundle("blog"); }
+#[test]
+fn script_tags() {
+    assert_bundle("script-tags");
+}
+#[test]
+fn ts_script_tags() {
+    assert_bundle("ts-script-tags");
+}
+#[test]
+fn todo_app() {
+    assert_bundle("todo-app");
+}
+#[test]
+fn blog() {
+    assert_bundle("blog");
+}
 
 #[test]
 fn named_slot_layout() {
@@ -76,7 +124,10 @@ fn minify_js() {
         minified.len() < read(dir.join("expected.js")).len(),
         "minified JS should be smaller than the readable bundle"
     );
-    assert!(!minified.contains("//#region"), "region markers should be stripped");
+    assert!(
+        !minified.contains("//#region"),
+        "region markers should be stripped"
+    );
 }
 
 #[test]
@@ -142,52 +193,43 @@ fn comments_before_component_template() {
 }
 
 #[test]
-fn build_from_memory_source() {
-    // A build can draw its inputs from an in-memory `Source` instead of disk,
-    // which is what a no-filesystem target (e.g. a WebAssembly worker) needs.
-    // The component href uses `..`, exercising path normalization.
-    use wesc::chunk_reader::MemorySource;
-    use wesc::build_with_source;
+fn build_with_code_entry() {
+    // The `code` option supplies the entry as a string; the component it
+    // references is still read from disk.
+    let dir = std::env::temp_dir().join(format!("wesc-code-entry-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("temp dir");
+    fs::write(
+        dir.join("card.html"),
+        concat!(
+            "<template>\n",
+            "  <article class=\"card\">\n",
+            "    <h3><slot name=\"title\">Untitled</slot></h3>\n",
+            "    <p><slot>No body.</slot></p>\n",
+            "  </article>\n",
+            "</template>\n",
+        ),
+    )
+    .expect("write component");
 
-    let source = MemorySource::new()
-        .with(
-            "/site/pages/index.html",
-            concat!(
-                "<!doctype html>\n",
-                "<html>\n",
-                "  <head>\n",
-                "    <link rel=\"definition\" name=\"w-card\" href=\"../components/card.html\">\n",
-                "  </head>\n",
-                "  <body>\n",
-                "    <w-card><span slot=\"title\">Hello</span>Body copy.</w-card>\n",
-                "  </body>\n",
-                "</html>\n",
-            ),
-        )
-        .with(
-            "/site/components/card.html",
-            concat!(
-                "<template>\n",
-                "  <article class=\"card\">\n",
-                "    <h3><slot name=\"title\">Untitled</slot></h3>\n",
-                "    <p><slot>No body.</slot></p>\n",
-                "  </article>\n",
-                "</template>\n",
-            ),
-        );
+    let entry = concat!(
+        "<!doctype html><html><head>",
+        "<link rel=\"definition\" name=\"w-card\" href=\"./card.html\">",
+        "</head><body><w-card><span slot=\"title\">Hello</span>Body copy.</w-card></body></html>",
+    );
 
     let mut html = Vec::new();
-    build_with_source(
+    build(
         BuildOptions {
-            input: vec!["/site/pages/index.html".to_string()],
+            input: vec![dir.join("index.html").to_string_lossy().into_owned()],
+            code: Some(entry.to_string()),
             outcss: None,
             outjs: None,
-            cwd: Some("/site/pages".to_string()),
+            cwd: Some(dir.to_string_lossy().into_owned()),
             minify: false,
         },
-        source,
         &mut |chunk: &[u8]| html.extend_from_slice(chunk),
     );
+    fs::remove_dir_all(&dir).ok();
 
     let html = String::from_utf8(html).expect("valid utf8");
     assert!(html.contains("<article class=\"card\">"), "got: {html}");
@@ -197,55 +239,43 @@ fn build_from_memory_source() {
 }
 
 #[test]
-fn collect_css_in_memory() {
-    // CSS bundling without a filesystem: the component's top-level <style> is
-    // collected into the returned Assets while the HTML streams as usual. No
-    // rolldown/threads, so this is also the wasm-capable path.
-    use wesc::build_in_memory;
-    use wesc::chunk_reader::MemorySource;
+fn build_css_streams_bundled_styles() {
+    // build_css streams the bundled component CSS to a handler, the same way
+    // build streams HTML. Combined with `code`, no filesystem entry is needed.
+    use wesc::build_css;
 
-    let source = MemorySource::new()
-        .with(
-            "/app/index.html",
-            concat!(
-                "<!doctype html>\n",
-                "<html>\n",
-                "  <head>\n",
-                "    <link rel=\"definition\" name=\"x-box\" href=\"./box.html\">\n",
-                "  </head>\n",
-                "  <body><x-box>Hi</x-box></body>\n",
-                "</html>\n",
-            ),
-        )
-        .with(
-            "/app/box.html",
-            concat!(
-                "<template><div class=\"box\"><slot></slot></div></template>\n",
-                "<style>\n",
-                "  x-box .box {\n",
-                "    color: hotpink;\n",
-                "  }\n",
-                "</style>\n",
-            ),
-        );
+    let dir = std::env::temp_dir().join(format!("wesc-build-css-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("temp dir");
+    fs::write(
+        dir.join("box.html"),
+        concat!(
+            "<template><div class=\"box\"><slot></slot></div></template>\n",
+            "<style>x-box .box { color: hotpink; }</style>\n",
+        ),
+    )
+    .expect("write component");
 
-    let mut html = Vec::new();
-    let assets = build_in_memory(
-        BuildOptions {
-            input: vec!["/app/index.html".to_string()],
-            outcss: None, // ignored; CSS is returned in assets
-            outjs: None,
-            cwd: Some("/app".to_string()),
-            minify: false,
-        },
-        source,
-        &mut |chunk: &[u8]| html.extend_from_slice(chunk),
+    let entry = concat!(
+        "<!doctype html><html><head>",
+        "<link rel=\"definition\" name=\"x-box\" href=\"./box.html\">",
+        "</head><body><x-box>Hi</x-box></body></html>",
     );
 
-    let html = String::from_utf8(html).expect("valid utf8");
-    assert!(html.contains("<div class=\"box\">"), "got: {html}");
+    let mut css = Vec::new();
+    build_css(
+        BuildOptions {
+            input: vec![dir.join("index.html").to_string_lossy().into_owned()],
+            code: Some(entry.to_string()),
+            outcss: None,
+            outjs: None,
+            cwd: Some(dir.to_string_lossy().into_owned()),
+            minify: false,
+        },
+        &mut |chunk: &[u8]| css.extend_from_slice(chunk),
+    );
+    fs::remove_dir_all(&dir).ok();
 
-    let css = String::from_utf8(assets.css).expect("valid utf8");
+    let css = String::from_utf8(css).expect("valid utf8");
     assert!(css.contains("x-box .box"), "css: {css}");
     assert!(css.contains("hotpink"), "css: {css}");
 }
@@ -271,7 +301,9 @@ fn utf8_slotted_text_split_across_chunks() {
     )
     .expect("UTF-8 split across chunks should not panic");
 
-    let ranges = positions.get(DEFAULT_SLOT_NAME).expect("default slot range");
+    let ranges = positions
+        .get(DEFAULT_SLOT_NAME)
+        .expect("default slot range");
     assert_eq!(ranges.len(), 1);
     assert!(ranges[0].end > ranges[0].start);
 
@@ -302,7 +334,10 @@ fn concurrent_builds_are_isolated() {
 
     for handle in handles {
         let html = handle.join().expect("a concurrent build panicked");
-        assert_eq!(html, reference, "a concurrent build diverged from the single-threaded output");
+        assert_eq!(
+            html, reference,
+            "a concurrent build diverged from the single-threaded output"
+        );
     }
 }
 
@@ -387,6 +422,7 @@ fn run_build(entry: &Path, want_css: bool, want_js: bool, minify: bool) -> Outpu
         build(
             BuildOptions {
                 input: vec![entry_point],
+                code: None,
                 outcss: css_path.as_deref().map(path_string),
                 outjs: js_path.as_deref().map(path_string),
                 cwd,
@@ -411,6 +447,7 @@ fn build_html_only(entry: &Path) -> String {
     build(
         BuildOptions {
             input: vec![entry_point],
+            code: None,
             outcss: None,
             outjs: None,
             cwd,

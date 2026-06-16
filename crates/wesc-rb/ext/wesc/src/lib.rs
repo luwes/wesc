@@ -38,6 +38,7 @@ fn collect_options(
 ) -> BuildOptions {
     BuildOptions {
         input,
+        code: None,
         outcss,
         outjs,
         cwd: None,

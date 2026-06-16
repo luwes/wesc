@@ -10,18 +10,18 @@ use std::sync::Arc;
 ///
 /// The expansion engine never writes and only ever reads inputs by path (every
 /// read funnels through [`read_file_cached`]). Abstracting that behind a trait
-/// lets a build draw its inputs from somewhere other than the local filesystem
-/// — e.g. an in-memory map — which is what a no-filesystem target like a
-/// WebAssembly worker needs. The default is [`OsSource`], so native builds keep
-/// reading from disk unchanged.
-pub trait Source {
+/// lets a build draw its entry from somewhere other than the local filesystem
+/// (the `code` build option), which is what a no-filesystem target like a
+/// WebAssembly worker needs. The default is [`OsSource`], so builds keep reading
+/// from disk unchanged.
+pub(crate) trait Source {
     /// Read the full contents of `path`.
     fn read(&self, path: &str) -> io::Result<Vec<u8>>;
 }
 
 /// The default [`Source`]: reads from the local filesystem with [`std::fs`].
 #[derive(Debug, Default, Clone, Copy)]
-pub struct OsSource;
+pub(crate) struct OsSource;
 
 impl Source for OsSource {
     fn read(&self, path: &str) -> io::Result<Vec<u8>> {
@@ -29,50 +29,33 @@ impl Source for OsSource {
     }
 }
 
-/// An in-memory [`Source`] backed by a `path -> bytes` map, for builds with no
-/// filesystem (e.g. a WebAssembly worker).
+/// A [`Source`] that serves one entry's bytes from an in-memory string (the
+/// `code` build option) and falls back to the filesystem for everything else
+/// (e.g. the component files the entry references).
 ///
-/// Keys are **lexically normalized** (`.`/`..` segments collapsed) on both
-/// insert and lookup. The engine resolves component `href`s relative to the
-/// declaring file without collapsing `..` (so it asks for paths like
-/// `web/pages/../components/card.html`); normalizing both ends makes those
-/// lookups hit the entry the caller stored as `web/components/card.html`.
-#[derive(Debug, Default, Clone)]
-pub struct MemorySource {
-    files: HashMap<String, Arc<Vec<u8>>>,
+/// The entry key is **lexically normalized** (`.`/`..` collapsed) so the
+/// build's resolved entry path matches regardless of `.`/`..` segments.
+pub(crate) struct CodeSource {
+    entry: String,
+    code: Vec<u8>,
 }
 
-impl MemorySource {
-    /// Create an empty source.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Add (or replace) a file's contents at `path`.
-    pub fn insert(&mut self, path: impl AsRef<str>, contents: impl Into<Vec<u8>>) {
-        self.files
-            .insert(normalize_key(path.as_ref()), Arc::new(contents.into()));
-    }
-
-    /// Builder-style [`insert`](Self::insert).
-    #[must_use]
-    pub fn with(mut self, path: impl AsRef<str>, contents: impl Into<Vec<u8>>) -> Self {
-        self.insert(path, contents);
-        self
+impl CodeSource {
+    pub(crate) fn new(entry_path: impl AsRef<str>, code: Vec<u8>) -> Self {
+        Self {
+            entry: normalize_key(entry_path.as_ref()),
+            code,
+        }
     }
 }
 
-impl Source for MemorySource {
+impl Source for CodeSource {
     fn read(&self, path: &str) -> io::Result<Vec<u8>> {
-        self.files
-            .get(&normalize_key(path))
-            .map(|bytes| bytes.as_ref().clone())
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("path not found in memory source: {path}"),
-                )
-            })
+        if normalize_key(path) == self.entry {
+            Ok(self.code.clone())
+        } else {
+            OsSource.read(path)
+        }
     }
 }
 
@@ -109,10 +92,8 @@ thread_local! {
 }
 
 /// Make `source` the active input source on the current thread until the
-/// returned guard drops, which restores the default [`OsSource`].
-///
-/// Internal plumbing: the public entry point is
-/// [`build_with_source`](crate::build_with_source).
+/// returned guard drops, which restores the default [`OsSource`]. Used to serve
+/// the entry from the `code` build option.
 pub(crate) fn use_source(source: Rc<dyn Source>) -> SourceGuard {
     SOURCE.with(|current| *current.borrow_mut() = source);
     SourceGuard
@@ -195,14 +176,14 @@ mod tests {
     }
 
     #[test]
-    fn memory_source_matches_unnormalized_lookups() {
-        // The caller stores a clean key; the engine looks it up with the
-        // `..` form `resolve_href` produces.
-        let source = MemorySource::new().with("/web/components/card.html", "hi");
+    fn code_source_serves_entry_regardless_of_dot_segments() {
+        // The entry is served from `code` even when looked up via a `..` form;
+        // other paths fall back to the filesystem (and miss here).
+        let source = CodeSource::new("/web/pages/index.html", b"<html></html>".to_vec());
         assert_eq!(
-            source.read("/web/pages/../components/card.html").unwrap(),
-            b"hi"
+            source.read("/web/extra/../pages/index.html").unwrap(),
+            b"<html></html>"
         );
-        assert!(source.read("/web/missing.html").is_err());
+        assert!(source.read("/web/pages/other.html").is_err());
     }
 }

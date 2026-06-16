@@ -45,6 +45,7 @@ fn run_build(entry: &str) {
     build(
         BuildOptions {
             input: vec![entry.to_string()],
+            code: None,
             outcss: None,
             outjs: None,
             cwd: None,

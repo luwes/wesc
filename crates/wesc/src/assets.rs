@@ -22,38 +22,18 @@ use crate::write_tags::{read_until_start_tag, write_until_end_tag};
 // Bundling-only imports: rolldown, tokio, and the helpers that feed them are
 // native-only (see Cargo.toml). HTML-only builds never reach this code.
 #[cfg(not(target_family = "wasm"))]
+use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
+#[cfg(not(target_family = "wasm"))]
 use std::collections::HashMap;
 #[cfg(not(target_family = "wasm"))]
 use std::path::Component;
 #[cfg(not(target_family = "wasm"))]
-use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOptions};
-#[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Builder;
 
-/// Where [`extract_css`] sends the concatenated component CSS.
-pub(crate) enum CssOutput {
-    /// Append to this file path (native filesystem builds).
-    File(String),
-    /// Append into this shared buffer, collected and returned to the caller.
-    /// Used on targets without a filesystem (e.g. a WebAssembly worker).
-    Memory(Arc<Mutex<Vec<u8>>>),
-}
-
-/// Concatenate the top-level `<style>` of each unique component definition into
-/// `output`. Does nothing when no CSS output was requested.
-pub(crate) fn extract_css(dep_graph: Arc<Mutex<DepGraph>>, output: Option<CssOutput>) {
-    let Some(output) = output else {
-        return;
-    };
-
-    // File output starts from a clean file, since extraction appends.
-    if let CssOutput::File(path) = &output {
-        if Path::new(path).exists() {
-            remove_file(path).unwrap();
-        }
-    }
-
-    let dep_graph = dep_graph.lock().unwrap();
+/// Stream the top-level `<style>` of each unique component definition in
+/// `dep_graph` to `sink`, in dependency order. Shared by the file-based
+/// [`extract_css`] and the streaming `build_css`.
+pub(crate) fn stream_component_css(dep_graph: &DepGraph, sink: &mut impl FnMut(&[u8])) {
     let dependencies = dep_graph
         .arena
         .iter()
@@ -68,14 +48,33 @@ pub(crate) fn extract_css(dep_graph: Arc<Mutex<DepGraph>>, output: Option<CssOut
         // A component declared in multiple files appears as multiple nodes;
         // only bundle each unique file's styles once.
         if seen_paths.insert(dep_file_path.clone()) {
-            append_top_level_element(dep_file_path, "style", &output);
+            append_top_level_element(dep_file_path, "style", sink);
         }
     }
 }
 
-/// Append the body of `file_path`'s top-level `<tag>` element to `output`,
+/// Concatenate the top-level `<style>` of each unique component definition into
+/// the `outcss` file. Does nothing when no CSS output path was requested.
+pub(crate) fn extract_css(dep_graph: Arc<Mutex<DepGraph>>, outcss: Option<String>) {
+    let Some(outcss) = outcss else {
+        return;
+    };
+
+    // The file is rewritten from scratch, since extraction appends.
+    if Path::new(&outcss).exists() {
+        remove_file(&outcss).unwrap();
+    }
+
+    let dep_graph = dep_graph.lock().unwrap();
+    let out_path = Path::new(&outcss);
+    stream_component_css(&dep_graph, &mut |chunk: &[u8]| {
+        append_data_to_file(out_path, chunk).unwrap();
+    });
+}
+
+/// Append the body of `file_path`'s top-level `<tag>` element to `sink`,
 /// returning whether such an element was present.
-fn append_top_level_element(file_path: &str, tag: &str, output: &CssOutput) -> bool {
+fn append_top_level_element(file_path: &str, tag: &str, sink: &mut impl FnMut(&[u8])) -> bool {
     let Ok(start) = read_until_start_tag(file_path, 0, &[format!("root > {tag}")], "") else {
         return false;
     };
@@ -85,10 +84,7 @@ fn append_top_level_element(file_path: &str, tag: &str, output: &CssOutput) -> b
         &[tag],
         &format!("<{tag}>"),
         false,
-        &mut |chunk: &[u8]| match output {
-            CssOutput::File(path) => append_data_to_file(Path::new(path), chunk).unwrap(),
-            CssOutput::Memory(buffer) => buffer.lock().unwrap().extend_from_slice(chunk),
-        },
+        sink,
     )
     .unwrap();
     true
@@ -227,8 +223,11 @@ fn bundle_js(
         // A host may declare the same component twice; import it only once.
         if parent_file_path == host_file_path && imported.insert(dep_file_path.clone()) {
             if let Some(ext) = script_exts.get(&dep_file_path) {
-                let script_path = mirror_script_path(&scripts_dir, &cwd, Path::new(&dep_file_path), ext);
-                let script_path = script_path.strip_prefix(&scripts_dir).unwrap_or(&script_path);
+                let script_path =
+                    mirror_script_path(&scripts_dir, &cwd, Path::new(&dep_file_path), ext);
+                let script_path = script_path
+                    .strip_prefix(&scripts_dir)
+                    .unwrap_or(&script_path);
                 let import = format!("import './{}';\n", script_path.to_string_lossy());
                 append_data_to_file(&entry_path, import.as_bytes()).unwrap();
             }

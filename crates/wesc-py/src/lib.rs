@@ -45,6 +45,7 @@ fn build<'py>(
 ) -> Bound<'py, PyBytes> {
     let options = WescBuildOptions {
         input,
+        code: None,
         outcss,
         outjs,
         cwd: None,
@@ -99,6 +100,7 @@ fn build_stream<'py>(
 ) -> PyResult<()> {
     let options = WescBuildOptions {
         input,
+        code: None,
         outcss,
         outjs,
         cwd: None,

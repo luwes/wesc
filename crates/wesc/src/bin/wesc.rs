@@ -77,6 +77,7 @@ fn main() {
     build(
         BuildOptions {
             input: vec![args.path],
+            code: None,
             outcss: args.outcss,
             outjs: args.outjs,
             cwd: args.cwd,

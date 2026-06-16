@@ -91,6 +91,7 @@ fn run_build(entry: &str) -> usize {
     build(
         BuildOptions {
             input: vec![entry.to_string()],
+            code: None,
             outcss: None,
             outjs: None,
             cwd: None,
@@ -131,7 +132,9 @@ fn guard_enabled() -> bool {
     if cfg!(debug_assertions) {
         return false;
     }
-    std::env::var("WESC_PERF_GUARD").map(|v| v != "0").unwrap_or(true)
+    std::env::var("WESC_PERF_GUARD")
+        .map(|v| v != "0")
+        .unwrap_or(true)
 }
 
 #[test]

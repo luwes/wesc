@@ -61,6 +61,7 @@ The CLI flags map one-to-one to the library's
 | CLI flag             | `BuildOptions` field          | Type             | Description                                                                                                                                   |
 | -------------------- | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<PATH>` (positional)| `input: Vec<String>`          | path(s)          | The entry HTML file. The first entry is the host document that is expanded and streamed out. Required.                                        |
+| _(library only)_     | `code: Option<String>`        | string           | Inline source for the entry. When set, `input[0]` is only used to resolve component `href`s; the entry's contents come from this string instead of disk (components are still read from disk). No CLI flag.  |
 | `-o`, `--outcss`     | `outcss: Option<String>`      | path             | Write the bundled CSS (every component's top-level `<style>`, concatenated) to this file. Omit to skip CSS bundling.                          |
 | `-j`, `--outjs`      | `outjs: Option<String>`       | path             | Write the bundled JS (every component's top-level `<script>`, bundled with rolldown) to this file. Omit to skip JS bundling.                  |
 | `--cwd`              | `cwd: Option<String>`         | dir              | Working directory, like rolldown's `cwd`. Defaults to the process working directory. See [Working directory](#working-directory).             |
@@ -199,6 +200,7 @@ use wesc::{build, BuildOptions};
 
 let options = BuildOptions {
     input: vec!["./index.html".to_string()],
+    code: None, // or Some(html_string) to supply the entry inline
     outcss: Some("./out.css".to_string()),
     outjs: Some("./out.js".to_string()),
     cwd: None, // defaults to the process working directory
@@ -214,6 +216,20 @@ build(options, &mut |chunk: &[u8]| {
 
 Each call starts from empty, thread-local caches, so independent builds
 can run concurrently on different threads without an external lock.
+
+### Streaming the CSS
+
+`build_css` streams the bundled component CSS to a handler the same way
+`build` streams HTML, with no filesystem writes (so it also runs on
+wasm targets). The `outcss`/`outjs` options are ignored; pair it with
+`code` to bundle CSS for an entry held in memory.
+
+```rust
+use wesc::{build_css, BuildOptions};
+
+let mut css = Vec::new();
+build_css(options, &mut |chunk: &[u8]| css.extend_from_slice(chunk));
+```
 
 ## Benchmarks
 

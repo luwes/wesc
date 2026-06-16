@@ -32,6 +32,7 @@ fn make_options(
 ) -> WescBuildOptions {
     WescBuildOptions {
         input,
+        code: None,
         outcss,
         outjs,
         cwd: None,

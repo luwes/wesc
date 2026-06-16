@@ -19,7 +19,6 @@
 
 use std::collections::HashMap;
 use std::ops::Range;
-use std::rc::Rc;
 
 pub mod chunk_reader;
 pub mod component_definitions;
@@ -34,8 +33,8 @@ mod scan;
 mod simple_template;
 mod slots;
 
-use self::build::build_file;
-use self::chunk_reader::{clear_file_cache, use_source, OsSource, Source};
+use self::build::{build_css as run_build_css, build_file};
+use self::chunk_reader::clear_file_cache;
 use self::component_definitions::clear_definitions;
 use self::simple_template::clear_simple_templates;
 
@@ -47,6 +46,12 @@ pub const CONTENT_IN_PROGRESS: usize = 0;
 #[derive(Debug, Clone)]
 pub struct BuildOptions {
     pub input: Vec<String>,
+    /// Inline source for the entry point. When `Some`, the first `input` path is
+    /// used only to resolve relative component `href`s — the entry's contents
+    /// come from this string instead of being read from disk. Component files
+    /// are still read from the filesystem. Lets a build run without reading the
+    /// entry from disk (e.g. a string produced by a template engine).
+    pub code: Option<String>,
     pub outcss: Option<String>,
     pub outjs: Option<String>,
     /// Working directory for the build, like rolldown's `cwd`. Relative
@@ -88,6 +93,7 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 ///
 /// let build_options = BuildOptions {
 ///    input: vec!["./tests/fixtures/default-slot/index.html".to_string()],
+///    code: None,
 ///    outcss: None,
 ///    outjs: None,
 ///    cwd: None,
@@ -103,115 +109,43 @@ fn pos_key(file_index: usize, file_path: &str) -> String {
 /// });
 /// ```
 pub fn build(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
-    build_with_source(build_options, OsSource, output_handler);
+    clear_file_cache();
+    clear_simple_templates();
+    clear_definitions();
+
+    build_file(&build_options, output_handler);
 }
 
-/// Like [`build`], but draws inputs from a custom [`Source`] instead of the
-/// filesystem — for example [`MemorySource`](crate::chunk_reader::MemorySource)
-/// on a target without a filesystem, such as a WebAssembly worker.
+/// Stream the bundled component CSS (every definition's top-level `<style>`,
+/// concatenated) to `output_handler`, the same way [`build`] streams HTML.
 ///
-/// The source is active only for the duration of this call.
+/// No HTML is produced and rolldown/JS is never involved, so this needs no
+/// filesystem writes and runs on targets without a filesystem (e.g. a
+/// WebAssembly worker). The `outcss`/`outjs` options are ignored. Pair it with
+/// the `code` option to bundle CSS for an entry held in memory.
 ///
 /// # Example
 ///
 /// ```rust
-/// use wesc::chunk_reader::MemorySource;
-/// use wesc::{build_with_source, BuildOptions};
+/// use wesc::{build_css, BuildOptions};
 ///
-/// let source = MemorySource::new()
-///     .with("/app/index.html", "<!doctype html><html><body><p>Hi</p></body></html>");
-///     // ...plus any component definitions the entry references.
-///
-/// build_with_source(
+/// let mut css = Vec::new();
+/// build_css(
 ///     BuildOptions {
-///         input: vec!["/app/index.html".to_string()],
+///         input: vec!["./tests/fixtures/style-tags/index.html".to_string()],
+///         code: None,
 ///         outcss: None,
 ///         outjs: None,
-///         cwd: Some("/app".to_string()),
+///         cwd: None,
 ///         minify: false,
 ///     },
-///     source,
-///     &mut |chunk: &[u8]| { let _ = chunk; },
+///     &mut |chunk: &[u8]| css.extend_from_slice(chunk),
 /// );
 /// ```
-pub fn build_with_source(
-    build_options: BuildOptions,
-    source: impl Source + 'static,
-    output_handler: &mut impl FnMut(&[u8]),
-) {
-    // Restores the default `OsSource` when this guard drops at the end of the call.
-    let _source = use_source(Rc::new(source));
-
+pub fn build_css(build_options: BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
     clear_file_cache();
     clear_simple_templates();
     clear_definitions();
 
-    build_file(&build_options, false, output_handler);
-}
-
-/// The in-memory side outputs of a build (see [`build_in_memory`]).
-#[derive(Debug, Default, Clone)]
-pub struct Assets {
-    /// The bundled component CSS (every definition's top-level `<style>`,
-    /// concatenated). Empty when no component has styles.
-    pub css: Vec<u8>,
-}
-
-/// Like [`build_with_source`], but instead of writing side outputs to files it
-/// returns them in memory — for targets without a filesystem, such as a
-/// WebAssembly worker. The HTML still streams through `output_handler`, and the
-/// bundled CSS comes back in [`Assets`].
-///
-/// The `outcss`/`outjs` paths on `build_options` are **ignored** here: CSS is
-/// always returned in `Assets`, and JS bundling (which needs rolldown and a
-/// filesystem) is not produced — bundle JS at build time with [`build`].
-///
-/// # Example
-///
-/// ```rust
-/// use wesc::chunk_reader::MemorySource;
-/// use wesc::{build_in_memory, BuildOptions};
-///
-/// let source = MemorySource::new()
-///     .with(
-///         "/app/index.html",
-///         "<!doctype html><html><head>\
-///          <link rel=\"definition\" name=\"x-box\" href=\"./box.html\"></head>\
-///          <body><x-box>Hi</x-box></body></html>",
-///     )
-///     .with(
-///         "/app/box.html",
-///         "<template><div class=\"box\"><slot></slot></div></template>\
-///          <style>x-box .box { color: hotpink; }</style>",
-///     );
-///
-/// let assets = build_in_memory(
-///     BuildOptions {
-///         input: vec!["/app/index.html".to_string()],
-///         outcss: None, // ignored; CSS comes back in `assets`
-///         outjs: None,
-///         cwd: Some("/app".to_string()),
-///         minify: false,
-///     },
-///     source,
-///     &mut |chunk: &[u8]| { let _ = chunk; },
-/// );
-///
-/// assert!(String::from_utf8(assets.css).unwrap().contains("hotpink"));
-/// ```
-pub fn build_in_memory(
-    build_options: BuildOptions,
-    source: impl Source + 'static,
-    output_handler: &mut impl FnMut(&[u8]),
-) -> Assets {
-    // Restores the default `OsSource` when this guard drops at the end of the call.
-    let _source = use_source(Rc::new(source));
-
-    clear_file_cache();
-    clear_simple_templates();
-    clear_definitions();
-
-    // Memory mode always collects CSS, so `build_file` returns `Some`.
-    let css = build_file(&build_options, true, output_handler).unwrap_or_default();
-    Assets { css }
+    run_build_css(&build_options, output_handler);
 }

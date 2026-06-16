@@ -88,6 +88,7 @@ unsafe fn collect_options(
 
     BuildOptions {
         input,
+        code: None,
         outcss: opt_string(outcss),
         outjs: opt_string(outjs),
         cwd: None,
