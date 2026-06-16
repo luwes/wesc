@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(not(target_family = "wasm"))]
 use std::thread;
 
-use crate::assets::{extract_and_bundle_js, extract_css};
+use crate::assets::{extract_and_bundle_js, extract_css, CssOutput};
 use crate::component::build_component;
 use crate::component_definitions::find_component_definition_names;
 use crate::dep_graph::{resolve_dependencies, DepGraph};
@@ -48,7 +48,17 @@ impl<'a> BuildCtx<'a> {
     }
 }
 
-pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
+/// Run a build.
+///
+/// When `css_to_memory` is set, the bundled CSS is collected and returned
+/// instead of written to a file, and JS bundling (which needs a filesystem and
+/// rolldown) is disabled — the no-filesystem path. Otherwise the side outputs go
+/// to the `outcss`/`outjs` file paths and `None` is returned.
+pub(crate) fn build_file(
+    options: &BuildOptions,
+    css_to_memory: bool,
+    output_handler: &mut impl FnMut(&[u8]),
+) -> Option<Vec<u8>> {
     // Resolve relative paths against the build's working directory — like
     // rolldown's `cwd` — which defaults to the process working directory.
     let cwd = resolve_cwd(options.cwd.as_deref());
@@ -62,21 +72,43 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     // the HTML expansion below.
     let dep_graph_ptr = Arc::new(Mutex::new(dep_graph.clone()));
     let dep_graph_ptr_clone = dep_graph_ptr.clone();
-    let outcss = options.outcss.as_deref().map(|p| resolve_path(&cwd, p));
-    let outjs = options.outjs.as_deref().map(|p| resolve_path(&cwd, p));
-    let has_side_outputs = outcss.is_some() || outjs.is_some();
+
+    // In memory mode the CSS is always collected and handed back, so `outcss`
+    // is ignored. In file mode it is written to the `outcss` path, if any.
+    let (css, css_buffer) = if css_to_memory {
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+        (Some(CssOutput::Memory(buffer.clone())), Some(buffer))
+    } else if let Some(path) = options.outcss.as_deref() {
+        (Some(CssOutput::File(resolve_path(&cwd, path))), None)
+    } else {
+        (None, None)
+    };
+
+    // JS bundling writes a file and drives rolldown, so it is unavailable when
+    // collecting in memory.
+    let outjs = if css_to_memory {
+        None
+    } else {
+        options.outjs.as_deref().map(|p| resolve_path(&cwd, p))
+    };
+
+    let has_side_outputs = css.is_some() || outjs.is_some();
     let minify = options.minify;
     let host_file_path_string = host_file_path.to_owned();
     let cwd_for_js = cwd.clone();
 
+    // Collected CSS reads component files through the active `Source`, which is
+    // thread-local — so when collecting in memory the extractors must run on
+    // this thread (where the caller set the source), not a spawned one.
     let extractors = Extractors::start(
         dep_graph_ptr,
-        outcss,
+        css,
         dep_graph_ptr_clone,
         outjs,
         minify,
         host_file_path_string,
         cwd_for_js,
+        css_to_memory,
     );
 
     let mut ctx = BuildCtx::new(&dep_graph);
@@ -94,7 +126,7 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
                 // extractors and return an empty HTML stream.
                 extractors.finish();
                 let _ = err;
-                return;
+                return collected_css(css_buffer);
             }
             Err(err) => panic!("entry must contain a root <html> or <template>: {err}"),
         };
@@ -132,57 +164,70 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     }
 
     extractors.finish();
+    collected_css(css_buffer)
+}
+
+/// Drain a collected-CSS buffer into the bytes returned from a build.
+fn collected_css(buffer: Option<Arc<Mutex<Vec<u8>>>>) -> Option<Vec<u8>> {
+    buffer.map(|buffer| buffer.lock().unwrap().clone())
 }
 
 /// Runs the CSS/JS side-output extractors (see [`crate::assets`]).
 ///
-/// On native targets they run on background threads, concurrently with the HTML
-/// expansion; wasm targets have no threads, so they run inline in
-/// [`start`](Extractors::start). Either way an HTML-only build (`outcss`/`outjs`
-/// both `None`) makes both a no-op.
-struct Extractors {
+/// They run on background threads (concurrently with HTML expansion) on native
+/// targets, except when `inline` is requested or the target is wasm (no
+/// threads), in which case they run inline up front on the calling thread.
+/// Inline execution matters when inputs come from a thread-local [`Source`],
+/// since a spawned thread would not see it. Either way an HTML-only build
+/// (`outcss`/`outjs` both `None`) makes both a no-op.
+enum Extractors {
     #[cfg(not(target_family = "wasm"))]
-    css: thread::JoinHandle<()>,
-    #[cfg(not(target_family = "wasm"))]
-    js: thread::JoinHandle<()>,
+    Threaded {
+        css: thread::JoinHandle<()>,
+        js: thread::JoinHandle<()>,
+    },
+    /// Already ran on the calling thread; nothing to join.
+    Inline,
 }
 
 impl Extractors {
+    #[allow(clippy::too_many_arguments)]
     fn start(
         css_graph: Arc<Mutex<DepGraph>>,
-        outcss: Option<String>,
+        css: Option<CssOutput>,
         js_graph: Arc<Mutex<DepGraph>>,
         outjs: Option<String>,
         minify: bool,
         host_file_path: String,
         cwd: PathBuf,
+        inline: bool,
     ) -> Self {
         #[cfg(not(target_family = "wasm"))]
-        {
-            Extractors {
-                css: thread::spawn(move || extract_css(css_graph, outcss)),
+        if !inline {
+            return Extractors::Threaded {
+                css: thread::spawn(move || extract_css(css_graph, css)),
                 js: thread::spawn(move || {
                     extract_and_bundle_js(js_graph, outjs, minify, host_file_path, cwd)
                 }),
-            }
+            };
         }
         #[cfg(target_family = "wasm")]
-        {
-            extract_css(css_graph, outcss);
-            extract_and_bundle_js(js_graph, outjs, minify, host_file_path, cwd);
-            Extractors {}
-        }
+        let _ = inline;
+
+        extract_css(css_graph, css);
+        extract_and_bundle_js(js_graph, outjs, minify, host_file_path, cwd);
+        Extractors::Inline
     }
 
     fn finish(self) {
         #[cfg(not(target_family = "wasm"))]
-        {
-            self.css.join().unwrap();
-            self.js.join().unwrap();
+        if let Extractors::Threaded { css, js } = self {
+            css.join().unwrap();
+            js.join().unwrap();
         }
-        // On wasm the extractors already ran inline in `start`; nothing to join.
+        // Inline extractors already finished on the calling thread.
         #[cfg(target_family = "wasm")]
-        let Extractors {} = self;
+        let Extractors::Inline = self;
     }
 }
 

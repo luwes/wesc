@@ -146,5 +146,72 @@ pub fn build_with_source(
     clear_simple_templates();
     clear_definitions();
 
-    build_file(&build_options, output_handler);
+    build_file(&build_options, false, output_handler);
+}
+
+/// The in-memory side outputs of a build (see [`build_in_memory`]).
+#[derive(Debug, Default, Clone)]
+pub struct Assets {
+    /// The bundled component CSS (every definition's top-level `<style>`,
+    /// concatenated). Empty when no component has styles.
+    pub css: Vec<u8>,
+}
+
+/// Like [`build_with_source`], but instead of writing side outputs to files it
+/// returns them in memory — for targets without a filesystem, such as a
+/// WebAssembly worker. The HTML still streams through `output_handler`, and the
+/// bundled CSS comes back in [`Assets`].
+///
+/// The `outcss`/`outjs` paths on `build_options` are **ignored** here: CSS is
+/// always returned in `Assets`, and JS bundling (which needs rolldown and a
+/// filesystem) is not produced — bundle JS at build time with [`build`].
+///
+/// # Example
+///
+/// ```rust
+/// use wesc::chunk_reader::MemorySource;
+/// use wesc::{build_in_memory, BuildOptions};
+///
+/// let source = MemorySource::new()
+///     .with(
+///         "/app/index.html",
+///         "<!doctype html><html><head>\
+///          <link rel=\"definition\" name=\"x-box\" href=\"./box.html\"></head>\
+///          <body><x-box>Hi</x-box></body></html>",
+///     )
+///     .with(
+///         "/app/box.html",
+///         "<template><div class=\"box\"><slot></slot></div></template>\
+///          <style>x-box .box { color: hotpink; }</style>",
+///     );
+///
+/// let assets = build_in_memory(
+///     BuildOptions {
+///         input: vec!["/app/index.html".to_string()],
+///         outcss: None, // ignored; CSS comes back in `assets`
+///         outjs: None,
+///         cwd: Some("/app".to_string()),
+///         minify: false,
+///     },
+///     source,
+///     &mut |chunk: &[u8]| { let _ = chunk; },
+/// );
+///
+/// assert!(String::from_utf8(assets.css).unwrap().contains("hotpink"));
+/// ```
+pub fn build_in_memory(
+    build_options: BuildOptions,
+    source: impl Source + 'static,
+    output_handler: &mut impl FnMut(&[u8]),
+) -> Assets {
+    // Restores the default `OsSource` when this guard drops at the end of the call.
+    let _source = use_source(Rc::new(source));
+
+    clear_file_cache();
+    clear_simple_templates();
+    clear_definitions();
+
+    // Memory mode always collects CSS, so `build_file` returns `Some`.
+    let css = build_file(&build_options, true, output_handler).unwrap_or_default();
+    Assets { css }
 }

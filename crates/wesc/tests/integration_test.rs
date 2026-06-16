@@ -197,6 +197,60 @@ fn build_from_memory_source() {
 }
 
 #[test]
+fn collect_css_in_memory() {
+    // CSS bundling without a filesystem: the component's top-level <style> is
+    // collected into the returned Assets while the HTML streams as usual. No
+    // rolldown/threads, so this is also the wasm-capable path.
+    use wesc::build_in_memory;
+    use wesc::chunk_reader::MemorySource;
+
+    let source = MemorySource::new()
+        .with(
+            "/app/index.html",
+            concat!(
+                "<!doctype html>\n",
+                "<html>\n",
+                "  <head>\n",
+                "    <link rel=\"definition\" name=\"x-box\" href=\"./box.html\">\n",
+                "  </head>\n",
+                "  <body><x-box>Hi</x-box></body>\n",
+                "</html>\n",
+            ),
+        )
+        .with(
+            "/app/box.html",
+            concat!(
+                "<template><div class=\"box\"><slot></slot></div></template>\n",
+                "<style>\n",
+                "  x-box .box {\n",
+                "    color: hotpink;\n",
+                "  }\n",
+                "</style>\n",
+            ),
+        );
+
+    let mut html = Vec::new();
+    let assets = build_in_memory(
+        BuildOptions {
+            input: vec!["/app/index.html".to_string()],
+            outcss: None, // ignored; CSS is returned in assets
+            outjs: None,
+            cwd: Some("/app".to_string()),
+            minify: false,
+        },
+        source,
+        &mut |chunk: &[u8]| html.extend_from_slice(chunk),
+    );
+
+    let html = String::from_utf8(html).expect("valid utf8");
+    assert!(html.contains("<div class=\"box\">"), "got: {html}");
+
+    let css = String::from_utf8(assets.css).expect("valid utf8");
+    assert!(css.contains("x-box .box"), "css: {css}");
+    assert!(css.contains("hotpink"), "css: {css}");
+}
+
+#[test]
 fn utf8_slotted_text_split_across_chunks() {
     // A multi-byte character straddling a chunk boundary must not panic the
     // slotted-position scanner.

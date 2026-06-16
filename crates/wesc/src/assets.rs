@@ -30,38 +30,52 @@ use rolldown::{Bundler, BundlerOptions, InputItem, OutputFormat, RawMinifyOption
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Builder;
 
+/// Where [`extract_css`] sends the concatenated component CSS.
+pub(crate) enum CssOutput {
+    /// Append to this file path (native filesystem builds).
+    File(String),
+    /// Append into this shared buffer, collected and returned to the caller.
+    /// Used on targets without a filesystem (e.g. a WebAssembly worker).
+    Memory(Arc<Mutex<Vec<u8>>>),
+}
+
 /// Concatenate the top-level `<style>` of each unique component definition into
-/// `outcss`. Does nothing when no CSS output path was requested.
-pub(crate) fn extract_css(dep_graph: Arc<Mutex<DepGraph>>, outcss: Option<String>) {
-    if let Some(outcss) = outcss {
-        if Path::new(&outcss).exists() {
-            remove_file(&outcss).unwrap();
+/// `output`. Does nothing when no CSS output was requested.
+pub(crate) fn extract_css(dep_graph: Arc<Mutex<DepGraph>>, output: Option<CssOutput>) {
+    let Some(output) = output else {
+        return;
+    };
+
+    // File output starts from a clean file, since extraction appends.
+    if let CssOutput::File(path) = &output {
+        if Path::new(path).exists() {
+            remove_file(path).unwrap();
         }
+    }
 
-        let dep_graph = dep_graph.lock().unwrap();
-        let dependencies = dep_graph
-            .arena
-            .iter()
-            .filter(|node| node.parent().is_some())
-            .collect::<Vec<&Node<Module>>>();
+    let dep_graph = dep_graph.lock().unwrap();
+    let dependencies = dep_graph
+        .arena
+        .iter()
+        .filter(|node| node.parent().is_some())
+        .collect::<Vec<&Node<Module>>>();
 
-        let mut seen_paths: HashSet<String> = HashSet::new();
+    let mut seen_paths: HashSet<String> = HashSet::new();
 
-        for dependency in dependencies.iter() {
-            let dep_file_path = &dependency.get().file_path;
+    for dependency in dependencies.iter() {
+        let dep_file_path = &dependency.get().file_path;
 
-            // A component declared in multiple files appears as multiple nodes;
-            // only bundle each unique file's styles once.
-            if seen_paths.insert(dep_file_path.clone()) {
-                append_top_level_element(dep_file_path, "style", Path::new(&outcss));
-            }
+        // A component declared in multiple files appears as multiple nodes;
+        // only bundle each unique file's styles once.
+        if seen_paths.insert(dep_file_path.clone()) {
+            append_top_level_element(dep_file_path, "style", &output);
         }
     }
 }
 
-/// Append the body of `file_path`'s top-level `<tag>` element to `out_path`,
+/// Append the body of `file_path`'s top-level `<tag>` element to `output`,
 /// returning whether such an element was present.
-fn append_top_level_element(file_path: &str, tag: &str, out_path: &Path) -> bool {
+fn append_top_level_element(file_path: &str, tag: &str, output: &CssOutput) -> bool {
     let Ok(start) = read_until_start_tag(file_path, 0, &[format!("root > {tag}")], "") else {
         return false;
     };
@@ -71,7 +85,10 @@ fn append_top_level_element(file_path: &str, tag: &str, out_path: &Path) -> bool
         &[tag],
         &format!("<{tag}>"),
         false,
-        &mut |chunk: &[u8]| append_data_to_file(out_path, chunk).unwrap(),
+        &mut |chunk: &[u8]| match output {
+            CssOutput::File(path) => append_data_to_file(Path::new(path), chunk).unwrap(),
+            CssOutput::Memory(buffer) => buffer.lock().unwrap().extend_from_slice(chunk),
+        },
     )
     .unwrap();
     true
