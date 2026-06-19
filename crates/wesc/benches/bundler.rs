@@ -23,7 +23,7 @@ use wesc::{build, BuildOptions};
 
 /// Representative builds, ordered from cheapest to most expensive.
 ///
-/// All scenarios bundle HTML only (no `outcss`/`outjs`) so the benchmark
+/// All scenarios bundle HTML only (no `css`/`js`) so the benchmark
 /// measures the bundler's own work rather than the external JS bundler
 /// (rolldown) or disk I/O.
 const SCENARIOS: &[(&str, &str)] = &[
@@ -45,7 +45,7 @@ fn run_build(entry: &str) {
     build(
         BuildOptions {
             input: vec![entry.to_string()],
-            code: None,
+            source: None,
             outcss: None,
             outjs: None,
             cwd: None,

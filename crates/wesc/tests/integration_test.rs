@@ -193,94 +193,6 @@ fn comments_before_component_template() {
 }
 
 #[test]
-fn build_with_code_entry() {
-    // The `code` option supplies the entry as a string; the component it
-    // references is still read from disk.
-    let dir = std::env::temp_dir().join(format!("wesc-code-entry-{}", std::process::id()));
-    fs::create_dir_all(&dir).expect("temp dir");
-    fs::write(
-        dir.join("card.html"),
-        concat!(
-            "<template>\n",
-            "  <article class=\"card\">\n",
-            "    <h3><slot name=\"title\">Untitled</slot></h3>\n",
-            "    <p><slot>No body.</slot></p>\n",
-            "  </article>\n",
-            "</template>\n",
-        ),
-    )
-    .expect("write component");
-
-    let entry = concat!(
-        "<!doctype html><html><head>",
-        "<link rel=\"definition\" name=\"w-card\" href=\"./card.html\">",
-        "</head><body><w-card><span slot=\"title\">Hello</span>Body copy.</w-card></body></html>",
-    );
-
-    let mut html = Vec::new();
-    build(
-        BuildOptions {
-            input: vec![dir.join("index.html").to_string_lossy().into_owned()],
-            code: Some(entry.to_string()),
-            outcss: None,
-            outjs: None,
-            cwd: Some(dir.to_string_lossy().into_owned()),
-            minify: false,
-        },
-        &mut |chunk: &[u8]| html.extend_from_slice(chunk),
-    );
-    fs::remove_dir_all(&dir).ok();
-
-    let html = String::from_utf8(html).expect("valid utf8");
-    assert!(html.contains("<article class=\"card\">"), "got: {html}");
-    // The slotted element is projected with its `slot` attribute stripped.
-    assert!(html.contains("<span>Hello</span>"), "got: {html}");
-    assert!(html.contains("Body copy."), "got: {html}");
-}
-
-#[test]
-fn build_css_streams_bundled_styles() {
-    // build_css streams the bundled component CSS to a handler, the same way
-    // build streams HTML. Combined with `code`, no filesystem entry is needed.
-    use wesc::build_css;
-
-    let dir = std::env::temp_dir().join(format!("wesc-build-css-{}", std::process::id()));
-    fs::create_dir_all(&dir).expect("temp dir");
-    fs::write(
-        dir.join("box.html"),
-        concat!(
-            "<template><div class=\"box\"><slot></slot></div></template>\n",
-            "<style>x-box .box { color: hotpink; }</style>\n",
-        ),
-    )
-    .expect("write component");
-
-    let entry = concat!(
-        "<!doctype html><html><head>",
-        "<link rel=\"definition\" name=\"x-box\" href=\"./box.html\">",
-        "</head><body><x-box>Hi</x-box></body></html>",
-    );
-
-    let mut css = Vec::new();
-    build_css(
-        BuildOptions {
-            input: vec![dir.join("index.html").to_string_lossy().into_owned()],
-            code: Some(entry.to_string()),
-            outcss: None,
-            outjs: None,
-            cwd: Some(dir.to_string_lossy().into_owned()),
-            minify: false,
-        },
-        &mut |chunk: &[u8]| css.extend_from_slice(chunk),
-    );
-    fs::remove_dir_all(&dir).ok();
-
-    let css = String::from_utf8(css).expect("valid utf8");
-    assert!(css.contains("x-box .box"), "css: {css}");
-    assert!(css.contains("hotpink"), "css: {css}");
-}
-
-#[test]
 fn utf8_slotted_text_split_across_chunks() {
     // A multi-byte character straddling a chunk boundary must not panic the
     // slotted-position scanner.
@@ -354,8 +266,8 @@ const FIXTURES: &str = "./tests/fixtures";
 /// `concurrent_builds_are_isolated`), but the filesystem scratch space still does.
 static BUILD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
-/// Makes each build's temp output paths unique so the reads that happen after
-/// the lock is released can never collide.
+/// Makes each build's temp output paths unique so writes from concurrent builds
+/// can never collide.
 static OUTPUT_SEQ: AtomicU64 = AtomicU64::new(0);
 
 fn fixture_dir(name: &str) -> PathBuf {
@@ -408,34 +320,45 @@ struct Output {
 
 /// Run one build, returning its HTML and (optionally) its bundled CSS/JS.
 ///
-/// CSS/JS go to unique temp files that are read and removed here, so tests never
-/// leave artifacts in the fixtures. Only the build itself is serialized; the
-/// unique temp outputs are safe to read once the lock is released.
+/// Setting `outcss`/`outjs` is what requests each bundle; it is written to a
+/// unique temp file (removed here, since tests read the bundle from the returned
+/// [`wesc::Assets`] instead) so no artifacts linger in the fixtures. JS bundling
+/// uses the per-fixture `.wesc` scratch tree, so the build is serialized under
+/// `BUILD_LOCK` to keep tests that build the same fixture from racing.
 fn run_build(entry: &Path, want_css: bool, want_js: bool, minify: bool) -> Output {
     let css_path = want_css.then(|| temp_path("css"));
     let js_path = want_js.then(|| temp_path("js"));
     let (cwd, entry_point) = entry_in_cwd(entry);
 
     let mut html = Vec::new();
-    {
+    let assets = {
         let _lock = BUILD_LOCK.lock().unwrap();
         build(
             BuildOptions {
                 input: vec![entry_point],
-                code: None,
+                source: None,
                 outcss: css_path.as_deref().map(path_string),
                 outjs: js_path.as_deref().map(path_string),
                 cwd,
                 minify,
             },
             &mut |chunk: &[u8]| html.extend_from_slice(chunk),
-        );
+        )
+    };
+
+    // The bundles were also written to the temp paths; drop those files — the
+    // assertions use the in-memory `Assets` returned above.
+    if let Some(path) = &css_path {
+        let _ = fs::remove_file(path);
+    }
+    if let Some(path) = &js_path {
+        let _ = fs::remove_file(path);
     }
 
     Output {
         html: String::from_utf8_lossy(&html).into_owned(),
-        css: css_path.map(read_and_remove),
-        js: js_path.map(read_and_remove),
+        css: assets.css,
+        js: assets.js,
     }
 }
 
@@ -447,7 +370,7 @@ fn build_html_only(entry: &Path) -> String {
     build(
         BuildOptions {
             input: vec![entry_point],
-            code: None,
+            source: None,
             outcss: None,
             outjs: None,
             cwd,
@@ -482,12 +405,6 @@ fn path_string(path: &Path) -> String {
 fn read(path: impl AsRef<Path>) -> String {
     let path = path.as_ref();
     fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
-}
-
-fn read_and_remove(path: PathBuf) -> String {
-    let contents = read(&path);
-    let _ = fs::remove_file(&path);
-    contents
 }
 
 #[derive(Clone, Copy)]

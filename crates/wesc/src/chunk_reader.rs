@@ -3,18 +3,20 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self};
 use std::path::{Component, Path, PathBuf};
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// A read-only provider of input bytes, keyed by path.
 ///
 /// The expansion engine never writes and only ever reads inputs by path (every
 /// read funnels through [`read_file_cached`]). Abstracting that behind a trait
-/// lets a build draw its entry from somewhere other than the local filesystem
-/// (the `code` build option), which is what a no-filesystem target like a
-/// WebAssembly worker needs. The default is [`OsSource`], so builds keep reading
-/// from disk unchanged.
-pub(crate) trait Source {
+/// lets a build draw its inputs from somewhere other than the local filesystem,
+/// which is what a no-filesystem target like a WebAssembly worker needs. The
+/// default is [`OsSource`], so builds keep reading from disk unchanged; the
+/// `source` build option installs a [`MemorySource`] for the build instead.
+///
+/// `Source` is `Send + Sync` so a single source can also be shared with the
+/// background CSS/JS extractor threads a native build spawns.
+pub(crate) trait Source: Send + Sync {
     /// Read the full contents of `path`.
     fn read(&self, path: &str) -> io::Result<Vec<u8>>;
 }
@@ -29,39 +31,43 @@ impl Source for OsSource {
     }
 }
 
-/// A [`Source`] that serves one entry's bytes from an in-memory string (the
-/// `code` build option) and falls back to the filesystem for everything else
-/// (e.g. the component files the entry references).
+/// An in-memory [`Source`] backing the `source` build option: a `path ->
+/// contents` map (keys **lexically normalized**, so a file resolved through
+/// `.`/`..` segments still matches the key it was stored under).
 ///
-/// The entry key is **lexically normalized** (`.`/`..` collapsed) so the
-/// build's resolved entry path matches regardless of `.`/`..` segments.
-pub(crate) struct CodeSource {
-    entry: String,
-    code: Vec<u8>,
+/// A read for a path that isn't in the map falls back to the filesystem, so an
+/// entry can be supplied from memory while its component files are read from
+/// disk (or vice versa). Supply every referenced file to run a build that never
+/// touches the filesystem at all (e.g. on a WebAssembly worker).
+#[derive(Debug, Default, Clone)]
+pub(crate) struct MemorySource {
+    files: HashMap<String, Vec<u8>>,
 }
 
-impl CodeSource {
-    pub(crate) fn new(entry_path: impl AsRef<str>, code: Vec<u8>) -> Self {
+impl MemorySource {
+    /// Build from the `source` build-option map, normalizing every key.
+    pub(crate) fn from_map(files: &HashMap<String, Vec<u8>>) -> Self {
         Self {
-            entry: normalize_key(entry_path.as_ref()),
-            code,
+            files: files
+                .iter()
+                .map(|(path, contents)| (normalize_key(path), contents.clone()))
+                .collect(),
         }
     }
 }
 
-impl Source for CodeSource {
+impl Source for MemorySource {
     fn read(&self, path: &str) -> io::Result<Vec<u8>> {
-        if normalize_key(path) == self.entry {
-            Ok(self.code.clone())
-        } else {
-            OsSource.read(path)
+        match self.files.get(&normalize_key(path)) {
+            Some(bytes) => Ok(bytes.clone()),
+            None => OsSource.read(path),
         }
     }
 }
 
 /// Collapse `.` and `..` segments in `path` lexically (without touching the
 /// filesystem), so logically-equal paths map to the same key.
-fn normalize_key(path: &str) -> String {
+pub(crate) fn normalize_key(path: &str) -> String {
     let mut out = PathBuf::new();
     for component in Path::new(path).components() {
         match component {
@@ -86,25 +92,37 @@ thread_local! {
 
     // The active input source for this thread. Defaults to the filesystem; a
     // caller can swap in another source (e.g. an in-memory map) for the builds
-    // that run on this thread. `Rc<dyn Source>` is fine because the cache and
-    // the source are only ever touched from the owning thread.
-    static SOURCE: RefCell<Rc<dyn Source>> = RefCell::new(Rc::new(OsSource));
+    // that run on this thread. Stored behind `Arc` so the same source can be
+    // cloned onto the background CSS/JS extractor threads a native build spawns.
+    static SOURCE: RefCell<Arc<dyn Source>> = RefCell::new(Arc::new(OsSource));
+}
+
+/// The input source currently active on this thread.
+pub(crate) fn current_source() -> Arc<dyn Source> {
+    SOURCE.with(|current| current.borrow().clone())
 }
 
 /// Make `source` the active input source on the current thread until the
-/// returned guard drops, which restores the default [`OsSource`]. Used to serve
-/// the entry from the `code` build option.
-pub(crate) fn use_source(source: Rc<dyn Source>) -> SourceGuard {
-    SOURCE.with(|current| *current.borrow_mut() = source);
-    SourceGuard
+/// returned guard drops, which restores whatever source was active before.
+/// Nestable, so a build can layer one source over an already-installed one (and
+/// re-install the build's source on each extractor thread).
+pub(crate) fn use_source(source: Arc<dyn Source>) -> SourceGuard {
+    let previous = SOURCE.with(|current| current.replace(source));
+    SourceGuard {
+        previous: Some(previous),
+    }
 }
 
-/// Restores the default [`OsSource`] on drop. See [`use_source`].
-pub(crate) struct SourceGuard;
+/// Restores the previously active source on drop. See [`use_source`].
+pub(crate) struct SourceGuard {
+    previous: Option<Arc<dyn Source>>,
+}
 
 impl Drop for SourceGuard {
     fn drop(&mut self) {
-        SOURCE.with(|current| *current.borrow_mut() = Rc::new(OsSource));
+        if let Some(previous) = self.previous.take() {
+            SOURCE.with(|current| *current.borrow_mut() = previous);
+        }
     }
 }
 
@@ -176,10 +194,13 @@ mod tests {
     }
 
     #[test]
-    fn code_source_serves_entry_regardless_of_dot_segments() {
-        // The entry is served from `code` even when looked up via a `..` form;
-        // other paths fall back to the filesystem (and miss here).
-        let source = CodeSource::new("/web/pages/index.html", b"<html></html>".to_vec());
+    fn memory_source_serves_files_regardless_of_dot_segments() {
+        // A stored file is served even when looked up via a `..` form; paths
+        // not in the map fall back to the filesystem (and miss here).
+        let source = MemorySource::from_map(&HashMap::from([(
+            "/web/pages/index.html".to_string(),
+            b"<html></html>".to_vec(),
+        )]));
         assert_eq!(
             source.read("/web/extra/../pages/index.html").unwrap(),
             b"<html></html>"

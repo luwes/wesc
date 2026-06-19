@@ -83,7 +83,7 @@ const ITERATIONS: u32 = if cfg!(debug_assertions) { 2 } else { 5 };
 /// allocator are warm.
 const WARMUP: u32 = if cfg!(debug_assertions) { 1 } else { 2 };
 
-/// Run one HTML-only build. CSS/JS outputs are intentionally `None` so we
+/// Run one HTML-only build. CSS/JS outputs are intentionally disabled so we
 /// measure the bundler itself, not the external JS bundler (rolldown) or disk
 /// I/O — those would dominate and add noise.
 fn run_build(entry: &str) -> usize {
@@ -91,7 +91,7 @@ fn run_build(entry: &str) -> usize {
     build(
         BuildOptions {
             input: vec![entry.to_string()],
-            code: None,
+            source: None,
             outcss: None,
             outjs: None,
             cwd: None,

@@ -4,23 +4,22 @@
 //! the CSS/JS asset extraction (see [`crate::assets`]), and then drives the
 //! top-level expansion loop over the host file, delegating each custom element
 //! to [`crate::component`]. The extractors run on background threads on native
-//! targets; on wasm (no threads) they run inline. [`build_css`] is a lighter
-//! path that streams only the bundled CSS.
+//! targets; on wasm (no threads) they run inline. The expanded HTML is streamed
+//! to the output handler and the bundled CSS/JS are returned as [`Assets`].
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 #[cfg(not(target_family = "wasm"))]
 use std::thread;
 
-use crate::assets::{extract_and_bundle_js, extract_css, stream_component_css};
-use crate::chunk_reader::{use_source, CodeSource, SourceGuard};
+use crate::assets::{extract_and_bundle_js, extract_css};
+use crate::chunk_reader::{current_source, use_source, MemorySource, Source, SourceGuard};
 use crate::component::build_component;
 use crate::component_definitions::find_component_definition_names;
 use crate::dep_graph::{resolve_dependencies, DepGraph};
 use crate::write_tags::{read_until_start_tag, read_until_tag};
-use crate::{pos_key, BuildOptions};
+use crate::{pos_key, Assets, BuildOptions};
 
 /// State threaded through the mutually-recursive expansion engine.
 ///
@@ -51,17 +50,24 @@ impl<'a> BuildCtx<'a> {
     }
 }
 
-/// Expand an entry point to HTML (streamed to `output_handler`), writing the
-/// bundled CSS/JS to the `outcss`/`outjs` file paths when requested.
-pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
+/// Expand an entry point to HTML (streamed to `output_handler`), returning the
+/// bundled CSS/JS as [`Assets`] when requested via `options.css` / `options.js`.
+pub(crate) fn build_file(
+    options: &BuildOptions,
+    output_handler: &mut impl FnMut(&[u8]),
+) -> Assets {
     // Resolve relative paths against the build's working directory — like
     // rolldown's `cwd` — which defaults to the process working directory.
     let cwd = resolve_cwd(options.cwd.as_deref());
     let resolved_entry = resolve_path(&cwd, &options.input[0]);
     let host_file_path = resolved_entry.as_str();
 
-    // Serve the entry from `code` (if given) for the duration of this build.
-    let _entry_source = entry_source(options, host_file_path);
+    // Serve inputs from the in-memory `source` (if given) for the duration of
+    // this build; otherwise reads fall through to the filesystem.
+    let _source_guard = install_source(&options.source);
+    // Captured (post-install) so the background extractor threads below read
+    // through the same source as this thread.
+    let thread_source = current_source();
 
     // Resolve all the dependencies of the entry point.
     let dep_graph = resolve_dependencies(host_file_path);
@@ -70,21 +76,38 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
     // the HTML expansion below.
     let dep_graph_ptr = Arc::new(Mutex::new(dep_graph.clone()));
     let dep_graph_ptr_clone = dep_graph_ptr.clone();
-    let outcss = options.outcss.as_deref().map(|p| resolve_path(&cwd, p));
-    let outjs = options.outjs.as_deref().map(|p| resolve_path(&cwd, p));
-    let has_side_outputs = outcss.is_some() || outjs.is_some();
+    // Any `Some` value (including an empty string) requests the bundle, which
+    // always comes back in `Assets`. A non-empty path additionally writes the
+    // bundle to that file; an empty string means "in memory only" (skip the
+    // write), which is handy on targets without a filesystem.
+    let want_css = options.outcss.is_some();
+    let want_js = options.outjs.is_some();
+    // Write paths, resolved against cwd. Empty paths drop out, so they're never
+    // written to disk.
+    let outcss = options
+        .outcss
+        .as_deref()
+        .filter(|p| !p.is_empty())
+        .map(|p| resolve_path(&cwd, p));
+    let outjs = options
+        .outjs
+        .as_deref()
+        .filter(|p| !p.is_empty())
+        .map(|p| resolve_path(&cwd, p));
+    let has_side_outputs = want_css || want_js;
     let minify = options.minify;
     let host_file_path_string = host_file_path.to_owned();
     let cwd_for_js = cwd.clone();
 
     let extractors = Extractors::start(
         dep_graph_ptr,
-        outcss,
+        want_css,
         dep_graph_ptr_clone,
-        outjs,
+        want_js,
         minify,
         host_file_path_string,
         cwd_for_js,
+        thread_source,
     );
 
     let mut ctx = BuildCtx::new(&dep_graph);
@@ -100,9 +123,8 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
                 // with no root document/template and no HTML output. The dependency
                 // graph was already resolved above, so wait for the side-output
                 // extractors and return an empty HTML stream.
-                extractors.finish();
                 let _ = err;
-                return;
+                return finalize(extractors.finish(), outcss.as_deref(), outjs.as_deref());
             }
             Err(err) => panic!("entry must contain a root <html> or <template>: {err}"),
         };
@@ -139,88 +161,126 @@ pub(crate) fn build_file(options: &BuildOptions, output_handler: &mut impl FnMut
         }
     }
 
-    extractors.finish();
+    finalize(extractors.finish(), outcss.as_deref(), outjs.as_deref())
 }
 
-/// Stream the bundled component CSS (every definition's top-level `<style>`,
-/// concatenated) to `output_handler`. No HTML expansion, no rolldown, no
-/// threads or filesystem writes — so it also runs on wasm.
-pub(crate) fn build_css(options: &BuildOptions, output_handler: &mut impl FnMut(&[u8])) {
-    let cwd = resolve_cwd(options.cwd.as_deref());
-    let resolved_entry = resolve_path(&cwd, &options.input[0]);
-    let host_file_path = resolved_entry.as_str();
-
-    let _entry_source = entry_source(options, host_file_path);
-
-    let dep_graph = resolve_dependencies(host_file_path);
-    stream_component_css(&dep_graph, output_handler);
+/// Write any requested side outputs to disk, then return the bundled [`Assets`].
+///
+/// The bundles are always returned in memory; `outcss`/`outjs` additionally
+/// mirror them to the given files. File writes are native-only — on wasm there
+/// is no filesystem, so they are skipped (the in-memory `Assets` still flow back
+/// to the caller).
+fn finalize(assets: Assets, outcss: Option<&str>, outjs: Option<&str>) -> Assets {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        if let (Some(path), Some(css)) = (outcss, assets.css.as_deref()) {
+            write_output(path, css);
+        }
+        if let (Some(path), Some(js)) = (outjs, assets.js.as_deref()) {
+            write_output(path, js);
+        }
+    }
+    #[cfg(target_family = "wasm")]
+    let _ = (outcss, outjs);
+    assets
 }
 
-/// When `options.code` is set, make the entry resolve to that string for the
-/// duration of the returned guard; component files still come from disk.
-fn entry_source(options: &BuildOptions, host_file_path: &str) -> Option<SourceGuard> {
-    options.code.as_ref().map(|code| {
-        use_source(Rc::new(CodeSource::new(
-            host_file_path,
-            code.clone().into_bytes(),
-        )))
-    })
+/// Write `contents` to `path`, creating any missing parent directories first
+/// (the output may point into a `dist/` that doesn't exist yet).
+#[cfg(not(target_family = "wasm"))]
+fn write_output(path: &str, contents: &str) {
+    if let Some(parent) = Path::new(path).parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+    }
+    std::fs::write(path, contents).unwrap();
 }
 
-/// Runs the CSS/JS side-output extractors (see [`crate::assets`]).
+/// When `source` is set, make this build read inputs from that in-memory map for
+/// the duration of the returned guard; reads for paths it doesn't hold fall back
+/// to the filesystem. With no `source`, reads go straight to the filesystem and
+/// this returns `None`.
+fn install_source(source: &Option<HashMap<String, Vec<u8>>>) -> Option<SourceGuard> {
+    source
+        .as_ref()
+        .map(|source| use_source(Arc::new(MemorySource::from_map(source))))
+}
+
+/// Runs the CSS/JS asset extractors (see [`crate::assets`]) and collects their
+/// bundled output into [`Assets`].
 ///
 /// On native targets they run on background threads, concurrently with the HTML
 /// expansion; wasm targets have no threads, so they run inline in
-/// [`start`](Extractors::start). Either way an HTML-only build (`outcss`/`outjs`
-/// both `None`) makes both a no-op.
+/// [`start`](Extractors::start). Either way an HTML-only build (`css`/`js` both
+/// `false`) makes both a no-op and returns empty [`Assets`].
 struct Extractors {
     #[cfg(not(target_family = "wasm"))]
-    css: thread::JoinHandle<()>,
+    css: thread::JoinHandle<Option<String>>,
     #[cfg(not(target_family = "wasm"))]
-    js: thread::JoinHandle<()>,
+    js: thread::JoinHandle<Option<String>>,
+    #[cfg(target_family = "wasm")]
+    assets: Assets,
 }
 
 impl Extractors {
     fn start(
         css_graph: Arc<Mutex<DepGraph>>,
-        outcss: Option<String>,
+        want_css: bool,
         js_graph: Arc<Mutex<DepGraph>>,
-        outjs: Option<String>,
+        want_js: bool,
         minify: bool,
         host_file_path: String,
         cwd: PathBuf,
+        source: Arc<dyn Source>,
     ) -> Self {
         #[cfg(not(target_family = "wasm"))]
         {
+            // Each extractor runs on its own thread, so re-install the build's
+            // source there (the thread-local default is the filesystem). This is
+            // what lets an in-memory `source` feed the CSS/JS extraction too.
+            let css_source = source.clone();
             Extractors {
-                css: thread::spawn(move || extract_css(css_graph, outcss)),
+                css: thread::spawn(move || {
+                    let _guard = use_source(css_source);
+                    extract_css(css_graph, want_css)
+                }),
                 js: thread::spawn(move || {
-                    extract_and_bundle_js(js_graph, outjs, minify, host_file_path, cwd)
+                    let _guard = use_source(source);
+                    extract_and_bundle_js(js_graph, want_js, minify, host_file_path, cwd)
                 }),
             }
         }
         #[cfg(target_family = "wasm")]
         {
-            extract_css(css_graph, outcss);
-            extract_and_bundle_js(js_graph, outjs, minify, host_file_path, cwd);
-            Extractors {}
+            // No threads on wasm: extraction runs inline on this thread, which
+            // already has the build's source installed.
+            let _ = source;
+            let css = extract_css(css_graph, want_css);
+            let js = extract_and_bundle_js(js_graph, want_js, minify, host_file_path, cwd);
+            Extractors {
+                assets: Assets { css, js },
+            }
         }
     }
 
-    fn finish(self) {
+    fn finish(self) -> Assets {
         #[cfg(not(target_family = "wasm"))]
         {
-            self.css.join().unwrap();
-            self.js.join().unwrap();
+            let css = self.css.join().unwrap();
+            let js = self.js.join().unwrap();
+            Assets { css, js }
         }
         #[cfg(target_family = "wasm")]
-        let Extractors {} = self;
+        {
+            self.assets
+        }
     }
 }
 
 /// The working directory for a build, like rolldown's `cwd`: the directory that
-/// relative `input`/`outcss`/`outjs` resolve against. Defaults to the
-/// process working directory and is always returned as an absolute path.
+/// relative `input` paths resolve against. Defaults to the process working
+/// directory and is always returned as an absolute path.
 fn resolve_cwd(cwd: Option<&str>) -> PathBuf {
     match cwd {
         Some(cwd) => {

@@ -22,10 +22,10 @@ lol_html = "1.2.1"
 memchr = "2"
 
 # Native-only dependencies. `clap` powers the CLI binary; `rolldown` + `tokio`
-# power CSS/JS bundling, which spawns threads and touches the filesystem. None of
-# them are needed for HTML-only expansion, so they're excluded on wasm targets
-# (e.g. a Cloudflare Worker) where the library can still run via `build_with_source`
-# fed from an in-memory `Source`.
+# power JS bundling, which spawns threads and touches the filesystem. None of
+# them are needed for HTML expansion or CSS bundling, so they're excluded on wasm
+# targets (e.g. a Cloudflare Worker) where the library can still run `build` fed
+# from an in-memory `source` map (HTML + CSS; requesting `outjs` there panics).
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 clap = { version = "4.4.11", features = ["derive"] }
 rolldown = "1.0.3"

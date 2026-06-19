@@ -56,14 +56,16 @@ Options:
 ## Options
 
 The CLI flags map one-to-one to the library's
-[`BuildOptions`](#library-usage) fields:
+[`BuildOptions`](#library-usage) fields. Setting `outcss`/`outjs` both
+writes the bundle to that file **and** returns it in-memory in the
+[`Assets`](#library-usage) value the library's `build` returns:
 
 | CLI flag             | `BuildOptions` field          | Type             | Description                                                                                                                                   |
 | -------------------- | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<PATH>` (positional)| `input: Vec<String>`          | path(s)          | The entry HTML file. The first entry is the host document that is expanded and streamed out. Required.                                        |
-| _(library only)_     | `code: Option<String>`        | string           | Inline source for the entry. When set, `input[0]` is only used to resolve component `href`s; the entry's contents come from this string instead of disk (components are still read from disk). No CLI flag.  |
-| `-o`, `--outcss`     | `outcss: Option<String>`      | path             | Write the bundled CSS (every component's top-level `<style>`, concatenated) to this file. Omit to skip CSS bundling.                          |
-| `-j`, `--outjs`      | `outjs: Option<String>`       | path             | Write the bundled JS (every component's top-level `<script>`, bundled with rolldown) to this file. Omit to skip JS bundling.                  |
+| _(library only)_     | `source: Option<HashMap<String, Vec<u8>>>` | in-memory files | In-memory inputs, as a `path -> contents` map. When set, reads resolve against it first (paths matched ignoring `.`/`..`), falling back to disk for any path it doesn't hold. Supply just the entry to build a template-engine string; supply the components too to build without touching disk (e.g. on wasm). No CLI flag.  |
+| `-o`, `--outcss`     | `outcss: Option<String>`      | path             | Bundle every component's top-level `<style>` (concatenated), write it to this file, and return it as `Assets.css`. Omit to skip CSS bundling; pass an empty string to bundle in-memory only (no file write). |
+| `-j`, `--outjs`      | `outjs: Option<String>`       | path             | Bundle every component's top-level `<script>` (with rolldown), write it to this file, and return it as `Assets.js`. Omit to skip JS bundling; pass an empty string to bundle in-memory only (no file write). |
 | `--cwd`              | `cwd: Option<String>`         | dir              | Working directory, like rolldown's `cwd`. Defaults to the process working directory. See [Working directory](#working-directory).             |
 | `-m`, `--minify`     | `minify: bool`                | flag             | Minify the generated JS/CSS where supported. Defaults to `false`.                                                                             |
 
@@ -72,8 +74,8 @@ The CLI flags map one-to-one to the library's
 `--cwd` (the `cwd` option) controls the directory the build runs from,
 mirroring [rolldown](https://rolldown.rs)'s `cwd`:
 
-- Relative `input`, `outcss`, and `outjs` paths resolve against
-  it (absolute paths are used as-is).
+- Relative `input`, `outcss`, and `outjs` paths resolve against it
+  (absolute paths are used as-is).
 - The `.wesc` scratch directory is created under it (see
   [The `.wesc` scratch directory](#the-wesc-scratch-directory)).
 - It is passed through to rolldown, so module ids in the JS bundle stay
@@ -151,16 +153,21 @@ into the bundled CSS / JS outputs.
 
 ## CSS & JS output
 
-CSS and JS are emitted as side outputs, independently of the streamed
-HTML, and only when the matching output path is set:
+CSS and JS are bundled independently of the streamed HTML, only when an
+output path is set. Each bundle is written to its file **and** returned
+in the [`Assets`](#library-usage) value:
 
-- **CSS** (`--outcss`): each component definition's top-level `<style>`
-  is concatenated into the output file (each unique component once).
-- **JS** (`--outjs`): each component definition's top-level `<script>`
-  is bundled with [rolldown](https://rolldown.rs) into the output file
-  (ES module format). Components register themselves in dependency
+- **CSS** (`outcss`): each component definition's top-level `<style>` is
+  concatenated (each unique component once), written to `outcss`, and
+  returned as `Assets.css`. An empty `outcss` (`Some("")`) bundles
+  in-memory only — no file is written. CSS bundling needs no rolldown,
+  so it also runs on wasm targets.
+- **JS** (`outjs`): each component definition's top-level `<script>` is
+  bundled with [rolldown](https://rolldown.rs) into an ES module,
+  written to `outjs`, and returned as `Assets.js`. An empty `outjs`
+  bundles in-memory only. Components register themselves in dependency
   order — a child custom element is defined before the parent that uses
-  it.
+  it. JS bundling is native-only; requesting it on a wasm target panics.
 
 ### TypeScript
 
@@ -190,8 +197,8 @@ the component's path relative to the [`cwd`](#working-directory)), and a
 generated entry imports them for rolldown. The tree is rebuilt on every
 build, so stale scripts from removed components never linger.
 
-`.wesc` is build scratch — add it to your `.gitignore`. HTML-only builds
-(no `--outjs`) never create it.
+`.wesc` is build scratch — add it to your `.gitignore`. Builds without
+JS bundling (no `outjs`) never create it.
 
 ## Library usage
 
@@ -200,35 +207,85 @@ use wesc::{build, BuildOptions};
 
 let options = BuildOptions {
     input: vec!["./index.html".to_string()],
-    code: None, // or Some(html_string) to supply the entry inline
-    outcss: Some("./out.css".to_string()),
-    outjs: Some("./out.js".to_string()),
+    source: None, // or Some(map of path -> contents) for in-memory inputs
+    outcss: Some("./dist/styles.css".to_string()), // bundle + write CSS
+    outjs: Some("./dist/scripts.js".to_string()),  // bundle + write JS
     cwd: None, // defaults to the process working directory
     minify: false,
 };
 
-// The expanded HTML is delivered to the handler in streaming chunks.
-build(options, &mut |chunk: &[u8]| {
+// The expanded HTML is delivered to the handler in streaming chunks; the
+// bundled CSS/JS are written to outcss/outjs and also returned in `Assets`.
+let assets = build(options, &mut |chunk: &[u8]| {
     // write the chunk to a file, an HTTP response, stdout, ...
     print!("{}", String::from_utf8_lossy(chunk));
 });
+
+if let Some(css) = assets.css {
+    // the bundled CSS, in-memory (also already written to outcss above)
+    let _ = css;
+}
 ```
 
 Each call starts from empty, thread-local caches, so independent builds
 can run concurrently on different threads without an external lock.
 
-### Streaming the CSS
+### Bundling the CSS without the HTML
 
-`build_css` streams the bundled component CSS to a handler the same way
-`build` streams HTML, with no filesystem writes (so it also runs on
-wasm targets). The `outcss`/`outjs` options are ignored; pair it with
-`code` to bundle CSS for an entry held in memory.
+There is no separate CSS entry point: set `outcss` and read `Assets.css`
+from the result, ignoring the streamed HTML. Use an empty string
+(`Some("")`) to bundle in-memory only — no file is written, so this also
+works on targets without a filesystem (e.g. wasm). CSS bundling needs no
+rolldown; pair it with the `source` option to bundle CSS for inputs held
+in memory.
 
 ```rust
-use wesc::{build_css, BuildOptions};
+use wesc::{build, BuildOptions};
 
-let mut css = Vec::new();
-build_css(options, &mut |chunk: &[u8]| css.extend_from_slice(chunk));
+let assets = build(
+    BuildOptions {
+        input: vec!["./index.html".to_string()],
+        outcss: Some(String::new()), // bundle CSS in memory; don't write a file
+        ..Default::default()
+    },
+    &mut |_chunk: &[u8]| {}, // ignore the HTML
+);
+let css = assets.css.unwrap_or_default();
+```
+
+### Building from memory
+
+For a build that never touches the filesystem — a template-engine string, or a
+WebAssembly worker with no disk — pass a `source` map from each input path to
+its contents. Reads for any path not in the map still fall back to disk, so you
+can mix in-memory and on-disk inputs:
+
+```rust
+use std::collections::HashMap;
+use wesc::{build, BuildOptions};
+
+let source = HashMap::from([
+    (
+        "/site/pages/index.html".to_string(),
+        b"<link rel=\"definition\" name=\"w-card\" href=\"../components/card.html\">\
+          <w-card>Hi</w-card>"
+            .to_vec(),
+    ),
+    (
+        "/site/components/card.html".to_string(),
+        b"<template><slot></slot></template>".to_vec(),
+    ),
+]);
+
+let mut html = Vec::new();
+build(
+    BuildOptions {
+        input: vec!["/site/pages/index.html".to_string()],
+        source: Some(source),
+        ..Default::default()
+    },
+    &mut |chunk: &[u8]| html.extend_from_slice(chunk),
+);
 ```
 
 ## Benchmarks

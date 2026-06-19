@@ -74,10 +74,12 @@ fn main() {
         stdout.write_all(c).unwrap();
     };
 
+    // The expanded HTML is streamed to stdout; the bundled CSS/JS are written to
+    // `--outcss`/`--outjs` (and also returned in-memory, which the CLI ignores).
     build(
         BuildOptions {
             input: vec![args.path],
-            code: None,
+            source: None,
             outcss: args.outcss,
             outjs: args.outjs,
             cwd: args.cwd,
