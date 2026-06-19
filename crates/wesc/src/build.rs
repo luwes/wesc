@@ -224,6 +224,10 @@ struct Extractors {
 }
 
 impl Extractors {
+    // The CSS and JS extractors each need their own graph + "want" flag, and the
+    // JS side additionally needs the minify flag, host path, and cwd; threading
+    // them individually is clearer than bundling unrelated values into a struct.
+    #[allow(clippy::too_many_arguments)]
     fn start(
         css_graph: Arc<Mutex<DepGraph>>,
         want_css: bool,
