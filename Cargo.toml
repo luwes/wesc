@@ -3,12 +3,6 @@ resolver = "2"
 
 members = ["crates/wesc", "crates/wesc-node", "crates/wesc-py", "crates/wesc-php", "crates/wesc-go", "crates/wesc-rb/ext/wesc", "examples/rust-server"]
 
-# `site` is the marketing/docs site: a Cloudflare Worker compiled to
-# wasm32-unknown-unknown via `worker-build`. It is excluded so a root
-# `cargo build`/`cargo test` (host target) never tries to compile it; build it
-# from the `site/` directory with `npx wrangler dev` / `npx wrangler deploy`.
-exclude = ["site"]
-
 # `wesc-php` and `wesc-rb` are excluded from the default set so a bare
 # `cargo build` / `cargo test` at the root doesn't try to compile them: the PHP
 # extension needs PHP dev headers (php-config) and libclang, and the Ruby

@@ -1,11 +1,5 @@
-# Rust build output
-/target/
-
-# worker-build output (generated wasm + JS shim)
-/build/
-
-# Fast local dev-server output
-/.dev-dist/
+# Build output (rendered HTML + bundled assets the Worker imports)
+/dist/
 
 # Wrangler local state
 /.wrangler/

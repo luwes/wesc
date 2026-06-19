@@ -2,16 +2,20 @@
   "name": "wesc-site",
   "version": "0.0.0",
   "private": true,
-  "description": "Marketing/docs site for WeSC, served from a Rust Cloudflare Worker.",
+  "description": "Marketing/docs site for WeSC, served from a Cloudflare Worker (Node/TypeScript).",
   "type": "module",
   "scripts": {
-    "dev": "node --disable-warning=ExperimentalWarning scripts/dev-site.ts",
-    "dev:worker": "wrangler dev --live-reload",
+    "build": "node --disable-warning=ExperimentalWarning scripts/build-site.ts",
+    "dev": "wrangler dev --live-reload",
     "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
     "tail": "wrangler tail"
   },
   "devDependencies": {
+    "@types/node": "^24",
     "shiki": "^4.2.0",
+    "typescript": "^5",
+    "wesc": "file:../packages/wesc",
     "wrangler": "^4"
   }
 }

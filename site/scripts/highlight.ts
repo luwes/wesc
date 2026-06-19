@@ -1,23 +1,9 @@
-#!/usr/bin/env node
-import { readFile, writeFile } from 'node:fs/promises';
-
 import { codeToHtml, type ShikiTransformer } from 'shiki';
 
-const files = process.argv.slice(2);
-if (files.length === 0) {
-  console.error('Usage: node scripts/highlight.ts <html-file> [...]');
-  process.exit(2);
-}
-
-for (const file of files) {
-  const html = await readFile(file, 'utf8');
-  const highlighted = await highlightHtml(html);
-  if (highlighted !== html) {
-    await writeFile(file, highlighted);
-  }
-}
-
-async function highlightHtml(html: string): Promise<string> {
+// Shiki-highlight every `<pre><code class="language-…">` block in an HTML
+// source. The page sources are static markup, so this runs once at build time
+// over the source (before wesc expands the components around it).
+export async function highlightHtml(html: string): Promise<string> {
   const codeBlock = /<pre><code class="language-([a-z0-9_-]+)">([\s\S]*?)<\/code><\/pre>/gi;
   let out = '';
   let cursor = 0;

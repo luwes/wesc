@@ -1,14 +1,13 @@
 # Cloudflare Worker config for the WeSC marketing/docs site.
 #
-# `worker-build` compiles the Rust crate to wasm32-unknown-unknown and emits the
-# JS shim that Wrangler deploys; `main` points at that generated entrypoint.
+# A plain JavaScript/TypeScript Worker. The `[build]` command renders the site
+# with the `wesc` npm package on the host (see scripts/build-site.ts) and writes
+# dist/generated.js, which Wrangler inlines into the Worker bundle at `main`.
 name = "wesc-site"
-main = "build/worker/shim.mjs"
+main = "src/index.ts"
 compatibility_date = "2025-04-23"
 
 [build]
-command = "cargo install -q worker-build && worker-build --release"
-# Wrangler defaults custom-build watching to ./src. The site source lives mostly
-# under web/, and build.rs tells Cargo to regenerate wesc output when web/ changes,
-# so watch both trees for dev reloads.
-watch_dir = ["src", "web"]
+command = "node --disable-warning=ExperimentalWarning scripts/build-site.ts"
+# Rerender when any component/page source changes during `wrangler dev`.
+watch_dir = "web"
