@@ -67,25 +67,21 @@ pub fn find_component_definitions(file_path: &str) -> io::Result<IndexMap<String
     let should_end = Rc::new(RefCell::new(false));
 
     let mut rewriter = HtmlRewriter::new(
-        Settings {
-            element_content_handlers: vec![
-                element!("link[rel=definition]", |el| {
-                    let href = el.get_attribute("href").unwrap();
-                    let name = el.get_attribute("name").unwrap();
-                    component_definitions.insert(name, href);
-                    Ok(())
-                }),
-                element!("body", |_el| {
-                    *should_end.borrow_mut() = true;
-                    Ok(())
-                }),
-                element!("template", |_el| {
-                    *should_end.borrow_mut() = true;
-                    Ok(())
-                }),
-            ],
-            ..Settings::default()
-        },
+        Settings::new()
+            .append_element_content_handler(element!("link[rel=definition]", |el| {
+                let href = el.get_attribute("href").unwrap();
+                let name = el.get_attribute("name").unwrap();
+                component_definitions.insert(name, href);
+                Ok(())
+            }))
+            .append_element_content_handler(element!("body", |_el| {
+                *should_end.borrow_mut() = true;
+                Ok(())
+            }))
+            .append_element_content_handler(element!("template", |_el| {
+                *should_end.borrow_mut() = true;
+                Ok(())
+            })),
         |_c: &[u8]| {},
     );
 

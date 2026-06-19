@@ -1,4 +1,4 @@
-use lol_html::{element, HtmlRewriter, Settings};
+use lol_html::{element, end_tag, HtmlRewriter, Settings};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self};
@@ -110,7 +110,7 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
                 let el_tag_name = el.tag_name().to_string();
 
                 if let Some(handlers) = el.end_tag_handlers() {
-                    handlers.push(Box::new(move |end| {
+                    handlers.push(end_tag!(move |end| {
                         let mut tag = tag_clone.borrow_mut();
 
                         let is_end_of_named_slotted =
@@ -141,11 +141,16 @@ pub fn write_until_tag<T: AsRef<str>, U: AsRef<str>>(
         Ok(())
     }));
 
+    // lol_html 3's `Settings` is a consuming builder with private fields, so fold
+    // the dynamically-built handler list in via `append_element_content_handler`
+    // (preserving order) instead of assigning the whole vector.
+    let mut settings = Settings::new();
+    for handler in element_content_handlers {
+        settings = settings.append_element_content_handler(handler);
+    }
+
     let mut rewriter = HtmlRewriter::new(
-        Settings {
-            element_content_handlers,
-            ..Settings::default()
-        },
+        settings,
         move |chunk: &[u8]| {
             if *paused.borrow() {
                 return;

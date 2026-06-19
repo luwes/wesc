@@ -18,7 +18,7 @@ include = [
 [dependencies]
 indexmap = "2.2.6"
 indextree = "4.6.0"
-lol_html = "1.2.1"
+lol_html = "3.0.0"
 memchr = "2"
 
 # Native-only dependencies. `clap` powers the CLI binary; `rolldown` + `tokio`

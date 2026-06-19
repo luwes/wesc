@@ -1,4 +1,4 @@
-use lol_html::{element, HtmlRewriter, Settings};
+use lol_html::{element, end_tag, HtmlRewriter, Settings};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{self};
@@ -61,52 +61,54 @@ pub fn find_slotted_positions(
     let last_slot_name = Rc::new(RefCell::new("".to_string()));
 
     let mut rewriter = HtmlRewriter::new(
-        Settings {
-            element_content_handlers: vec![
-                element!(format!("root > {}", component_name), |el| {
-                    if let Some(handlers) = el.end_tag_handlers() {
-                        *slot_name.borrow_mut() = DEFAULT_SLOT_NAME.to_string();
+        Settings::new()
+            .append_element_content_handler(element!(format!("root > {}", component_name), |el| {
+                if let Some(handlers) = el.end_tag_handlers() {
+                    *slot_name.borrow_mut() = DEFAULT_SLOT_NAME.to_string();
 
-                        let stop = Rc::clone(&stop_clone);
+                    let stop = Rc::clone(&stop_clone);
 
-                        handlers.push(Box::new(move |_end| {
-                            *stop.borrow_mut() = true;
-                            Ok(())
-                        }));
-                    }
-                    Ok(())
-                }),
-                element!(format!("root > {} > *[slot]", component_name), |el| {
+                    handlers.push(end_tag!(move |_end| {
+                        *stop.borrow_mut() = true;
+                        Ok(())
+                    }));
+                }
+                Ok(())
+            }))
+            .append_element_content_handler(element!(
+                format!("root > {} > *[slot]", component_name),
+                |el| {
                     *slot_name.borrow_mut() = el.get_attribute("slot").unwrap();
 
                     let is_end_tag = is_end_tag.clone();
 
                     if let Some(handlers) = el.end_tag_handlers() {
-                        handlers.push(Box::new(move |_end| {
+                        handlers.push(end_tag!(move |_end| {
                             *is_end_tag.borrow_mut() = true;
                             Ok(())
                         }));
                     }
 
                     Ok(())
-                }),
-                element!(format!("root > {} > *:not([slot])", component_name), |el| {
+                }
+            ))
+            .append_element_content_handler(element!(
+                format!("root > {} > *:not([slot])", component_name),
+                |el| {
                     *slot_name.borrow_mut() = DEFAULT_SLOT_NAME.to_string();
 
                     let is_end_tag = is_end_tag.clone();
 
                     if let Some(handlers) = el.end_tag_handlers() {
-                        handlers.push(Box::new(move |_end| {
+                        handlers.push(end_tag!(move |_end| {
                             *is_end_tag.borrow_mut() = true;
                             Ok(())
                         }));
                     }
 
                     Ok(())
-                }),
-            ],
-            ..Settings::default()
-        },
+                }
+            )),
         |chunk: &[u8]| {
             if chunk == b"<root>" {
                 return;
