@@ -35,8 +35,16 @@ platform without a prebuilt binary, [build from source](#building-from-source).
 
 ```php
 <?php
-// One-shot: returns the full HTML output as a (binary-safe) string.
-echo wesc_build(['./index.html'], minify: true);
+// One-shot: returns an associative array with the HTML output plus the bundled
+// assets. `html` is a binary-safe string; `css`/`js` are strings or null.
+$result = wesc_build(['./index.html'], outcss: '', outjs: '', minify: true);
+echo $result['html'];
+file_put_contents('styles.css', $result['css'] ?? '');
+file_put_contents('scripts.js', $result['js'] ?? '');
+
+// `outcss`/`outjs` still write files: null skips the bundle, a non-empty path
+// bundles *and* writes the file, and an empty string (above) returns the asset
+// in memory only — without touching disk.
 
 // Streaming: low memory, chunk by chunk. The callback receives each string
 // chunk, then `null` once to signal end-of-stream.
@@ -52,15 +60,15 @@ wesc_build_stream(['./index.html'], function ($chunk) {
 
 ## API
 
-- `wesc_build(array $input, ?string $outcss = null, ?string $outjs = null, bool $minify = false): string`
+- `wesc_build(array $input, ?string $outcss = null, ?string $outjs = null, bool $minify = false): array` — returns `['html' => string, 'css' => ?string, 'js' => ?string]`.
 - `wesc_build_stream(array $input, callable $callback, ?string $outcss = null, ?string $outjs = null, bool $minify = false): void`
 
 | Argument       | Type                  | Notes                                          |
 | -------------- | --------------------- | ---------------------------------------------- |
 | `input`        | `string[]`            | First entry is the host document.              |
 | `callback`     | `callable`            | `wesc_build_stream` only. Gets each string chunk, then `null` at end-of-stream. |
-| `outcss`       | `?string`             | Path to write the bundled CSS file.            |
-| `outjs`        | `?string`             | Path to write the bundled JS file.             |
+| `outcss`       | `?string`             | Path to write the bundled CSS file. `''` returns the CSS in memory only (no file). |
+| `outjs`        | `?string`             | Path to write the bundled JS file. `''` returns the JS in memory only (no file). |
 | `minify`       | `bool`                | Minify generated assets. Defaults to `false`.  |
 
 All trailing arguments are optional and support PHP 8 named arguments, e.g.

@@ -23,15 +23,17 @@ import (
 )
 
 func main() {
-	// One-shot: returns the full HTML output as bytes.
-	html, err := wesc.Build(wesc.Options{
+	// One-shot: returns the expanded HTML plus the bundled CSS/JS. Setting
+	// OutCSS/OutJS both writes the file and returns the bundle in the Result.
+	res, err := wesc.Build(wesc.Options{
 		Input:  []string{"./index.html"},
+		OutCSS: "dist/styles.css",
 		Minify: true,
 	})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%d bytes\n", len(html))
+	fmt.Printf("%d bytes html, %d bytes css\n", len(res.HTML), len(res.CSS))
 
 	// Streaming: low memory, chunk by chunk. The callback receives each chunk;
 	// the call returns once the stream ends. Returning an error stops it.
@@ -44,7 +46,7 @@ func main() {
 
 ## API
 
-- `func Build(opts Options) ([]byte, error)`
+- `func Build(opts Options) (Result, error)`
 - `func BuildStream(opts Options, fn func(chunk []byte) error) error`
 
 ```go
@@ -54,13 +56,23 @@ type Options struct {
 	OutJS  string   // Path to write the bundled JS file (empty = skip).
 	Minify bool     // Minify generated assets. Defaults to false.
 }
+
+type Result struct {
+	HTML []byte // The expanded markup.
+	CSS  []byte // Bundled CSS, or nil when OutCSS was empty.
+	JS   []byte // Bundled JS, or nil when OutJS was empty.
+}
 ```
+
+`Build` returns the bundled CSS/JS in the `Result` whenever `OutCSS`/`OutJS`
+are set — the same bytes that are also written to those files, so you don't
+need to read them back from disk. `BuildStream` streams the HTML only.
 
 | Field / argument | Type                       | Notes                                            |
 | ---------------- | -------------------------- | ------------------------------------------------ |
 | `Input`          | `[]string`                 | First entry is the host document.                |
-| `OutCSS`         | `string`                   | Path to write the bundled CSS file. Empty skips. |
-| `OutJS`          | `string`                   | Path to write the bundled JS file. Empty skips.  |
+| `OutCSS`         | `string`                   | Path to write the bundled CSS file. Empty skips. Also returned in `Result.CSS`. |
+| `OutJS`          | `string`                   | Path to write the bundled JS file. Empty skips. Also returned in `Result.JS`.  |
 | `Minify`         | `bool`                     | Minify generated assets. Defaults to `false`.    |
 | `fn`             | `func([]byte) error`       | `BuildStream` only. Called with each chunk; return an error to stop. |
 

@@ -6,28 +6,52 @@
 /** Options for a wesc build. Mirrors the CLI flags. */
 export interface BuildOptions {
   /** Entry point file paths. The first entry is the host document. */
-  input: Array<string>;
+  input: Array<string>
   /** Optional path to write the bundled CSS file. */
-  outcss?: string;
+  outcss?: string
   /** Optional path to write the bundled JS file. */
-  outjs?: string;
+  outjs?: string
+  /**
+   * Working directory (like rolldown's cwd). Relative `input`/`outcss`/
+   * `outjs` resolve against it and the `.wesc` scratch dir is created under
+   * it. Defaults to the process working directory.
+   */
+  cwd?: string
   /** Minify generated JS/CSS assets where supported. Defaults to `false`. */
-  minify?: boolean;
+  minify?: boolean
 }
 /**
- * Build the entry points and return the full HTML output as a `Buffer`.
+ * Result of a one-shot build: the full HTML output plus the bundled assets.
+ *
+ * `css`/`js` are present whenever `outcss`/`outjs` were set (to a real path or
+ * an empty string), letting you serve the bundles straight from memory. A real
+ * path also writes the bundle to disk; an empty string bundles in-memory only.
+ */
+export interface BuildResult {
+  /** The full expanded HTML document. */
+  html: Buffer
+  /** The bundled CSS, when `outcss` was requested. */
+  css?: string
+  /** The bundled JS, when `outjs` was requested. */
+  js?: string
+}
+/**
+ * Build the entry points and return the HTML output plus bundled assets.
+ *
+ * The HTML is returned as a `Buffer`; `css`/`js` carry the bundled assets in
+ * memory whenever `outcss`/`outjs` were requested.
  *
  * Synchronous: blocks the calling thread until the build completes. Fine for
  * build scripts; prefer [`build_async`] on a request-serving hot path.
  */
-export declare function build(options: BuildOptions): Buffer;
+export declare function build(options: BuildOptions): BuildResult
 /**
- * Build off the JS thread and resolve with the full output as a `Buffer`.
+ * Build off the JS thread and resolve with the HTML plus bundled assets.
  *
  * Runs on libuv's thread pool, so it never blocks the event loop — the right
  * choice for a server that builds per request.
  */
-export declare function buildAsync(options: BuildOptions): Promise<Buffer>;
+export declare function buildAsync(options: BuildOptions): Promise<BuildResult>
 /**
  * Stream the build to a callback, chunk by chunk, for low-memory output.
  *
@@ -42,7 +66,4 @@ export declare function buildAsync(options: BuildOptions): Promise<Buffer>;
  * });
  * ```
  */
-export declare function buildStream(
-  options: BuildOptions,
-  callback: (arg: Buffer | undefined | null) => any,
-): void;
+export declare function buildStream(options: BuildOptions, callback: (arg: Buffer | undefined | null) => any): void

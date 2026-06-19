@@ -20,17 +20,30 @@ class TestWesc < Minitest::Test
     end
   end
 
-  def test_build_returns_output
+  def test_build_returns_result
     in_scratch_dir do
-      html = Wesc.build([fixture_entry("default-slot")])
-      assert_kind_of String, html
-      refute_empty html
+      result = Wesc.build([fixture_entry("default-slot")])
+      assert_kind_of Wesc::Result, result
+      assert_kind_of String, result.html
+      refute_empty result.html
+      # No outcss/outjs requested, so the bundles are absent.
+      assert_nil result.css
+      assert_nil result.js
+    end
+  end
+
+  def test_build_returns_in_memory_assets
+    in_scratch_dir do
+      # Empty-string outcss/outjs request the bundles in memory only (no write).
+      result = Wesc.build([fixture_entry("default-slot")], outcss: "", outjs: "")
+      assert_kind_of String, result.css
+      assert_kind_of String, result.js
     end
   end
 
   def test_build_stream_matches_build
     in_scratch_dir do
-      one_shot = Wesc.build([fixture_entry("default-slot")])
+      one_shot = Wesc.build([fixture_entry("default-slot")]).html
 
       streamed = +"".b
       Wesc.build_stream([fixture_entry("default-slot")]) do |chunk|

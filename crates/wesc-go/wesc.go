@@ -5,8 +5,8 @@
 //
 // Two entry points, matching how a server typically consumes a build:
 //
-//   - [Build]       returns the full output as a []byte.
-//   - [BuildStream] streams each chunk to a callback (low memory).
+//   - [Build]       returns the HTML plus the bundled CSS/JS as a [Result].
+//   - [BuildStream] streams each HTML chunk to a callback (low memory).
 //
 // Note: the underlying bundler keeps a process-global file/template cache, so
 // builds should not run concurrently within a single process — serialize them
@@ -99,23 +99,52 @@ func (o Options) cArgs() (entries **C.char, n C.size_t, outcss, outjs *C.char, m
 	return entries, C.size_t(len(cEntries)), outcss, outjs, minify, free
 }
 
-// Build compiles the entry points and returns the full HTML output as bytes.
+// Result is the output of [Build]: the expanded HTML, plus the bundled CSS and
+// JS. CSS is non-nil only when OutCSS was set, and JS only when OutJS was set
+// (the same bundles are also written to those files).
+type Result struct {
+	// HTML is the expanded markup.
+	HTML []byte
+	// CSS is the bundled component CSS, or nil when OutCSS was empty.
+	CSS []byte
+	// JS is the bundled component JS, or nil when OutJS was empty.
+	JS []byte
+}
+
+// goBytes copies a non-empty WescBuffer into a Go []byte, or returns nil for an
+// empty/absent buffer.
+func goBytes(buf C.WescBuffer) []byte {
+	if buf.data == nil || buf.len == 0 {
+		return nil
+	}
+	return C.GoBytes(unsafe.Pointer(buf.data), C.int(buf.len))
+}
+
+// Build compiles the entry points and returns the expanded HTML plus the
+// bundled CSS/JS. Setting OutCSS/OutJS both writes the bundle to that file and
+// returns it in the [Result].
 //
-//	html, err := wesc.Build(wesc.Options{Input: []string{"./index.html"}, Minify: true})
-func Build(opts Options) ([]byte, error) {
+//	res, err := wesc.Build(wesc.Options{Input: []string{"./index.html"}, OutCSS: "dist/styles.css"})
+//	// res.HTML, res.CSS
+func Build(opts Options) (Result, error) {
 	entries, n, outcss, outjs, minify, free := opts.cArgs()
 	defer free()
 
-	buf := C.wesc_build(entries, n, outcss, outjs, minify)
+	var cssBuf, jsBuf C.WescBuffer
+	buf := C.wesc_build(entries, n, outcss, outjs, minify, &cssBuf, &jsBuf)
 	defer C.wesc_buffer_free(buf)
+	defer C.wesc_buffer_free(cssBuf)
+	defer C.wesc_buffer_free(jsBuf)
 
 	if buf.error != nil {
-		return nil, errors.New(C.GoString(buf.error))
+		return Result{}, errors.New(C.GoString(buf.error))
 	}
-	if buf.len == 0 {
-		return []byte{}, nil
+
+	html := goBytes(buf)
+	if html == nil {
+		html = []byte{}
 	}
-	return C.GoBytes(unsafe.Pointer(buf.data), C.int(buf.len)), nil
+	return Result{HTML: html, CSS: goBytes(cssBuf), JS: goBytes(jsBuf)}, nil
 }
 
 // streamState carries the user callback and the first error it produced across

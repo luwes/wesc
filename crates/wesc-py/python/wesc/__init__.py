@@ -6,8 +6,10 @@ subprocess, no WASM.
 
     import wesc
 
-    # One-shot: returns the full HTML as bytes. Releases the GIL while it runs.
-    html = wesc.build(["./index.html"], minify=True)
+    # One-shot: returns a BuildResult. `result.html` is the full HTML as bytes;
+    # `result.css` / `result.js` are the bundled assets. Releases the GIL while
+    # it runs.
+    result = wesc.build(["./index.html"], minify=True)
 
     # Streaming: low memory, chunk by chunk. The callback gets each `bytes`
     # chunk, then `None` once to signal end-of-stream.
@@ -16,6 +18,6 @@ subprocess, no WASM.
 See https://github.com/luwes/wesc for the full documentation.
 """
 
-from ._wesc import __version__, build, build_stream
+from ._wesc import BuildResult, __version__, build, build_stream
 
-__all__ = ["build", "build_stream", "__version__"]
+__all__ = ["build", "build_stream", "BuildResult", "__version__"]

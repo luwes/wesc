@@ -38,12 +38,35 @@ func fixtureEntry(t *testing.T, name string) string {
 func TestBuild(t *testing.T) {
 	entry := fixtureEntry(t, "default-slot")
 
-	html, err := wesc.Build(wesc.Options{Input: []string{entry}})
+	res, err := wesc.Build(wesc.Options{Input: []string{entry}})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if len(html) == 0 {
-		t.Fatal("Build returned empty output")
+	if len(res.HTML) == 0 {
+		t.Fatal("Build returned empty HTML")
+	}
+	// No OutCSS/OutJS requested, so the bundles are absent.
+	if res.CSS != nil || res.JS != nil {
+		t.Fatalf("expected nil CSS/JS, got css=%v js=%v", res.CSS, res.JS)
+	}
+}
+
+func TestBuildReturnsInMemoryAssets(t *testing.T) {
+	entry := fixtureEntry(t, "style-tags")
+
+	dir := t.TempDir()
+	res, err := wesc.Build(wesc.Options{
+		Input:  []string{entry},
+		OutCSS: filepath.Join(dir, "styles.css"),
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if len(res.HTML) == 0 {
+		t.Fatal("Build returned empty HTML")
+	}
+	if len(res.CSS) == 0 {
+		t.Fatal("expected bundled CSS in the result when OutCSS is set")
 	}
 }
 
@@ -64,8 +87,8 @@ func TestBuildStreamMatchesBuild(t *testing.T) {
 		t.Fatalf("BuildStream: %v", err)
 	}
 
-	if !bytes.Equal(streamed.Bytes(), oneShot) {
-		t.Fatalf("stream output (%d B) != one-shot output (%d B)", streamed.Len(), len(oneShot))
+	if !bytes.Equal(streamed.Bytes(), oneShot.HTML) {
+		t.Fatalf("stream output (%d B) != one-shot HTML (%d B)", streamed.Len(), len(oneShot.HTML))
 	}
 }
 

@@ -13,6 +13,12 @@ its `package.json` for the build/publish scripts.
 
 ## Exports
 
-- `build(options)` — synchronous, returns a `Buffer`.
-- `buildAsync(options)` — runs off the JS thread, returns `Promise<Buffer>`.
-- `buildStream(options, callback)` — streams each chunk to `callback`, then `null` at the end.
+- `build(options)` — synchronous, returns a `BuildResult` `{ html, css, js }`.
+- `buildAsync(options)` — runs off the JS thread, returns `Promise<BuildResult>`.
+- `buildStream(options, callback)` — streams the HTML to `callback` chunk by
+  chunk, then `null` at the end (still writes `outcss`/`outjs` to disk).
+
+The one-shot builds return the expanded HTML as `result.html` (a `Buffer`) plus
+the bundled `result.css`/`result.js` whenever `outcss`/`outjs` were requested,
+so you can serve the bundles from memory. A real path also writes the bundle to
+disk; an empty string (`outcss: ''`) bundles in-memory only.

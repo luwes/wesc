@@ -9,18 +9,22 @@
 //! so it can run in-process on a PHP server — no subprocess, no WASM.
 //!
 //! Two entry points, matching how a server typically consumes a build:
-//! - [`wesc_build`]        — returns the full output as a (binary-safe) string.
-//! - [`wesc_build_stream`] — streams each chunk to a callable (low memory). The
-//!   callable runs in PHP, so the build runs synchronously on the calling thread.
+//! - [`wesc_build`]        — returns an associative array with the full HTML
+//!   output (binary-safe string) plus the bundled CSS/JS assets.
+//! - [`wesc_build_stream`] — streams each HTML chunk to a callable (low memory).
+//!   The callable runs in PHP, so the build runs synchronously on the calling
+//!   thread.
 //!
 //! Note: the underlying bundler keeps a process-global file/template cache, so
 //! builds should not run concurrently within a single process — serialize them
 //! (the streaming server example does exactly this).
 
 use ext_php_rs::binary::Binary;
+use ext_php_rs::boxed::ZBox;
 use ext_php_rs::convert::IntoZval;
 use ext_php_rs::error::Error;
 use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendHashTable;
 use wesc::{build as wesc_build_core, BuildOptions as WescBuildOptions};
 
 /// Assemble [`WescBuildOptions`] from the PHP-facing arguments.
@@ -32,7 +36,7 @@ fn make_options(
 ) -> WescBuildOptions {
     WescBuildOptions {
         input,
-        code: None,
+        source: None,
         outcss,
         outjs,
         cwd: None,
@@ -40,19 +44,28 @@ fn make_options(
     }
 }
 
-/// Build the entry points and return the full HTML output as a string.
+/// Build the entry points and return the HTML output plus the bundled assets.
 ///
-/// The returned value is a binary-safe PHP string containing the exact output
-/// bytes, so you can `echo` it straight to the response.
+/// The result is a PHP associative array with three keys:
+/// - `html`: a binary-safe string with the exact output bytes, so you can `echo`
+///   it straight to the response.
+/// - `css`: the bundled CSS as a string, or `null` when no CSS was produced.
+/// - `js`: the bundled JS as a string, or `null` when no JS was produced.
+///
+/// `outcss`/`outjs` still control file output: `null` skips the bundle, a
+/// non-empty path bundles and writes the file (and returns it), and an empty
+/// string bundles and returns the asset without writing it to disk.
 ///
 /// ```php
-/// echo wesc_build(['./index.html'], minify: true);
+/// $result = wesc_build(['./index.html'], outcss: '', outjs: '', minify: true);
+/// echo $result['html'];
+/// // $result['css'] / $result['js'] hold the bundled assets (or null).
 /// ```
 ///
 /// # Parameters
 /// - `input`: Entry point file paths. The first entry is the host document.
-/// - `outcss`: Optional path to write the bundled CSS file.
-/// - `outjs`: Optional path to write the bundled JS file.
+/// - `outcss`: Optional path to write the bundled CSS file (`''` = in-memory only).
+/// - `outjs`: Optional path to write the bundled JS file (`''` = in-memory only).
 /// - `minify`: Minify generated JS/CSS assets where supported. Defaults to `false`.
 #[php_function]
 #[php(defaults(outcss = None, outjs = None, minify = false))]
@@ -61,15 +74,19 @@ pub fn wesc_build(
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
-) -> Binary<u8> {
+) -> PhpResult<ZBox<ZendHashTable>> {
     let options = make_options(input, outcss, outjs, minify);
 
     let mut output: Vec<u8> = Vec::new();
-    wesc_build_core(options, &mut |chunk: &[u8]| {
+    let assets = wesc_build_core(options, &mut |chunk: &[u8]| {
         output.extend_from_slice(chunk);
     });
 
-    Binary::from(output)
+    let mut result = ZendHashTable::new();
+    result.insert("html", Binary::from(output))?;
+    result.insert("css", assets.css)?;
+    result.insert("js", assets.js)?;
+    Ok(result)
 }
 
 /// Stream the build to a callable, chunk by chunk, for low-memory output.
@@ -90,6 +107,10 @@ pub fn wesc_build(
 ///
 /// The callable runs in PHP, so the build runs synchronously on the calling
 /// thread. If it throws, the exception propagates out and the build stops.
+///
+/// Only the HTML is streamed; the bundled CSS/JS are not returned here. Pass
+/// `outcss`/`outjs` to write the bundles to disk (use [`wesc_build`] if you need
+/// the assets back in memory).
 ///
 /// # Parameters
 /// - `input`: Entry point file paths. The first entry is the host document.

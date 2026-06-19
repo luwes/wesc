@@ -8,7 +8,9 @@
 //! in-process — no subprocess, no WASM.
 //!
 //! Two entry points, matching how a server typically consumes a build:
-//! - [`wesc_build`]        — returns the full output as a heap [`WescBuffer`].
+//! - [`wesc_build`]        — returns the HTML output as a heap [`WescBuffer`],
+//!   and fills caller-provided `out_css`/`out_js` buffers with the bundled
+//!   CSS/JS (when requested).
 //! - [`wesc_build_stream`] — streams each chunk to a C callback (low memory).
 //!
 //! Every build runs inside [`std::panic::catch_unwind`]: a Rust panic must never
@@ -88,11 +90,33 @@ unsafe fn collect_options(
 
     BuildOptions {
         input,
-        code: None,
+        source: None,
         outcss: opt_string(outcss),
         outjs: opt_string(outjs),
         cwd: None,
         minify: minify != 0,
+    }
+}
+
+/// Wrap an owned byte vector in a [`WescBuffer`] (transferring ownership to the
+/// caller, who must release it with [`wesc_buffer_free`]).
+fn buffer_from_vec(bytes: Vec<u8>) -> WescBuffer {
+    let mut bytes = ManuallyDrop::new(bytes);
+    WescBuffer {
+        data: bytes.as_mut_ptr(),
+        len: bytes.len(),
+        cap: bytes.capacity(),
+        error: ptr::null_mut(),
+    }
+}
+
+/// A zeroed [`WescBuffer`] (no data, no error) — used for an absent CSS/JS bundle.
+fn empty_buffer() -> WescBuffer {
+    WescBuffer {
+        data: ptr::null_mut(),
+        len: 0,
+        cap: 0,
+        error: ptr::null_mut(),
     }
 }
 
@@ -118,13 +142,18 @@ fn panic_message(payload: Box<dyn Any + Send>) -> String {
     }
 }
 
-/// Build the entry points and return the full HTML output as a [`WescBuffer`].
+/// Build the entry points, returning the HTML output as a [`WescBuffer`] and
+/// filling `out_css` / `out_js` with the bundled CSS/JS.
 ///
-/// The returned buffer owns its bytes; release it with [`wesc_buffer_free`].
+/// The returned buffer owns its HTML bytes. When `out_css` / `out_js` are
+/// non-null, they receive the bundled CSS/JS (their `data` is null when that
+/// bundle wasn't requested, i.e. the matching `outcss`/`outjs` was null). Each
+/// of the three buffers must be released with [`wesc_buffer_free`].
 ///
 /// # Safety
-/// `input` must point to `input_len` valid NUL-terminated C
-/// strings. `outcss` and `outjs` must each be null or a valid C string.
+/// `input` must point to `input_len` valid NUL-terminated C strings. `outcss`
+/// and `outjs` must each be null or a valid C string. `out_css` and `out_js`
+/// must each be null or point to writable [`WescBuffer`] storage.
 #[no_mangle]
 pub unsafe extern "C" fn wesc_build(
     input: *const *const c_char,
@@ -132,32 +161,46 @@ pub unsafe extern "C" fn wesc_build(
     outcss: *const c_char,
     outjs: *const c_char,
     minify: c_int,
+    out_css: *mut WescBuffer,
+    out_js: *mut WescBuffer,
 ) -> WescBuffer {
     let result = catch_unwind(AssertUnwindSafe(|| {
         let options = collect_options(input, input_len, outcss, outjs, minify);
-        let mut output: Vec<u8> = Vec::new();
-        wesc_build_core(options, &mut |chunk: &[u8]| {
-            output.extend_from_slice(chunk);
+        let mut html: Vec<u8> = Vec::new();
+        let assets = wesc_build_core(options, &mut |chunk: &[u8]| {
+            html.extend_from_slice(chunk);
         });
-        output
+        (html, assets.css, assets.js)
     }));
 
     match result {
-        Ok(output) => {
-            let mut output = ManuallyDrop::new(output);
+        Ok((html, css, js)) => {
+            if !out_css.is_null() {
+                *out_css = css
+                    .map(|s| buffer_from_vec(s.into_bytes()))
+                    .unwrap_or_else(empty_buffer);
+            }
+            if !out_js.is_null() {
+                *out_js = js
+                    .map(|s| buffer_from_vec(s.into_bytes()))
+                    .unwrap_or_else(empty_buffer);
+            }
+            buffer_from_vec(html)
+        }
+        Err(payload) => {
+            if !out_css.is_null() {
+                *out_css = empty_buffer();
+            }
+            if !out_js.is_null() {
+                *out_js = empty_buffer();
+            }
             WescBuffer {
-                data: output.as_mut_ptr(),
-                len: output.len(),
-                cap: output.capacity(),
-                error: ptr::null_mut(),
+                data: ptr::null_mut(),
+                len: 0,
+                cap: 0,
+                error: into_c_string(panic_message(payload)),
             }
         }
-        Err(payload) => WescBuffer {
-            data: ptr::null_mut(),
-            len: 0,
-            cap: 0,
-            error: into_c_string(panic_message(payload)),
-        },
     }
 }
 

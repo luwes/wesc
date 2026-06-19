@@ -17,9 +17,11 @@ Prebuilt `abi3` wheels ship for macOS, Linux, and Windows and work on CPython
 ```python
 import wesc
 
-# One-shot: returns the full HTML output as `bytes`. Releases the GIL while it
-# runs, so other threads keep working.
-html = wesc.build(["./index.html"], minify=True)
+# One-shot: returns a `BuildResult`. `result.html` is the full HTML output as
+# `bytes`; `result.css` / `result.js` are the bundled assets as `str` (or
+# `None`). Releases the GIL while it runs, so other threads keep working.
+result = wesc.build(["./index.html"], minify=True)
+html, css, js = result.html, result.css, result.js
 
 # Streaming: low memory, chunk by chunk. The callback receives each `bytes`
 # chunk, then `None` once to signal end-of-stream.
@@ -40,20 +42,24 @@ wesc.build_stream(["./index.html"], on_chunk)
 ```python
 import asyncio, wesc
 
-html = await asyncio.to_thread(wesc.build, ["./index.html"], minify=True)
+result = await asyncio.to_thread(wesc.build, ["./index.html"], minify=True)
 ```
 
 ## API
 
-- `build(input, *, outcss=None, outjs=None, minify=False) -> bytes`
+- `build(input, *, outcss=None, outjs=None, minify=False) -> BuildResult`
 - `build_stream(input, callback, *, outcss=None, outjs=None, minify=False) -> None`
+
+`build` returns a `BuildResult` with `html: bytes`, `css: str | None`, and
+`js: str | None`. `build_stream` streams HTML only (it still writes
+`outcss`/`outjs` to disk).
 
 | Argument       | Type                                | Notes                                       |
 | -------------- | ----------------------------------- | ------------------------------------------- |
 | `input`        | `list[str]`                         | First entry is the host document.           |
 | `callback`     | `Callable[[bytes \| None], object]` | `build_stream` only. `None` ends the stream.|
-| `outcss`       | `str \| None`                       | Path to write the bundled CSS file.         |
-| `outjs`        | `str \| None`                       | Path to write the bundled JS file.          |
+| `outcss`       | `str \| None`                       | Path to write the bundled CSS file (`""` = in-memory only). |
+| `outjs`        | `str \| None`                       | Path to write the bundled JS file (`""` = in-memory only).  |
 | `minify`       | `bool`                              | Minify generated assets. Defaults to `False`.|
 
 > The bundler keeps a process-global file/template cache, so builds should not

@@ -74,11 +74,12 @@ jobs:
           php -d extension="$PWD/target/release/${{ matrix.platform.ext }}" \
             -r 'if (!function_exists("wesc_build")) { fwrite(STDERR, "wesc_build missing\n"); exit(1); }
                 chdir("crates/wesc");
-                $html = wesc_build(["./tests/fixtures/default-slot/index.html"]);
-                if (!is_string($html) || strlen($html) === 0) { fwrite(STDERR, "empty build\n"); exit(1); }
+                $result = wesc_build(["./tests/fixtures/default-slot/index.html"]);
+                if (!is_array($result) || !isset($result["html"]) || strlen($result["html"]) === 0) { fwrite(STDERR, "empty build\n"); exit(1); }
+                if (!array_key_exists("css", $result) || !array_key_exists("js", $result)) { fwrite(STDERR, "missing assets keys\n"); exit(1); }
                 $buf = "";
                 wesc_build_stream(["./tests/fixtures/default-slot/index.html"], function ($c) use (&$buf) { if ($c !== null) $buf .= $c; });
-                if ($buf !== $html) { fwrite(STDERR, "stream != one-shot\n"); exit(1); }
+                if ($buf !== $result["html"]) { fwrite(STDERR, "stream != one-shot\n"); exit(1); }
                 echo "ok\n";'
 
       - uses: actions/upload-artifact@v4

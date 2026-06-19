@@ -6,9 +6,10 @@
 //! so it can run in-process on a Python server — no subprocess, no WASM.
 //!
 //! Two entry points, matching how a server typically consumes a build:
-//! - [`build`]        — returns the full output as `bytes`. Releases the GIL
-//!   while it runs, so other Python threads keep going (wrap it in
-//!   `asyncio.to_thread` to await it from async code).
+//! - [`build`]        — returns a [`BuildResult`] with the full HTML output as
+//!   `bytes` plus the bundled CSS/JS as `str`. Releases the GIL while it runs,
+//!   so other Python threads keep going (wrap it in `asyncio.to_thread` to
+//!   await it from async code).
 //! - [`build_stream`] — streams each chunk to a callback (low memory). The
 //!   callback runs in Python, so this holds the GIL for its duration.
 //!
@@ -20,47 +21,68 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use wesc::{build as wesc_build, BuildOptions as WescBuildOptions};
 
-/// Build the entry points and return the full HTML output as `bytes`.
+/// The result of a one-shot [`build`]: the streamed HTML plus the bundled
+/// CSS/JS assets returned by the core.
+#[pyclass]
+struct BuildResult {
+    #[pyo3(get)]
+    html: Py<PyBytes>,
+    #[pyo3(get)]
+    css: Option<String>,
+    #[pyo3(get)]
+    js: Option<String>,
+}
+
+/// Build the entry points and return a [`BuildResult`].
+///
+/// The result's ``html`` holds the full HTML output as `bytes`; ``css`` and
+/// ``js`` hold the bundled assets as `str` (or ``None`` when there is nothing
+/// to bundle). Passing ``outcss``/``outjs`` additionally writes those bundles
+/// to disk; an empty string bundles in memory only (no file written).
 ///
 /// Releases the GIL while the (CPU-bound) build runs, so other Python threads
 /// are free to make progress. From async code, run it on a worker thread:
 ///
 /// ```python
-/// html = await asyncio.to_thread(wesc.build, ["./index.html"], minify=True)
+/// result = await asyncio.to_thread(wesc.build, ["./index.html"], minify=True)
 /// ```
 ///
 /// Args:
 ///     input: Entry point file paths. The first entry is the host document.
-///     outcss: Optional path to write the bundled CSS file.
-///     outjs: Optional path to write the bundled JS file.
+///     outcss: Optional path to write the bundled CSS file (``""`` = in-memory only).
+///     outjs: Optional path to write the bundled JS file (``""`` = in-memory only).
 ///     minify: Minify generated JS/CSS assets where supported. Defaults to ``False``.
 #[pyfunction]
 #[pyo3(signature = (input, *, outcss=None, outjs=None, minify=false))]
-fn build<'py>(
-    py: Python<'py>,
+fn build(
+    py: Python<'_>,
     input: Vec<String>,
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
-) -> Bound<'py, PyBytes> {
+) -> BuildResult {
     let options = WescBuildOptions {
         input,
-        code: None,
+        source: None,
         outcss,
         outjs,
         cwd: None,
         minify,
     };
 
-    let output = py.allow_threads(move || {
-        let mut output: Vec<u8> = Vec::new();
-        wesc_build(options, &mut |chunk: &[u8]| {
-            output.extend_from_slice(chunk);
+    let (html, css, js) = py.allow_threads(move || {
+        let mut html: Vec<u8> = Vec::new();
+        let assets = wesc_build(options, &mut |chunk: &[u8]| {
+            html.extend_from_slice(chunk);
         });
-        output
+        (html, assets.css, assets.js)
     });
 
-    PyBytes::new(py, &output)
+    BuildResult {
+        html: PyBytes::new(py, &html).unbind(),
+        css,
+        js,
+    }
 }
 
 /// Stream the build to a callback, chunk by chunk, for low-memory output.
@@ -100,7 +122,7 @@ fn build_stream<'py>(
 ) -> PyResult<()> {
     let options = WescBuildOptions {
         input,
-        code: None,
+        source: None,
         outcss,
         outjs,
         cwd: None,
@@ -133,6 +155,7 @@ fn build_stream<'py>(
 #[pymodule]
 fn _wesc(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    module.add_class::<BuildResult>()?;
     module.add_function(wrap_pyfunction!(build, module)?)?;
     module.add_function(wrap_pyfunction!(build_stream, module)?)?;
     Ok(())

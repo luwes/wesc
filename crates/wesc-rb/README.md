@@ -21,9 +21,13 @@ gem install wesc
 ```ruby
 require "wesc"
 
-# One-shot: returns the full HTML output as a (binary) String.
-html = Wesc.build(["./index.html"], minify: true)
-puts "#{html.bytesize} bytes"
+# One-shot: returns a Wesc::Result with the HTML plus the bundled CSS/JS.
+# Pass outcss:/outjs: to also get the bundles (an empty string keeps them in
+# memory only; a path additionally writes the file).
+result = Wesc.build(["./index.html"], outcss: "", outjs: "", minify: true)
+puts "#{result.html.bytesize} bytes of HTML"
+puts result.css # the bundled CSS (nil when outcss: was not requested)
+puts result.js  # the bundled JS  (nil when outjs: was not requested)
 
 # Streaming: low memory, chunk by chunk. The block receives each chunk as a
 # String, then `nil` once to signal end-of-stream. Raising from the block
@@ -35,20 +39,24 @@ end
 
 ## API
 
-- `Wesc.build(input, outcss: nil, outjs: nil, minify: false) -> String`
+- `Wesc.build(input, outcss: nil, outjs: nil, minify: false) -> Wesc::Result`
 - `Wesc.build_stream(input, outcss: nil, outjs: nil, minify: false) { |chunk| ... } -> nil`
 
 | Argument       | Type                  | Notes                                              |
 | -------------- | --------------------- | -------------------------------------------------- |
 | `input`        | `Array<String>`       | First entry is the host document.                  |
-| `outcss`       | `String, nil`         | Path to write the bundled CSS file. `nil` skips.   |
-| `outjs`        | `String, nil`         | Path to write the bundled JS file. `nil` skips.    |
+| `outcss`       | `String, nil`         | Request the bundled CSS. Path writes the file; `""` is in-memory only; `nil` skips. |
+| `outjs`        | `String, nil`         | Request the bundled JS. Path writes the file; `""` is in-memory only; `nil` skips.  |
 | `minify`       | `Boolean`             | Minify generated assets. Defaults to `false`.      |
 | `&block`       | `{ \|String, nil\| }` | `build_stream` only. Gets each chunk, then `nil`.  |
 
-`build` returns a binary (`ASCII-8BIT`) `String`. `build_stream` yields each
-chunk as a binary `String`, then yields `nil` once to mark end-of-stream — the
-same trailing-`nil`/`None` convention as the Python and PHP bindings.
+`build` returns a `Wesc::Result` (`Struct.new(:html, :css, :js)`): `html` is a
+binary (`ASCII-8BIT`) `String`, and `css`/`js` are binary `String`s when
+requested via `outcss`/`outjs` or `nil` otherwise. `outcss`/`outjs` still write
+the bundle to disk when given a non-empty path; an empty string returns it in
+memory only. `build_stream` yields each HTML chunk as a binary `String`, then
+yields `nil` once to mark end-of-stream — the same trailing-`nil`/`None`
+convention as the Python and PHP bindings.
 
 > The bundler keeps a process-global file/template cache, so builds should not
 > run concurrently within a single process — serialize them (the

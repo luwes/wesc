@@ -13,7 +13,8 @@
 //! wrapper split).
 //!
 //! Two entry points, matching how a server typically consumes a build:
-//! - [`build`]        — returns the full output as a (binary) `String`.
+//! - [`build`]        — returns the full HTML output as a (binary) `String`
+//!   plus the bundled CSS/JS (each `nil` when absent), as a 3-element array.
 //! - [`build_stream`] — yields each chunk to the block (low memory). The block
 //!   runs in Ruby, then receives `nil` once to signal end-of-stream.
 //!
@@ -38,7 +39,7 @@ fn collect_options(
 ) -> BuildOptions {
     BuildOptions {
         input,
-        code: None,
+        source: None,
         outcss,
         outjs,
         cwd: None,
@@ -46,7 +47,14 @@ fn collect_options(
     }
 }
 
-/// Build the entry points and return the full HTML output as a binary `String`.
+/// Build the entry points and return the full HTML output plus the bundled
+/// CSS/JS.
+///
+/// Returns a 3-tuple `(html, css, js)` — Magnus converts it to a Ruby array,
+/// and each `None` to `nil`. `html` is always present (a binary `String`); the
+/// CSS/JS are bundled and returned when requested via `outcss`/`outjs` and
+/// `nil` otherwise. A non-empty `outcss`/`outjs` path additionally writes the
+/// bundle to disk; an empty string returns it in memory only.
 ///
 /// Exposed to Ruby as `Wesc::Native.build`; see `Wesc.build` in `lib/wesc.rb`
 /// for the public keyword-argument API.
@@ -56,15 +64,19 @@ fn build(
     outcss: Option<String>,
     outjs: Option<String>,
     minify: bool,
-) -> RString {
+) -> (RString, Option<RString>, Option<RString>) {
     let options = collect_options(input, outcss, outjs, minify);
 
     let mut output: Vec<u8> = Vec::new();
-    wesc_build(options, &mut |chunk: &[u8]| {
+    let assets = wesc_build(options, &mut |chunk: &[u8]| {
         output.extend_from_slice(chunk);
     });
 
-    ruby.str_from_slice(&output)
+    let html = ruby.str_from_slice(&output);
+    let css = assets.css.map(|css| ruby.str_new(&css));
+    let js = assets.js.map(|js| ruby.str_new(&js));
+
+    (html, css, js)
 }
 
 /// Stream the build to the block, chunk by chunk, for low-memory output.
@@ -72,6 +84,10 @@ fn build(
 /// The block is called once per output chunk with the chunk as a binary
 /// `String`, then once with `nil` to signal the end of the stream. If the block
 /// raises, no further chunks are delivered and the exception propagates out.
+///
+/// HTML only: this streams just the markup. A non-empty `outcss`/`outjs` path
+/// still bundles and writes the CSS/JS to disk (the in-memory assets are not
+/// returned here — use [`build`] for those).
 ///
 /// Exposed to Ruby as `Wesc::Native.build_stream`; see `Wesc.build_stream` in
 /// `lib/wesc.rb` for the public keyword-argument API.

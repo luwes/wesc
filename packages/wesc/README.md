@@ -142,14 +142,16 @@ install time. The bundler runs in-process — no subprocess, no WASM.
 ```js
 import { build, buildAsync, buildStream } from 'wesc';
 
-const opts = { input: ['./index.html'], minify: true };
+const opts = { input: ['./index.html'], outcss: 'styles.css', minify: true };
 
 // Async — runs on libuv's thread pool, never blocks the event loop.
-// Prefer this on a request-serving path.
-const html = await buildAsync(opts);
+// Prefer this on a request-serving path. Resolves with the HTML output
+// plus the bundled assets.
+const { html, css, js } = await buildAsync(opts);
 
 // Streaming — low memory, chunk by chunk. The callback receives each
-// chunk as a Buffer, then `null` once to signal end-of-stream.
+// chunk as a Buffer, then `null` once to signal end-of-stream. (Streaming
+// emits HTML only; outcss/outjs are still written to disk.)
 buildStream(opts, (chunk) => {
   if (chunk === null) res.end();
   else res.write(chunk);
@@ -157,8 +159,17 @@ buildStream(opts, (chunk) => {
 
 // Synchronous — for build scripts and one-shot CLI use. Blocks the
 // calling thread; do not put this on a request hot path.
-const buf = build(opts);
+const result = build(opts);
+result.html; // Buffer of the expanded HTML
+result.css; // bundled CSS string (outcss was requested)
+result.js; // bundled JS string (undefined here — no outjs)
 ```
+
+The one-shot builds (`build`, `buildAsync`) return a `BuildResult`
+`{ html, css, js }`. `css`/`js` are filled in whenever `outcss`/`outjs`
+are set, so you can serve the bundles straight from memory. A real path
+also writes the bundle to disk; pass an empty string (`outcss: ''`) to
+bundle in-memory only without writing a file.
 
 | Option        | Type       | Notes                                       |
 | ------------- | ---------- | ------------------------------------------- |

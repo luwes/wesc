@@ -6,8 +6,8 @@
 //! can run in-process on a Node server — no subprocess, no WASM.
 //!
 //! Three entry points, matching how a server typically consumes a build:
-//! - [`build`]       — synchronous, returns the full output as a `Buffer`.
-//! - [`build_async`] — runs off the JS thread, returns `Promise<Buffer>`.
+//! - [`build`]       — synchronous, returns the HTML plus bundled CSS/JS.
+//! - [`build_async`] — runs off the JS thread, returns `Promise<BuildResult>`.
 //! - [`build_stream`]— streams each chunk to a callback (low memory).
 
 use napi::bindgen_prelude::*;
@@ -34,11 +34,26 @@ pub struct BuildOptions {
     pub minify: Option<bool>,
 }
 
+/// Result of a one-shot build: the full HTML output plus the bundled assets.
+///
+/// `css`/`js` are present whenever `outcss`/`outjs` were set (to a real path or
+/// an empty string), letting you serve the bundles straight from memory. A real
+/// path also writes the bundle to disk; an empty string bundles in-memory only.
+#[napi(object)]
+pub struct BuildResult {
+    /// The full expanded HTML document.
+    pub html: Buffer,
+    /// The bundled CSS, when `outcss` was requested.
+    pub css: Option<String>,
+    /// The bundled JS, when `outjs` was requested.
+    pub js: Option<String>,
+}
+
 impl From<BuildOptions> for WescBuildOptions {
     fn from(o: BuildOptions) -> Self {
         WescBuildOptions {
             input: o.input,
-            code: None,
+            source: None,
             outcss: o.outcss,
             outjs: o.outjs,
             cwd: o.cwd,
@@ -47,17 +62,24 @@ impl From<BuildOptions> for WescBuildOptions {
     }
 }
 
-/// Build the entry points and return the full HTML output as a `Buffer`.
+/// Build the entry points and return the HTML output plus bundled assets.
+///
+/// The HTML is returned as a `Buffer`; `css`/`js` carry the bundled assets in
+/// memory whenever `outcss`/`outjs` were requested.
 ///
 /// Synchronous: blocks the calling thread until the build completes. Fine for
 /// build scripts; prefer [`build_async`] on a request-serving hot path.
 #[napi]
-pub fn build(options: BuildOptions) -> Buffer {
+pub fn build(options: BuildOptions) -> BuildResult {
     let mut output: Vec<u8> = Vec::new();
-    wesc_build(options.into(), &mut |chunk: &[u8]| {
+    let assets = wesc_build(options.into(), &mut |chunk: &[u8]| {
         output.extend_from_slice(chunk);
     });
-    output.into()
+    BuildResult {
+        html: output.into(),
+        css: assets.css,
+        js: assets.js,
+    }
 }
 
 pub struct BuildTask {
@@ -65,27 +87,32 @@ pub struct BuildTask {
 }
 
 impl Task for BuildTask {
-    type Output = Vec<u8>;
-    type JsValue = Buffer;
+    type Output = (Vec<u8>, Option<String>, Option<String>);
+    type JsValue = BuildResult;
 
     fn compute(&mut self) -> Result<Self::Output> {
         let mut output: Vec<u8> = Vec::new();
-        wesc_build(self.options.clone(), &mut |chunk: &[u8]| {
+        let assets = wesc_build(self.options.clone(), &mut |chunk: &[u8]| {
             output.extend_from_slice(chunk);
         });
-        Ok(output)
+        Ok((output, assets.css, assets.js))
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
-        Ok(output.into())
+        let (html, css, js) = output;
+        Ok(BuildResult {
+            html: html.into(),
+            css,
+            js,
+        })
     }
 }
 
-/// Build off the JS thread and resolve with the full output as a `Buffer`.
+/// Build off the JS thread and resolve with the HTML plus bundled assets.
 ///
 /// Runs on libuv's thread pool, so it never blocks the event loop — the right
 /// choice for a server that builds per request.
-#[napi(ts_return_type = "Promise<Buffer>")]
+#[napi(ts_return_type = "Promise<BuildResult>")]
 pub fn build_async(options: BuildOptions) -> AsyncTask<BuildTask> {
     AsyncTask::new(BuildTask {
         options: options.into(),
