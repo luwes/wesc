@@ -1,8 +1,9 @@
 # wesc
 
 Streaming HTML/web-component bundler. Compiles single-file `.html`
-components into Declarative-Shadow-DOM-ready output using
-[lol-html](https://github.com/cloudflare/lol-html) — fast, low-memory,
+components into ready-to-serve HTML — both light DOM expansion and
+Declarative Shadow DOM — on top of
+[lol-html](https://github.com/cloudflare/lol-html). Fast, low-memory,
 chunk-by-chunk, with no runtime dependency on the host language.
 
 This crate is the Rust core. For the Node bindings, examples, and the
@@ -10,83 +11,48 @@ broader project, see [github.com/luwes/wesc](https://github.com/luwes/wesc).
 
 ## Features
 
-- [x] Streaming HTML bundler
-- [x] Web component definition (`<link rel="definition">`)
-- [x] Default and named slots with fallback content
-- [x] Declarative Shadow DOM
-- [x] CSS bundling
-- [x] JS bundling (via [rolldown](https://rolldown.rs))
-- [x] TypeScript components (`<script lang="ts">`)
-- [x] Optional minification
+- **Streaming bundler** — expands components chunk-by-chunk with low memory.
+- **Component definitions** — declare custom elements with `<link rel="definition">`.
+- **Slots** — default and named slots with fallback content.
+- **Light DOM** — inline `<template>` expansion, no shadow root.
+- **Declarative Shadow DOM** — emit `<template shadowrootmode>` shadow roots.
+- **CSS bundling** — collect each component's top-level `<style>`.
+- **JS bundling** — bundle top-level `<script>` via [rolldown](https://rolldown.rs).
+- **TypeScript** — author components with `<script lang="ts">`.
+- **Minification** — optional, where supported.
 
-## CLI
+## Why SFC?
 
-The expanded HTML is streamed to **stdout**. Bundled CSS and JS are only
-produced when you ask for them with `--outcss` / `--outjs`, and are
-written to those files (not stdout).
+HTML components tend to have three things that belong together:
+structure, host/shadow styles, and a small upgrade script. Keeping them
+in one file makes the component easy to read, move, review, and bundle.
 
-```sh
-# HTML only, to stdout
-wesc ./index.html > out.html
+```html
+<template shadowrootmode="open">
+  <button part="button"><slot></slot></button>
+</template>
 
-# HTML to stdout, plus bundled CSS and JS to files
-wesc ./index.html --outcss ./out.css --outjs ./out.js
+<style>
+  w-button {
+    display: inline-block;
+  }
+</style>
 
-# Minified assets
-wesc ./index.html --outjs ./out.js --minify
-
-# Run from a specific working directory
-wesc index.html --cwd ./site --outjs ./site/out.js
+<script>
+  customElements.define('w-button', class extends HTMLElement {});
+</script>
 ```
 
-```
-Usage: wesc [OPTIONS] <PATH>
-
-Arguments:
-  <PATH>  The path to the entry point file
-
-Options:
-  -o, --outcss <OUTCSS>  The output CSS file
-  -j, --outjs <OUTJS>    The output JS file
-      --cwd <CWD>        Working directory (like rolldown's cwd)
-  -m, --minify           Minify generated assets where supported
-  -h, --help             Print help
-```
-
-## Options
-
-The CLI flags map one-to-one to the library's
-[`BuildOptions`](#library-usage) fields. Setting `outcss`/`outjs` both
-writes the bundle to that file **and** returns it in-memory in the
-[`Assets`](#library-usage) value the library's `build` returns:
-
-| CLI flag             | `BuildOptions` field          | Type             | Description                                                                                                                                   |
-| -------------------- | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<PATH>` (positional)| `input: Vec<String>`          | path(s)          | The entry HTML file. The first entry is the host document that is expanded and streamed out. Required.                                        |
-| _(library only)_     | `source: Option<HashMap<String, Vec<u8>>>` | in-memory files | In-memory inputs, as a `path -> contents` map. When set, reads resolve against it first (paths matched ignoring `.`/`..`), falling back to disk for any path it doesn't hold. Supply just the entry to build a template-engine string; supply the components too to build without touching disk (e.g. on wasm). No CLI flag.  |
-| `-o`, `--outcss`     | `outcss: Option<String>`      | path             | Bundle every component's top-level `<style>` (concatenated), write it to this file, and return it as `Assets.css`. Omit to skip CSS bundling; pass an empty string to bundle in-memory only (no file write). |
-| `-j`, `--outjs`      | `outjs: Option<String>`       | path             | Bundle every component's top-level `<script>` (with rolldown), write it to this file, and return it as `Assets.js`. Omit to skip JS bundling; pass an empty string to bundle in-memory only (no file write). |
-| `--cwd`              | `cwd: Option<String>`         | dir              | Working directory, like rolldown's `cwd`. Defaults to the process working directory. See [Working directory](#working-directory).             |
-| `-m`, `--minify`     | `minify: bool`                | flag             | Minify the generated JS/CSS where supported. Defaults to `false`.                                                                             |
-
-### Working directory
-
-`--cwd` (the `cwd` option) controls the directory the build runs from,
-mirroring [rolldown](https://rolldown.rs)'s `cwd`:
-
-- Relative `input`, `outcss`, and `outjs` paths resolve against it
-  (absolute paths are used as-is).
-- The `.wesc` scratch directory is created under it (see
-  [The `.wesc` scratch directory](#the-wesc-scratch-directory)).
-- It is passed through to rolldown, so module ids in the JS bundle stay
-  relative to it.
-
-It defaults to the process working directory, so by default `wesc`
-behaves like any other CLI tool — paths are relative to where you run
-it. Point it elsewhere (e.g. a project root, or a writable build dir
-when the source tree is read-only) when you need to.
+At build time, WeSC expands the component markup, collects the
+top-level CSS into a CSS bundle, and collects the top-level JS into a
+JS bundle. Your template engine can still render the data around or
+inside those components.
 
 ## Syntax
+
+Define a component with `rel="definition"`, then use it as a custom
+element. The bundler resolves the link at build time, expands every
+matching element, and removes the link from the output.
 
 **index.html**
 
@@ -104,10 +70,6 @@ when the source tree is read-only) when you need to.
   </body>
 </html>
 ```
-
-`rel="definition"` is a WeSC-specific link relation. The bundler
-resolves it at build time, expands every matching custom element, and
-removes the link from the output.
 
 **components/card.html**
 
@@ -142,14 +104,80 @@ removes the link from the output.
 </script>
 ```
 
-The root `<template shadowrootmode="open">` is emitted as Declarative
-Shadow DOM. Drop the attribute (`<template>`) and the content is
-inlined into light DOM instead — slots still work, there's just no
-shadow root.
+- **Shadow DOM:** `<template shadowrootmode="open">` is emitted as
+  Declarative Shadow DOM.
+- **Light DOM:** drop the attribute (`<template>`) and the content is
+  inlined into light DOM instead — slots still work, there's just no
+  shadow root.
+- The top-level `<style>` and `<script>` (outside the template) supply
+  the host styles and upgrade script, and feed the bundled CSS / JS
+  outputs.
 
-The top-level `<style>` and `<script>` (outside the template) provide
-host styles and the upgrade script for the element, and are collected
-into the bundled CSS / JS outputs.
+## CLI
+
+Expanded HTML streams to **stdout**. CSS and JS are bundled only when
+you ask for them with `--outcss` / `--outjs`, and go to those files —
+never stdout.
+
+```sh
+# HTML only, to stdout
+wesc ./index.html > out.html
+
+# HTML to stdout, plus bundled CSS and JS to files
+wesc ./index.html --outcss ./out.css --outjs ./out.js
+
+# Minified assets
+wesc ./index.html --outjs ./out.js --minify
+
+# Run from a specific working directory
+wesc index.html --cwd ./site --outjs ./site/out.js
+```
+
+```
+Usage: wesc [OPTIONS] <PATH>
+
+Arguments:
+  <PATH>  The path to the entry point file
+
+Options:
+  -o, --outcss <OUTCSS>  The output CSS file
+  -j, --outjs <OUTJS>    The output JS file
+      --cwd <CWD>        Working directory (like rolldown's cwd)
+  -m, --minify           Minify generated assets where supported
+  -h, --help             Print help
+```
+
+## Options
+
+The CLI flags map one-to-one to the library's
+[`BuildOptions`](#library-usage) fields. Setting `outcss`/`outjs` both
+writes the bundle to that file **and** returns it in-memory in the
+[`Assets`](#library-usage) value that `build` returns:
+
+| CLI flag             | `BuildOptions` field          | Type             | Description                                                                                                                                   |
+| -------------------- | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<PATH>` (positional)| `input: Vec<String>`          | path(s)          | The entry HTML file. The first entry is the host document that is expanded and streamed out. Required.                                        |
+| _(library only)_     | `source: Option<HashMap<String, Vec<u8>>>` | in-memory files | In-memory inputs, as a `path -> contents` map. When set, reads resolve against it first (paths matched ignoring `.`/`..`), falling back to disk for any path it doesn't hold. Supply just the entry to build a template-engine string; supply the components too to build without touching disk (e.g. on wasm). No CLI flag.  |
+| `-o`, `--outcss`     | `outcss: Option<String>`      | path             | Bundle every component's top-level `<style>` (concatenated), write it to this file, and return it as `Assets.css`. Omit to skip CSS bundling; pass an empty string to bundle in-memory only (no file write). |
+| `-j`, `--outjs`      | `outjs: Option<String>`       | path             | Bundle every component's top-level `<script>` (with rolldown), write it to this file, and return it as `Assets.js`. Omit to skip JS bundling; pass an empty string to bundle in-memory only (no file write). |
+| `--cwd`              | `cwd: Option<String>`         | dir              | Working directory, like rolldown's `cwd`. Defaults to the process working directory. See [Working directory](#working-directory).             |
+| `-m`, `--minify`     | `minify: bool`                | flag             | Minify the generated JS/CSS where supported. Defaults to `false`.                                                                             |
+
+### Working directory
+
+`--cwd` (the `cwd` option) sets the directory the build runs from,
+mirroring [rolldown](https://rolldown.rs)'s `cwd`:
+
+- Relative `input`, `outcss`, and `outjs` paths resolve against it
+  (absolute paths are used as-is).
+- The `.wesc` scratch directory is created under it (see
+  [The `.wesc` scratch directory](#the-wesc-scratch-directory)).
+- It is passed through to rolldown, so module ids in the JS bundle stay
+  relative to it.
+
+It defaults to the process working directory, so `wesc` behaves like any
+other CLI tool out of the box. Point it elsewhere (a project root, or a
+writable build dir when the source tree is read-only) when you need to.
 
 ## CSS & JS output
 
@@ -287,25 +315,6 @@ build(
     &mut |chunk: &[u8]| html.extend_from_slice(chunk),
 );
 ```
-
-## Benchmarks
-
-The bundler ships with two performance harnesses:
-
-```sh
-cargo bench -p wesc                                    # detailed measurement (criterion)
-cargo test  -p wesc --release --test perf_guard -- --nocapture   # regression guard
-```
-
-- `benches/bundler.rs` measures time and throughput across a few
-  representative fixtures (a no-op passthrough, the multi-component
-  todo app, a full `blog` site with 100 posts, and a ~750 KB
-  real-world page).
-- `tests/perf_guard.rs` is the CI guard: it asserts each scenario
-  stays under a wall-clock budget so new features can't silently slow
-  the bundler down. It only enforces in release builds; in debug it
-  just prints timings. Tune with `WESC_PERF_SCALE` (budget multiplier
-  for slower hardware) or disable failures with `WESC_PERF_GUARD=0`.
 
 ## License
 

@@ -1,17 +1,26 @@
 # wesc — Bundler
 
-Streaming HTML/web-component bundler. Builds the final HTML chunk by
-chunk with low memory overhead, and has no runtime dependency on the
-host language. It compiles single-file `.html` components into
-Declarative-Shadow-DOM-ready output.
+Streaming HTML/web-component bundler. Compiles single-file `.html`
+components into ready-to-serve HTML — both light DOM expansion and
+Declarative Shadow DOM. Builds the final HTML chunk by chunk with low
+memory overhead, and has no runtime dependency on the host language.
 
 This package ships the standalone CLI plus the sync / async / streaming
 Node bindings (via [napi-rs](https://napi.rs)). The Rust core lives in
 [`crates/wesc`](../../crates/wesc); the DOM-SSR runtime is a separate
 package, [`@wesc/dom`](../dom).
 
-Status: pre-1.0 (`0.5.x`), APIs may change. MIT-licensed. The Node APIs
-require Node ≥ 18; the standalone CLI binary has no runtime dependency.
+## Features
+
+- **Streaming bundler** — expands components chunk-by-chunk with low memory.
+- **Component definitions** — declare custom elements with `<link rel="definition">`.
+- **Slots** — default and named slots with fallback content.
+- **Light DOM** — inline `<template>` expansion, no shadow root.
+- **Declarative Shadow DOM** — emit `<template shadowrootmode>` shadow roots.
+- **CSS bundling** — collect each component's top-level `<style>`.
+- **JS bundling** — bundle each component's top-level `<script>`.
+- **TypeScript** — author components with `<script lang="ts">`.
+- **Minification** — optional, where supported.
 
 ## Why SFC?
 
@@ -40,16 +49,11 @@ top-level CSS into a CSS bundle, and collects the top-level JS into a
 JS bundle. Your template engine can still render the data around or
 inside those components.
 
-## Features
-
-- [x] Streaming HTML bundler
-- [x] Web component definition
-- [x] Default and named slots with fallback content
-- [x] Declarative Shadow DOM
-- [x] CSS bundling
-- [x] JS bundling
-
 ## Syntax
+
+Define a component with `rel="definition"`, then use it as a custom
+element. The bundler resolves the link at build time, expands every
+matching element, and removes the link from the output.
 
 **index.html**
 
@@ -67,10 +71,6 @@ inside those components.
   </body>
 </html>
 ```
-
-`rel="definition"` is a WeSC-specific link relation. The bundler
-resolves it at build time, expands every matching custom element, and
-removes the link from the output.
 
 **components/card.html**
 
@@ -105,12 +105,11 @@ removes the link from the output.
 </script>
 ```
 
-Three things to notice in the component file:
-
-- The root `<template shadowrootmode="open">` is emitted as
-  Declarative Shadow DOM. Drop the attribute (`<template>`) and the
-  same content is inlined into light DOM instead — slots still work,
-  there's just no shadow root.
+- **Shadow DOM:** `<template shadowrootmode="open">` is emitted as
+  Declarative Shadow DOM.
+- **Light DOM:** drop the attribute (`<template>`) and the same content
+  is inlined into light DOM instead — slots still work, there's just no
+  shadow root.
 - Two `<style>` blocks, two scopes: the one inside the template is
   scoped shadow-DOM CSS; the top-level one provides host styles for
   `w-card` itself and gets collected into the bundled CSS.
@@ -189,14 +188,6 @@ with the bundled JS/CSS cached and served from their own routes.
 
 There's also [examples/node-server](../../examples/node-server), a
 minimal streaming HTTP server built directly on `buildStream`.
-
-## Python
-
-The same Rust bundler is available to Python via
-[PyO3](https://pyo3.rs). See the
-[`wesc` PyPI package](https://pypi.org/project/wesc/), the
-[`crates/wesc-py`](../../crates/wesc-py) bindings, and
-[examples/python-server](../../examples/python-server).
 
 ## Build (from source)
 
