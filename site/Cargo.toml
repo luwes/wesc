@@ -21,11 +21,16 @@ console_error_panic_hook = "0.1"
 # Adapts our `Vec<u8>` chunks into the `Stream` that `Response::from_stream`
 # wants, so the Worker can stream HTML chunk by chunk.
 futures-util = "0.3"
+# wesc runs INSIDE the Worker, at request time: it targets
+# wasm32-unknown-unknown for HTML expansion and CSS bundling. When this crate is
+# compiled for wasm, wesc's native-only deps (clap, rolldown, tokio) are dropped
+# automatically (see the core crate's Cargo.toml), so only the HTML/CSS engine
+# ships in the Worker.
+wesc = { path = "../crates/wesc" }
 
-# wesc runs at BUILD TIME (in build.rs), never in the Worker: it pulls in
-# rolldown, which doesn't target wasm32-unknown-unknown. Build dependencies are
-# always compiled for the host, so this dogfoods the bundler to produce the
-# site's HTML/CSS/JS, which the Worker then serves.
+# wesc ALSO runs at build time, here as a host build dependency, to produce the
+# one artifact it can't build on wasm: the rolldown-bundled `scripts.js`. Build
+# dependencies are always compiled for the host, so rolldown is available.
 [build-dependencies]
 wesc = { path = "../crates/wesc" }
 

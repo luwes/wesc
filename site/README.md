@@ -3,43 +3,50 @@
 The WeSC marketing/docs site, written in Rust and deployed as a
 [Cloudflare Worker](https://developers.cloudflare.com/workers/languages/rust/).
 
-It **dogfoods wesc**: the pages are authored as single-file `.html` components
-and compiled by wesc at build time into expanded HTML plus shared `styles.css`
-and `scripts.js` bundles. At request time the Worker streams the HTML and serves
-the bundles, routing dynamically so one deployment serves the landing page, the
-documentation page, and a request-specific 404.
+It **dogfoods wesc at runtime**: the pages are authored as single-file `.html`
+components and the Worker runs wesc **inside the request handler** to expand
+them into HTML on the fly. wesc targets `wasm32-unknown-unknown`, so the same
+bundler that powers the CLI runs in the Worker. One deployment serves the
+landing page, the documentation page, and a request-specific 404 — each
+rendered per request, not pre-built.
 
 ## How the dogfooding works
 
-wesc can't run inside the Worker — it depends on [rolldown](https://rolldown.rs),
-which doesn't target `wasm32-unknown-unknown`. So wesc runs on the **host**, as a
-build dependency, in `build.rs`:
+wesc runs on wasm for **HTML expansion** and **CSS bundling**. The only piece it
+can't do on wasm is **JS bundling**, which depends on
+[rolldown](https://rolldown.rs) (native-only). So almost everything happens at
+request time in the Worker; the build step only prepares the two artifacts that
+can't be produced on wasm — the `scripts.js` bundle and Shiki-highlighted code
+blocks — and embeds the component sources into the binary.
 
 ```mermaid
 flowchart TD
-    A[web/components/*.html<br/>single-file components] --> C
-    B[web/pages/*.html<br/>page entries] --> C
-    C[build.rs runs wesc on the host] --> D[expanded HTML per page]
-    D --> S[Shiki highlights code snippets]
-    C --> E[styles.css bundle]
-    C --> F[scripts.js bundle]
-    S --> G[generated.rs in OUT_DIR]
-    E --> G
-    F --> G
-    G --> H[Worker cdylib -> Wasm]
-    H --> I[streams HTML chunk by chunk]
-    H --> J[serves /styles.css and /scripts.js]
+    A[web/components/*.html<br/>single-file components] --> B
+    P[web/pages/*.html<br/>page entries] --> B
+    B[build.rs on the host] --> C[rolldown bundles scripts.js]
+    B --> D[Shiki highlights page code blocks]
+    C --> E[generated.rs in OUT_DIR]
+    D --> E
+    A --> E
+    E --> W[Worker cdylib -> Wasm]
+    W -->|per request| R[wesc::build expands HTML from the embedded sources]
+    W -->|once, cached| S[wesc::build bundles styles.css]
+    W -->|build-time bundle| J[serves /scripts.js]
+    R --> O[streams HTML chunk by chunk]
 ```
 
 - `web/assets.html` is an asset-only manifest containing only
-  `rel="definition"` links. wesc resolves those definitions, so one build emits
-  the complete `styles.css` + `scripts.js` without producing HTML. Each
-  component's top-level `<style>` / `<script>` is stripped from the markup and
-  bundled here; Declarative Shadow DOM templates keep their scoped styles inline
-  so they render before JS loads.
-- Each page in `web/pages/` is expanded HTML-only, then `build.rs` runs Shiki
-  over language-tagged code blocks. The Worker streams the final highlighted
-  HTML in bounded chunks.
+  `rel="definition"` links. At build time wesc resolves those definitions and
+  bundles `scripts.js` with rolldown (each component's top-level `<script>` is
+  stripped from the markup and bundled here). At runtime the Worker resolves the
+  same manifest to bundle `styles.css` (CSS bundling needs no rolldown, so it
+  runs on wasm) — built once and cached, since it's identical for every request.
+- Each page's code blocks are syntax-highlighted by Shiki at build time, over
+  the page **source** (the blocks are static markup). The highlighted sources
+  and the component sources are embedded into the Wasm binary.
+- For every page request the Worker calls `wesc::build` with those sources as an
+  in-memory `source` map, so the build never touches a filesystem, and streams
+  the expanded HTML in bounded chunks.
 
 ## Layout
 
@@ -49,19 +56,19 @@ flowchart TD
 | `web/components/*.html` | Single-file wesc components (header, footer, feature card, copy button). |
 | `web/pages/*.html`    | Page entries that wrap their content in `<w-layout w-trim>`.  |
 | `web/assets.html`     | Link-only asset manifest that pulls in every component to build the CSS/JS bundles. |
-| `build.rs`            | Runs wesc (host build dep) to generate HTML + CSS/JS into `OUT_DIR`. |
-| `src/lib.rs`          | Worker `fetch` entrypoint: routing, HTML streaming, asset serving. |
+| `build.rs`            | Host build dep: bundles `scripts.js` (rolldown), runs Shiki, and embeds the sources + JS into `generated.rs`. |
+| `src/lib.rs`          | Worker `fetch` entrypoint: runs wesc per request to expand HTML, bundles CSS once, routes, and streams. |
 | `wrangler.toml`       | Wrangler config; builds the crate with `worker-build`.        |
 
 ## Routes
 
 | Route             | Response                                              |
 | ----------------- | ----------------------------------------------------- |
-| `/`               | Marketing landing page (streamed).                    |
-| `/docs`           | Documentation page (streamed).                        |
-| `/styles.css`     | Bundled CSS (immutable, long-lived cache).            |
-| `/scripts.js`     | Bundled JS (immutable, long-lived cache).             |
-| anything else     | A streamed 404 page that echoes the requested path.   |
+| `/`               | Marketing landing page (expanded per request, streamed). |
+| `/docs`           | Documentation page (expanded per request, streamed).  |
+| `/styles.css`     | Bundled CSS (built once at runtime, immutable cache). |
+| `/scripts.js`     | Bundled JS (built at build time, immutable cache).    |
+| anything else     | A 404 page that echoes the requested path.            |
 
 Trailing slashes are normalized (`/docs/` == `/docs`). Only `GET`/`HEAD` are
 served; other methods get a `405`.
@@ -80,16 +87,19 @@ Then, from this directory:
 
 ```sh
 npm install        # installs wrangler (or use npx)
-npm run dev        # fastest authoring loop -> http://localhost:8787
+npm run dev        # wrangler dev -> http://localhost:8787
 ```
 
 Run the command from this `site/` directory.
 
-`npm run dev` starts a tiny local Node server for the fastest authoring loop:
+`npm run dev` starts a tiny local Node server for the fastest authoring loop. It
+mirrors the Worker's runtime model:
 
 - watches `web/`
-- runs the wesc CLI directly into `.dev-dist/`
-- streams/serves those generated files locally
+- on change, builds the shared `styles.css`/`scripts.js` bundles and
+  Shiki-highlights a mirror of the page sources into `.dev-dist/`
+- renders each page by running the wesc CLI **per request**, just like the
+  Worker expands it at runtime
 - injects a small EventSource live-reload script into HTML responses
 - avoids rebuilding the Rust Worker Wasm entirely
 
@@ -111,8 +121,11 @@ Stream logs with `npm run tail`.
 - This crate is intentionally **excluded** from the repo's Cargo workspace (see
   the root `Cargo.toml`) so a host-target `cargo build`/`cargo test` never tries
   to compile the Wasm Worker. Build it only through Wrangler / `worker-build`.
-- wesc is a **build dependency only** (`[build-dependencies]`). It never ships in
-  the Worker; only the HTML/CSS/JS it produces does.
+- wesc is **both a runtime dependency and a build dependency**. As a runtime
+  dependency it's compiled for wasm and ships in the Worker (HTML expansion +
+  CSS bundling); its native-only deps (clap, rolldown, tokio) are dropped
+  automatically on the wasm target. As a build dependency it's compiled for the
+  host so rolldown can produce the `scripts.js` bundle.
 - Component definition files may include documentation comments before their
   root `<template>`; wesc ignores those pre-template comments and strips them
   from the expanded output.

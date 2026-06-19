@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
 
-import { codeToHtml } from 'shiki';
+import { codeToHtml, type ShikiTransformer } from 'shiki';
 
 const files = process.argv.slice(2);
 if (files.length === 0) {
-  console.error('Usage: node scripts/highlight.mjs <html-file> [...]');
+  console.error('Usage: node scripts/highlight.ts <html-file> [...]');
   process.exit(2);
 }
 
@@ -17,26 +17,24 @@ for (const file of files) {
   }
 }
 
-async function highlightHtml(html) {
+async function highlightHtml(html: string): Promise<string> {
   const codeBlock = /<pre><code class="language-([a-z0-9_-]+)">([\s\S]*?)<\/code><\/pre>/gi;
   let out = '';
   let cursor = 0;
+
+  const transformers: ShikiTransformer[] = [
+    {
+      pre(node) {
+        this.addClassToHast(node, 'code-block');
+      },
+    },
+  ];
 
   for (const match of html.matchAll(codeBlock)) {
     out += html.slice(cursor, match.index);
     const lang = normalizeLanguage(match[1]);
     const code = decodeHtml(match[2]);
-    out += await codeToHtml(code, {
-      lang,
-      theme: 'github-dark',
-      transformers: [
-        {
-          pre(node) {
-            this.addClassToHast(node, 'code-block');
-          },
-        },
-      ],
-    });
+    out += await codeToHtml(code, { lang, theme: 'github-dark', transformers });
     cursor = match.index + match[0].length;
   }
 
@@ -44,7 +42,7 @@ async function highlightHtml(html) {
   return out;
 }
 
-function normalizeLanguage(lang) {
+function normalizeLanguage(lang: string): string {
   switch (lang.toLowerCase()) {
     case 'sh':
     case 'shell':
@@ -61,7 +59,7 @@ function normalizeLanguage(lang) {
   }
 }
 
-function decodeHtml(input) {
+function decodeHtml(input: string): string {
   return input
     .replaceAll('&lt;', '<')
     .replaceAll('&gt;', '>')
