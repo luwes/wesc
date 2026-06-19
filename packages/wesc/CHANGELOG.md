@@ -52,6 +52,23 @@
 
 
 
+## [0.7.0](https://github.com/luwes/wesc/compare/wesc-v0.6.2...wesc-v0.7.0) (2026-06-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **bindings:** the one-shot build functions no longer return the raw HTML bytes/string; use the result html field and read css/js for the bundled assets. The Go wesc_build C ABI gained two WescBuffer out-parameters.
+* the `entry_points` build option is now `input` everywhere: Rust/Python/PHP/Ruby `input`, Node/JS `input`, Go `Options.Input`, and the C ABI `input`/`input_len` parameters.
+
+### Features
+
+* **bindings:** return the bundled CSS/JS assets from every binding ([786e88a](https://github.com/luwes/wesc/commit/786e88a11e7e0920d25d4e4f2f2e78166bbe35fd))
+
+
+### Code Refactoring
+
+* rename entry_points option to input ([25538d8](https://github.com/luwes/wesc/commit/25538d88298436517939eca556e166af6e2f2066))
+
 ## [0.6.2](https://github.com/luwes/wesc/compare/wesc-v0.6.1...wesc-v0.6.2) (2026-06-10)
 
 

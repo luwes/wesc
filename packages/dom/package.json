@@ -1,6 +1,6 @@
 {
   "name": "@wesc/dom",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Server-render web components (DOM SSR) with Linkedom — part of WeSC.",
   "homepage": "https://github.com/luwes/wesc/tree/main/packages/dom#readme",
   "bugs": {
