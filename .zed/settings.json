@@ -1,8 +1,13 @@
 // Project settings: format with Oxfmt (oxc) and let it own import ordering,
 // replacing Biome/Prettier. Requires the "Oxc" extension (zed: extensions).
 // Oxfmt reads its options from the repo-root .oxfmtrc.json.
+//
+// `!eslint` disables Zed's default ESLint language server: this repo lints with
+// oxlint, not ESLint, and with no ESLint config the bundled server parses `.ts`
+// files with a JavaScript-only parser and reports bogus "Unexpected token :"
+// errors on type annotations.
 {
-  "language_servers": ["!biome"],
+  "language_servers": ["!biome", "!eslint"],
   "lsp": {
     "oxfmt": {
       "initialization_options": {
@@ -14,19 +19,19 @@
   },
   "languages": {
     "JavaScript": {
-      "language_servers": ["oxfmt", "!biome", "..."],
+      "language_servers": ["oxfmt", "!biome", "!eslint", "..."],
       "format_on_save": "on",
       "prettier": { "allowed": false },
       "formatter": [{ "language_server": { "name": "oxfmt" } }]
     },
     "TypeScript": {
-      "language_servers": ["oxfmt", "!biome", "..."],
+      "language_servers": ["oxfmt", "!biome", "!eslint", "..."],
       "format_on_save": "on",
       "prettier": { "allowed": false },
       "formatter": [{ "language_server": { "name": "oxfmt" } }]
     },
     "TSX": {
-      "language_servers": ["oxfmt", "!biome", "..."],
+      "language_servers": ["oxfmt", "!biome", "!eslint", "..."],
       "format_on_save": "on",
       "prettier": { "allowed": false },
       "formatter": [{ "language_server": { "name": "oxfmt" } }]
