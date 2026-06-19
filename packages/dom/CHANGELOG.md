@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/luwes/wesc/compare/dom-v0.6.2...dom-v0.7.0) (2026-06-19)
+
+
+### Bug Fixes
+
+* **deps:** patch security advisories across crates and examples ([e430093](https://github.com/luwes/wesc/commit/e4300933d30d091bbe9b959d6d848a86ef153af5))
+
 ## [0.6.2](https://github.com/luwes/wesc/compare/dom-v0.6.1...dom-v0.6.2) (2026-06-10)
 
 

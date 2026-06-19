@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.7.0](https://github.com/luwes/wesc/compare/wesc-core-v0.6.2...wesc-core-v0.7.0) (2026-06-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** wesc::build now returns Assets instead of (). The BuildOptions.code (Option<String>) field is replaced by source (Option<HashMap<String, Vec<u8>>>). The separate build_css / BuildCssOptions API is removed; request CSS via outcss (empty string for in-memory only) and read it from the returned Assets.
+* **core:** BuildOptions gains a `code` field, so every BuildOptions literal must set it (bindings/examples updated to `code: None`); and build_with_source / build_in_memory / Assets / chunk_reader::MemorySource are removed in favor of `build`, `build_css`, and the `code` option.
+* the `entry_points` build option is now `input` everywhere: Rust/Python/PHP/Ruby `input`, Node/JS `input`, Go `Options.Input`, and the C ABI `input`/`input_len` parameters.
+
+### Features
+
+* add a cwd build option and root the JS scratch tree under it ([c66f14f](https://github.com/luwes/wesc/commit/c66f14ffe449605b45b17ba28b5d26746baa8750))
+* **core:** build from an in-memory Source via build_with_source ([ce0d398](https://github.com/luwes/wesc/commit/ce0d3989abab8852f520e8728399c43d69f7dcb4))
+* **core:** collect bundled CSS in memory via build_in_memory ([b2effb5](https://github.com/luwes/wesc/commit/b2effb52ce52484ac361e38c6794d4a8d13edda2))
+* **core:** compile the library for wasm (HTML-only) ([fff0001](https://github.com/luwes/wesc/commit/fff000166e6726dc8d696b19463283e0972c0867))
+* **core:** support definition-only asset manifests ([4c689fd](https://github.com/luwes/wesc/commit/4c689fd30f31e3e0e8c96bb945c4e378d27994e6))
+* support TypeScript in component script tags ([cce6bfb](https://github.com/luwes/wesc/commit/cce6bfb473010c4430effd329f00f542a25672ec))
+
+
+### Bug Fixes
+
+* **core:** silence clippy too_many_arguments on Extractors::start ([6122679](https://github.com/luwes/wesc/commit/6122679831a22796b38b97875b60bcc345e79acd))
+* **deps:** upgrade lol_html to 3.0.0 ([286c5fb](https://github.com/luwes/wesc/commit/286c5fbf6269ef10237afb1b41a7df95fc722c8d))
+
+
+### Code Refactoring
+
+* **core:** return bundled assets from build and add an in-memory source map ([c2df409](https://github.com/luwes/wesc/commit/c2df409dd6140b79fe56d9c64149d43cbbfc20a4))
+* **core:** unify the build API around build + build_css + a code option ([1654859](https://github.com/luwes/wesc/commit/1654859ccf9a2f085ecb386494cea807f8d129bb))
+* rename entry_points option to input ([25538d8](https://github.com/luwes/wesc/commit/25538d88298436517939eca556e166af6e2f2066))
+
 ## [0.6.2](https://github.com/luwes/wesc/compare/wesc-core-v0.6.1...wesc-core-v0.6.2) (2026-06-10)
 
 
