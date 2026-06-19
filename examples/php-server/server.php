@@ -52,9 +52,9 @@ $repoRoot = dirname(__DIR__, 2);
 $srcDir = $repoRoot . '/crates/wesc/tests/fixtures/todo-app';
 $entry = $srcDir . '/index.html';
 
-// Build artifacts (.wesc/ working dir, scripts.js, styles.css) go in ./dist.
-// wesc always creates its .wesc/ mirror relative to the cwd, so we run from
-// dist; the entry point is an absolute path, so the source tree stays untouched.
+// wesc always creates its .wesc/ working-dir mirror relative to the cwd, so we
+// run from ./dist; the entry point is an absolute path, so the source tree stays
+// untouched. The JS/CSS bundles are kept in memory (see below), not written here.
 $distDir = __DIR__ . '/dist';
 if (!is_dir($distDir)) {
     mkdir($distDir, 0o777, true);
@@ -62,9 +62,11 @@ if (!is_dir($distDir)) {
 chdir($distDir);
 
 // Build once up front purely to produce the JS/CSS bundles, then cache them.
-wesc_build([$entry], outcss: 'styles.css', outjs: 'scripts.js');
-$js = file_get_contents($distDir . '/scripts.js');
-$css = file_get_contents($distDir . '/styles.css');
+// Empty-string outcss/outjs ask wesc to bundle the assets and hand them back in
+// memory (in the result array) without writing any files to disk.
+$result = wesc_build([$entry], outcss: '', outjs: '');
+$js = $result['js'] ?? '';
+$css = $result['css'] ?? '';
 
 $server = stream_socket_server('tcp://0.0.0.0:3000', $errno, $errstr);
 if ($server === false) {

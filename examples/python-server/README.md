@@ -44,9 +44,9 @@ The only prerequisites are Python 3.8+ and Rust.
 
 - Renders the [`todo-app` fixture](../../crates/wesc/tests/fixtures/todo-app),
   whose `index.html` already links `/styles.css` and `/scripts.js`.
-- Builds once with `outjs`/`outcss` to produce the JS/CSS bundles into a local
-  `dist/` folder (alongside wesc's `.wesc/` working dir), then caches them in
-  memory and serves them from their own routes.
+- Builds once with empty-string `outjs`/`outcss` to bundle the JS/CSS in memory
+  only (no files written), reads them off `result.js`/`result.css`, then caches
+  them in memory and serves them from their own routes.
 - For every page request, streams the (lean) HTML with `wesc.build_stream` — each
   `bytes` chunk goes straight to the socket, then `None` ends the stream.
 

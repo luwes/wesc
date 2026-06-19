@@ -45,9 +45,9 @@ Then open <http://localhost:3000>. Stop the server with `Ctrl+C`.
 
 - Renders the [`todo-app` fixture](../../crates/wesc/tests/fixtures/todo-app),
   whose `index.html` already links `/styles.css` and `/scripts.js`.
-- Builds once with `outjs`/`outcss` to produce the JS/CSS bundles into a local
-  `dist/` folder (alongside wesc's `.wesc/` working dir), then caches them in
-  memory and serves them from their own routes.
+- Builds once with empty-string `outjs`/`outcss`, so `wesc_build` returns the
+  JS/CSS bundles in memory (in its result array) without writing files, then
+  caches them and serves them from their own routes.
 - For every page request, streams the (lean) HTML with `wesc_build_stream` —
   each string chunk goes straight to the socket, then `null` ends the stream.
 

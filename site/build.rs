@@ -44,7 +44,7 @@ fn main() {
     build(
         BuildOptions {
             input: vec![abs(&web.join("assets.html"))],
-            code: None,
+            source: None,
             outcss: Some("styles.css".to_string()),
             outjs: Some("scripts.js".to_string()),
             cwd: Some(cwd.clone()),
@@ -72,7 +72,7 @@ fn main() {
         build(
             BuildOptions {
                 input: vec![abs(&entry)],
-                code: None,
+                source: None,
                 outcss: None,
                 outjs: None,
                 cwd: Some(cwd.clone()),

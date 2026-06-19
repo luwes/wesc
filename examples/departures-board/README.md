@@ -78,20 +78,23 @@ uses them like ordinary custom elements:
 `buildBoard()` in `app/board.mjs` runs the WeSC bundler a single time:
 
 ```js
-const page = build({
+const { html, css, js } = build({
   input: ['app/templates/index.liquid'],
   outjs: 'dist/scripts.js',
   outcss: 'dist/styles.css',
-}).toString('utf8').trim();
+});
+const page = html.toString('utf8').trim();
 ```
 
 WeSC stamps every `<flight-row>` / `<status-badge>` into
-Declarative-Shadow-DOM-ready HTML, hoists each component's scoped CSS
-into `dist/styles.css`, and bundles the upgrade scripts into
-`dist/scripts.js`. The Liquid `{% for %}` loop and `{{ ... }}` tags are
-left untouched — WeSC owns components, LiquidJS owns the data.
+Declarative-Shadow-DOM-ready HTML, hoists each component's scoped CSS,
+and bundles the upgrade scripts. The one-shot `build` returns the bundled
+`css`/`js` in memory (and, because `outcss`/`outjs` are set, also writes
+them to `dist/styles.css` / `dist/scripts.js`), so the server caches the
+returned bytes directly. The Liquid `{% for %}` loop and `{{ ... }}` tags
+are left untouched — WeSC owns components, LiquidJS owns the data.
 
-The result is one cached LiquidJS page template plus two static asset
+The result is one cached LiquidJS page template plus the two cached asset
 bundles. None of this work happens per request.
 
 ### 2. LiquidJS streams the rows per request

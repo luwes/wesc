@@ -16,7 +16,7 @@
 // references them — the <link> in <head> lets the browser fetch the CSS in
 // parallel while the body is still streaming.
 
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,9 +35,14 @@ mkdirSync(distDir, { recursive: true });
 process.chdir(distDir);
 
 // Build once up front purely to produce the JS/CSS bundles, then cache them.
-build({ input: [entry], outjs: 'scripts.js', outcss: 'styles.css' });
-const js = readFileSync(join(distDir, 'scripts.js'));
-const css = readFileSync(join(distDir, 'styles.css'));
+// wesc returns the bundles in memory (result.js / result.css); we still pass
+// outjs/outcss so they're written to ./dist too. Serve them straight from the
+// build result — no need to read the files back.
+const { js, css } = build({
+  input: [entry],
+  outjs: 'scripts.js',
+  outcss: 'styles.css',
+});
 
 const server = createServer((req, res) => {
   if (req.url === '/scripts.js') {

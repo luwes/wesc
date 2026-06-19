@@ -44,8 +44,9 @@ prerequisites are:
 - Renders the [`todo-app` fixture](../../crates/wesc/tests/fixtures/todo-app),
   whose `index.html` already links `/styles.css` and `/scripts.js`.
 - Builds once with `OutJS`/`OutCSS` to produce the JS/CSS bundles into a local
-  `dist/` folder (alongside wesc's `.wesc/` working dir), then caches them in
-  memory and serves them from their own routes.
+  `dist/` folder (alongside wesc's `.wesc/` working dir). The same bundles come
+  back on the build `Result`, so it caches those bytes in memory and serves them
+  from their own routes — no need to read the files back.
 - For every page request, streams the (lean) HTML with `wesc.BuildStream` — each
   chunk goes straight to the socket and is flushed immediately.
 

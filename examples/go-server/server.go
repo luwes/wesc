@@ -56,21 +56,18 @@ func main() {
 	}
 
 	// Build once up front purely to produce the JS/CSS bundles, then cache them.
-	if _, err := wesc.Build(wesc.Options{
+	// Setting OutCSS/OutJS still writes styles.css/scripts.js into dist/, but the
+	// same bundles come back on the Result, so we cache those directly instead of
+	// reading the files back.
+	res, err := wesc.Build(wesc.Options{
 		Input:  []string{entry},
 		OutCSS: "styles.css",
 		OutJS:  "scripts.js",
-	}); err != nil {
+	})
+	if err != nil {
 		log.Fatalf("initial build: %v", err)
 	}
-	js, err := os.ReadFile(filepath.Join(distDir, "scripts.js"))
-	if err != nil {
-		log.Fatalf("read scripts.js: %v", err)
-	}
-	css, err := os.ReadFile(filepath.Join(distDir, "styles.css"))
-	if err != nil {
-		log.Fatalf("read styles.css: %v", err)
-	}
+	js, css := res.JS, res.CSS
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/scripts.js", serveStatic(js, "text/javascript; charset=utf-8"))

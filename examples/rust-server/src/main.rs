@@ -59,7 +59,7 @@ fn main() -> io::Result<()> {
     build(
         BuildOptions {
             input: vec![entry.clone()],
-            code: None,
+            source: None,
             outcss: Some("styles.css".to_string()),
             outjs: Some("scripts.js".to_string()),
             cwd: Some(dist.clone()),
@@ -165,7 +165,7 @@ fn stream_html(stream: &mut TcpStream, entry: &str, dist: &str) -> io::Result<()
     build(
         BuildOptions {
             input: vec![entry.to_string()],
-            code: None,
+            source: None,
             outcss: None,
             outjs: None,
             cwd: Some(dist.to_string()),

@@ -7,7 +7,6 @@
 // `ReadableStream`, so it drops straight into a Worker / Deno / Bun / Next.js
 // handler, or onto Node's http server via `Readable.fromWeb`.
 
-import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,18 +24,18 @@ const projectDir = dirname(dirname(fileURLToPath(import.meta.url)));
 function buildBoard() {
   process.chdir(projectDir);
 
-  const page = build({
+  // wesc returns the bundled CSS/JS in memory alongside the expanded HTML;
+  // outjs/outcss still write them to dist/ for inspection.
+  const { html, css, js } = build({
     input: ['app/templates/index.liquid'],
     outjs: 'dist/scripts.js',
     outcss: 'dist/styles.css',
-  })
-    .toString('utf8')
-    .trim();
+  });
 
   return {
-    page,
-    css: readFileSync('dist/styles.css'),
-    js: readFileSync('dist/scripts.js'),
+    page: html.toString('utf8').trim(),
+    css,
+    js,
   };
 }
 

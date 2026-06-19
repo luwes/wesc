@@ -39,9 +39,11 @@ FileUtils.mkdir_p(DIST_DIR)
 Dir.chdir(DIST_DIR)
 
 # Build once up front purely to produce the JS/CSS bundles, then cache them.
-Wesc.build([ENTRY], outjs: "scripts.js", outcss: "styles.css")
-JS = File.binread(File.join(DIST_DIR, "scripts.js"))
-CSS = File.binread(File.join(DIST_DIR, "styles.css"))
+# `build` returns the bundles in memory (and outjs:/outcss: also write them to
+# ./dist), so we cache them straight off the result — no read-back needed.
+result = Wesc.build([ENTRY], outjs: "scripts.js", outcss: "styles.css")
+JS = result.js
+CSS = result.css
 
 server = WEBrick::HTTPServer.new(Port: 3000, Logger: WEBrick::Log.new($stderr, WEBrick::Log::WARN))
 

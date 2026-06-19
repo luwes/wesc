@@ -42,17 +42,19 @@ HERE = Path(__file__).resolve().parent
 SRC_DIR = HERE.parents[1] / "crates" / "wesc" / "tests" / "fixtures" / "todo-app"
 ENTRY = str(SRC_DIR / "index.html")
 
-# Build artifacts (.wesc/ working dir, scripts.js, styles.css) go in ./dist.
-# wesc always creates its .wesc/ mirror relative to the cwd, so we run from dist;
-# the entry point is an absolute path, so the source tree stays untouched.
+# Build artifacts (the .wesc/ working dir) go in ./dist. wesc always creates its
+# .wesc/ mirror relative to the cwd, so we run from dist; the entry point is an
+# absolute path, so the source tree stays untouched.
 DIST_DIR = HERE / "dist"
 DIST_DIR.mkdir(exist_ok=True)
 os.chdir(DIST_DIR)
 
 # Build once up front purely to produce the JS/CSS bundles, then cache them.
-wesc.build([ENTRY], outjs="scripts.js", outcss="styles.css")
-JS = (DIST_DIR / "scripts.js").read_bytes()
-CSS = (DIST_DIR / "styles.css").read_bytes()
+# Empty-string outjs/outcss bundle in memory only (no files written); the
+# bundles come back on the result as `str`, so we just encode them once.
+result = wesc.build([ENTRY], outjs="", outcss="")
+JS = (result.js or "").encode()
+CSS = (result.css or "").encode()
 
 
 class Handler(BaseHTTPRequestHandler):
