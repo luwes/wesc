@@ -70,7 +70,7 @@ fn build(
         minify,
     };
 
-    let (html, css, js) = py.allow_threads(move || {
+    let (html, css, js) = py.detach(move || {
         let mut html: Vec<u8> = Vec::new();
         let assets = wesc_build(options, &mut |chunk: &[u8]| {
             html.extend_from_slice(chunk);
