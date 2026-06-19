@@ -30,7 +30,7 @@ component file stays mode-agnostic; the consumer opts in on the
 `<link rel="definition">` — wesc's import statement:
 
 ```html
-<link rel="definition" name="w-card" href="./card.html" w-lazy>   <!-- lazy -->
+<link rel="definition" name="w-alert" href="./alert.html" w-lazy>  <!-- lazy -->
 <link rel="definition" name="w-hero" href="./hero.html">          <!-- eager -->
 ```
 
@@ -38,7 +38,7 @@ component file stays mode-agnostic; the consumer opts in on the
   `w-lazy="visible"` (default) / `"idle"` / `"interaction"` / `"eager"`.
 - **The user writes only intent.** wesc generates all runtime *mechanism* — the
   `data-w-*` attributes below — on every placeholder. The user never hand-writes
-  them. Optional per-instance `<w-card w-lazy>` sugar defers a single instance's
+  them. Optional per-instance `<w-alert w-lazy>` sugar defers a single instance's
   HTML shell.
 - **Shadow DOM required for the slotted case.** Runtime `<slot>` projection is
   shadow-DOM-only, so DSD is what lets the shell load separately while slotted
@@ -49,11 +49,11 @@ component file stays mode-agnostic; the consumer opts in on the
 The emitted placeholder (wesc-generated):
 
 ```html
-<w-card data-w-html="/a/card.html" data-w-js="/a/card.js"
-        data-w-client="visible" data-w-ssr>
-  <h3 slot="title">Title</h3>
+<w-alert data-w-html="/a/alert.html" data-w-js="/a/alert.js"
+         data-w-client="visible" data-w-ssr>
+  <span slot="title">Heads up</span>
   <!--w:end-->
-</w-card>
+</w-alert>
 ```
 
 ## Reference-level explanation

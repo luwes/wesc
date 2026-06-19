@@ -60,47 +60,73 @@ matching element, and removes the link from the output.
 <!doctype html>
 <html>
   <head>
-    <link rel="definition" name="w-card" href="./components/card.html">
+    <link rel="definition" name="w-alert" href="./components/alert.html">
   </head>
   <body>
-    <w-card>
-      <h3 slot="title">Title</h3>
-      Description
-    </w-card>
+    <w-alert variant="warning">
+      <span slot="title">Heads up</span>
+      Your trial ends in 3 days.
+    </w-alert>
   </body>
 </html>
 ```
 
-**components/card.html**
+**components/alert.html**
 
 ```html
 <template shadowrootmode="open">
   <style>
-    @scope {
-      h3 {
-        color: red;
-      }
+    :host {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      border-left: 4px solid;
+    }
+    /* variant-driven styling via a host attribute */
+    :host([variant='warning']) {
+      border-color: #b8860b;
+    }
+    :host([variant='error']) {
+      border-color: #c0392b;
+    }
+    .content {
+      flex: 1;
+    }
+    button {
+      border: 0;
+      background: none;
+      font: inherit;
+      cursor: pointer;
     }
   </style>
-  <div>
-    <h3><slot name="title">Add a slotted title</slot></h3>
-    <p><slot>Add default slotted content</slot></p>
+  <div class="content">
+    <strong><slot name="title">Notice</slot></strong>
+    <p><slot>Something happened.</slot></p>
   </div>
+  <button part="dismiss" aria-label="Dismiss">×</button>
 </template>
 
 <style>
-  w-card {
+  /* collected into the CSS bundle; styles the host from the page */
+  w-alert {
     display: block;
+    margin-block: 1rem;
   }
 </style>
 
 <script>
-  class WCard extends HTMLElement {
-    connectedCallback() {
-      console.log('w-card connected');
-    }
-  }
-  customElements.define('w-card', WCard);
+  customElements.define(
+    'w-alert',
+    class extends HTMLElement {
+      connectedCallback() {
+        this.shadowRoot.querySelector('button').addEventListener('click', () => {
+          this.dispatchEvent(new CustomEvent('dismiss'));
+          this.remove();
+        });
+      }
+    },
+  );
 </script>
 ```
 
@@ -109,6 +135,9 @@ matching element, and removes the link from the output.
 - **Light DOM:** drop the attribute (`<template>`) and the content is
   inlined into light DOM instead — slots still work, there's just no
   shadow root.
+- In-shadow styles are encapsulated: `:host` (including state selectors
+  like `:host([variant])`) and internals stay scoped to the shadow root,
+  and `part` exposes hooks for the page to style.
 - The top-level `<style>` and `<script>` (outside the template) supply
   the host styles and upgrade script, and feed the bundled CSS / JS
   outputs.
@@ -208,12 +237,13 @@ even when the imported component is TypeScript:
 <script type="module" lang="ts">
   import './child.js'; // resolves to the child's `.ts` script
 
-  class WCard extends HTMLElement {
+  class WAlert extends HTMLElement {
     connectedCallback(): void {
-      console.log('w-card connected');
+      const button = this.shadowRoot!.querySelector('button')!;
+      button.addEventListener('click', () => this.remove());
     }
   }
-  customElements.define('w-card', WCard);
+  customElements.define('w-alert', WAlert);
 </script>
 ```
 
@@ -295,12 +325,12 @@ use wesc::{build, BuildOptions};
 let source = HashMap::from([
     (
         "/site/pages/index.html".to_string(),
-        b"<link rel=\"definition\" name=\"w-card\" href=\"../components/card.html\">\
-          <w-card>Hi</w-card>"
+        b"<link rel=\"definition\" name=\"w-alert\" href=\"../components/alert.html\">\
+          <w-alert>Hi</w-alert>"
             .to_vec(),
     ),
     (
-        "/site/components/card.html".to_string(),
+        "/site/components/alert.html".to_string(),
         b"<template><slot></slot></template>".to_vec(),
     ),
 ]);

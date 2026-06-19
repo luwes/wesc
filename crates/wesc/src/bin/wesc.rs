@@ -45,24 +45,24 @@ struct Cli {
 /// <!doctype html>
 /// <html>
 ///   <head>
-///     <link rel="definition" name="w-card" href="./components/card.html">
+///     <link rel="definition" name="w-alert" href="./components/alert.html">
 ///   </head>
 ///   <body>
-///     <w-card>
-///       <h3 slot="title">Title</h3>
-///       Description
-///     </w-card>
+///     <w-alert variant="warning">
+///       <span slot="title">Heads up</span>
+///       Your trial ends in 3 days.
+///     </w-alert>
 ///   </body>
 /// </html>
 /// ```
 ///
-/// **components/card.html**
+/// **components/alert.html**
 ///
 /// ```html
 /// <template>
-///   <div>
-///     <h3><slot name="title">Add a slotted title</slot></h3>
-///     <p><slot>Add default slotted content</slot></p>
+///   <div class="content">
+///     <strong><slot name="title">Notice</slot></strong>
+///     <p><slot>Something happened.</slot></p>
 ///   </div>
 /// </template>
 /// ```
