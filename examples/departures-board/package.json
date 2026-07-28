@@ -6,6 +6,6 @@
     "start": "node app/server.mjs"
   },
   "dependencies": {
-    "liquidjs": "^10.21.1"
+    "liquidjs": "^10.27.1"
   }
 }
